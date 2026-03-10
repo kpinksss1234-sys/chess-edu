@@ -238,6 +238,13 @@ body {
   position: relative; z-index: 1; pointer-events: none;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
 }
+/* 흑 기물: 회색 테두리 효과 */
+.piece-img.black-piece {
+  filter:
+    drop-shadow(0 0 1px rgba(180,180,180,0.9))
+    drop-shadow(0 0 1px rgba(150,150,150,0.7))
+    drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
 
 .coord-rank {
   position: absolute; top: 2px; left: 3px;
@@ -396,17 +403,18 @@ body {
 .move-count { font-size: 11px; color: var(--text-muted); }
 
 .move-pair {
-  display: grid; grid-template-columns: 28px 1fr 1fr;
+  display: grid; grid-template-columns: 32px 1fr 1fr;
   align-items: center; border-radius: 4px; overflow: hidden; margin-bottom: 2px;
 }
-.move-num { font-size: 12px; color: var(--text-muted); padding: 5px 4px; text-align: right; padding-right: 8px; }
+.move-num { font-size: 13px; color: var(--text-muted); padding: 5px 4px; text-align: right; padding-right: 8px; }
 .move-cell {
-  padding: 5px 6px; font-size: 13px; font-weight: 500;
+  padding: 5px 8px; font-size: 14.5px; font-weight: 600;
   cursor: pointer; border-radius: 4px; transition: background 0.1s;
-  display: flex; align-items: center; gap: 2px; white-space: nowrap;
+  display: flex; align-items: center; gap: 3px; white-space: nowrap;
 }
 .move-cell:hover { background: var(--bg-hover); }
 .move-cell.active { background: var(--accent-green-dark); color: #fff; }
+.move-cell img { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; }
 .move-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .dot-brilliant  { background: var(--move-brilliant); }
 .dot-great      { background: var(--move-great); }
@@ -911,56 +919,70 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
   flex-wrap: wrap;
   align-items: center;
   gap: 0;
-  padding: 4px 4px 4px 10px;
-  margin: 2px 0 2px 4px;
-  font-size: 13px;
-  border-left: 2px solid rgba(120,120,140,0.3);
-  background: rgba(255,255,255,0.02);
-  border-radius: 0 4px 4px 0;
+  padding: 5px 6px 5px 12px;
+  margin: 3px 0 3px 6px;
+  font-size: 14px;
+  border-left: 3px solid rgba(120,120,140,0.35);
+  background: rgba(255,255,255,0.025);
+  border-radius: 0 5px 5px 0;
+  line-height: 1.6;
 }
 .variation-block:hover {
-  background: rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.045);
 }
 .variation-block.active-engine-line {
   border-left-color: var(--accent-blue);
-  background: rgba(80,144,208,0.06);
+  background: rgba(80,144,208,0.07);
 }
 /* 서브라인 — 들여쓰기 + 초록 왼쪽 테두리 */
 .variation-block.sub-engine-line {
-  margin-left: 20px;
-  border-left: 2px solid rgba(127,166,80,0.6);
-  background: rgba(80,160,80,0.04);
-  font-size: 12.5px;
+  margin-left: 24px;
+  border-left: 3px solid rgba(127,166,80,0.65);
+  background: rgba(80,160,80,0.045);
+  font-size: 13.5px;
 }
 .variation-block.sub-engine-line.active-engine-line {
   border-left-color: var(--accent-green-bright);
-  background: rgba(100,180,80,0.09);
+  background: rgba(100,180,80,0.10);
 }
 .engine-preview-block { display: contents; }
 .variation-header { display: contents; }
 .var-bracket { display: none; }
 .var-label { display: none; }
 .var-close {
-  font-size: 10px; color: var(--text-muted); cursor: pointer;
+  font-size: 11px; color: var(--text-muted); cursor: pointer;
   padding: 2px 5px; border-radius: 3px;
-  transition: background 0.15s;
-  margin-left: 4px; flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+  margin-left: 5px; flex-shrink: 0;
+  opacity: 0.5;
 }
-.var-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+.var-close:hover { background: var(--bg-hover); color: var(--text-primary); opacity: 1; }
 .variation-moves { display: contents; }
 .var-num {
-  color: var(--text-muted); font-size: 12px; font-weight: 500;
-  padding: 3px 0px 3px 5px;
-  white-space: nowrap; flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 2px 1px 2px 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
   letter-spacing: 0.2px;
+  opacity: 0.7;
 }
 .var-move {
-  padding: 3px 5px; font-size: 13px; font-weight: 500;
-  cursor: pointer; border-radius: 4px; transition: background 0.12s;
-  display: inline-flex; align-items: center; gap: 2px; white-space: nowrap;
+  padding: 2px 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background 0.12s;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
   color: var(--text-primary);
+  margin: 1px 0;
 }
-.var-move img { width: 14px; height: 14px; object-fit: contain; vertical-align: middle; }
+.var-move img { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; }
 .var-move:hover { background: var(--bg-hover); }
 .var-move.active {
   background: var(--accent-green-dark);
@@ -972,17 +994,80 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 .engine-line-row { display: contents; }
 .engine-line-sep { width: 100%; height: 0; flex-basis: 100%; margin: 0; }
 
-/* 평가점수 배지 — chess.com 스타일: 굵고 앞에 위치 */
+/* 평가점수 배지 */
 .engine-line-eval {
-  font-size: 11.5px; font-weight: 800;
+  font-size: 12px;
+  font-weight: 800;
   flex-shrink: 0;
   padding: 2px 8px 2px 0px;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
   letter-spacing: 0.3px;
+  min-width: 38px;
 }
 .engine-line-eval.positive { color: #a0c878; }
 .engine-line-eval.negative { color: #e07070; }
+
+/* 엔진 라인 선택 하이라이트 */
+.top-move-row.previewing {
+  background: rgba(80,144,208,0.15) !important;
+  outline: 1px solid rgba(80,144,208,0.5);
+}
+.top-move-row { cursor: pointer; }
+
+/* ── 분기점 구분선 ── */
+.branch-sep {
+  display: inline-flex; align-items: center;
+  margin: 0 5px;
+  color: var(--accent-blue);
+  font-size: 11px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.branch-sep::before {
+  content: '';
+  display: inline-block;
+  width: 1px; height: 14px;
+  background: var(--accent-blue);
+  margin-right: 4px;
+  opacity: 0.5;
+}
+
+/* ── 다중 루트라인: 라인 번호 배지 ── */
+.engine-line-index {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  font-size: 9.5px; font-weight: 700;
+  background: rgba(120,120,160,0.25);
+  color: var(--text-muted);
+  flex-shrink: 0; margin-right: 4px;
+}
+.variation-block.active-engine-line .engine-line-index {
+  background: var(--accent-blue);
+  color: #fff;
+}
+/* 루트라인 사이 구분선 */
+.engine-line-divider {
+  width: 100%; height: 1px;
+  background: rgba(120,120,160,0.15);
+  margin: 4px 0 4px 4px;
+  flex-shrink: 0;
+}
+/* 다중 루트라인 컨테이너 */
+.multi-root-container {
+  border-left: 3px solid rgba(120,120,140,0.35);
+  margin: 3px 0 3px 6px;
+  padding: 0; border-radius: 0 5px 5px 0;
+}
+.multi-root-container .variation-block {
+  border-left: none;
+  margin-left: 0;
+  padding-left: 8px;
+}
+
+/* extraMove 수 스타일 */
+.var-move.extra-move { color: #d4c070; }
+.var-move.extra-move.active { background: #5a4a10; color: #f0d870; }
 
 /* 엔진 라인 선택 하이라이트 */
 .top-move-row.previewing {
@@ -1044,6 +1129,50 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 /* extraMove 수 스타일 */
 .var-move.extra-move { color: #d4c070; }
 .var-move.extra-move.active { background: #5a4a10; color: #f0d870; }
+
+/* ── 새 라인 레이아웃 ── */
+.variation-block-outer {
+  display: block;
+  padding: 5px 6px 5px 12px;
+  margin: 3px 0 3px 6px;
+  border-left: 3px solid rgba(120,120,140,0.35);
+  background: rgba(255,255,255,0.025);
+  border-radius: 0 5px 5px 0;
+}
+.variation-block-outer:hover { background: rgba(255,255,255,0.04); }
+.variation-block-outer.active-engine-line {
+  border-left-color: var(--accent-blue);
+  background: rgba(80,144,208,0.07);
+}
+.var-line-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  line-height: 1.6;
+}
+/* 분기 후 이어지는 행 — 위쪽 살짝 여백 */
+.var-line-continued {
+  margin-top: 1px;
+}
+.sub-line-outer {
+  display: block;
+  margin: 3px 0 0 8px;
+  padding: 4px 4px 4px 10px;
+  border-left: 3px solid rgba(127,166,80,0.65);
+  background: rgba(80,160,80,0.04);
+  border-radius: 0 4px 4px 0;
+  font-size: 13.5px;
+}
+.sub-line-outer:hover { background: rgba(80,160,80,0.07); }
+.sub-line-outer.active-engine-line {
+  border-left-color: var(--accent-green-bright);
+  background: rgba(100,180,80,0.10);
+}
+.sub-line-outer .sub-line-outer {
+  margin-left: 12px;
+  border-left-color: rgba(127,166,80,0.4);
+}
 </style>
 </head>
 <body>
@@ -2049,7 +2178,11 @@ function moveCellHTML(h) {
   } else {
     pieceCode = color + 'P';
   }
-  const pieceIconHTML = `<img src="${pieceImg(pieceCode)}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:2px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3))">`;
+  const isBlack = pieceCode.startsWith('b');
+  const blackFilter = isBlack
+    ? 'drop-shadow(0 0 1px rgba(180,180,180,0.9)) drop-shadow(0 0 1px rgba(150,150,150,0.7)) drop-shadow(0 1px 2px rgba(0,0,0,0.5))'
+    : 'drop-shadow(0 1px 1px rgba(0,0,0,0.3))';
+  const pieceIconHTML = `<img src="${pieceImg(pieceCode)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:2px;filter:${blackFilter}">`;
 
   // SAN 표시 정제:
   // 1) 기물 대문자(아이콘으로 대체) 제거
@@ -2086,7 +2219,11 @@ function _sanToMoveCellHTML(san, turn) {
   } else {
     pieceCode = turn + 'P';
   }
-  const pieceIconHTML = `<img src="${pieceImg(pieceCode)}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:2px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3))">`;
+  const isBlack2 = pieceCode.startsWith('b');
+  const blackFilter2 = isBlack2
+    ? 'drop-shadow(0 0 1px rgba(180,180,180,0.9)) drop-shadow(0 0 1px rgba(150,150,150,0.7)) drop-shadow(0 1px 2px rgba(0,0,0,0.5))'
+    : 'drop-shadow(0 1px 1px rgba(0,0,0,0.3))';
+  const pieceIconHTML = `<img src="${pieceImg(pieceCode)}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:2px;filter:${blackFilter2}">`;
   let displaySan = san;
   if (san !== 'O-O' && san !== 'O-O-O') {
     if ('NBRQK'.includes(displaySan[0])) displaySan = displaySan.slice(1);
@@ -3471,7 +3608,7 @@ class ChessGame {
         const piece = this.board[r][c];
         if (piece) {
           const img = document.createElement('img');
-          img.className = 'piece-img';
+          img.className = 'piece-img' + (piece.startsWith('b') ? ' black-piece' : '');
           img.src = pieceImg(piece);
           img.alt = piece;
           img.draggable = false; // HTML5 drag 완전 비활성
@@ -4476,13 +4613,10 @@ class ChessGame {
     }
 
     const histIdxSnap = histIdx;
-
-    // 루트 라인과 서브라인 분리
     const rootLines = lines.filter(l => !l.parentLineId);
-    const subLines  = lines.filter(l =>  l.parentLineId);
+    const allSubLines = lines.filter(l => l.parentLineId);
     const multiRoot = rootLines.length > 1;
 
-    // 루트라인이 여러 개면 컨테이너로 묶기
     const rootContainer = multiRoot ? document.createElement('div') : null;
     if (rootContainer) {
       rootContainer.className = 'multi-root-container';
@@ -4492,168 +4626,187 @@ class ChessGame {
 
     for (let ri = 0; ri < rootLines.length; ri++) {
       const lineData = rootLines[ri];
-      const pvIdx = lineData.pvIdx;
-      const isActiveLine = this.enginePreview &&
-        this.enginePreview.histIdx === histIdx &&
-        this.enginePreview.pvIdx === pvIdx;
-      const activeIdx     = isActiveLine ? (this.enginePreview.activeIdx    ?? -1) : -1;
-      const extraMoveIdx  = isActiveLine ? (this.enginePreview.extraMoveIdx ?? -1) : -1;
-
-      // 루트라인 사이 구분선 (첫 번째 제외)
       if (multiRoot && ri > 0) {
         const div = document.createElement('div');
         div.className = 'engine-line-divider';
         rootTarget.appendChild(div);
       }
+      // 루트라인 블록 생성 — 서브라인을 내부에 포함하므로 flex-wrap 대신 block 레이아웃
+      const outerBlock = document.createElement('div');
+      outerBlock.className = 'variation-block variation-block-outer';
+      if (multiRoot) outerBlock.classList.add('multi-root-item');
 
-      const block = document.createElement('div');
-      block.className = 'variation-block';
-      if (isActiveLine) block.classList.add('active-engine-line');
+      // 수들이 들어갈 인라인 행
+      const rowEl = document.createElement('div');
+      rowEl.className = 'var-line-row';
+      outerBlock.appendChild(rowEl);
 
-      // 다중 루트라인 번호 배지
-      if (multiRoot) {
-        const badge = document.createElement('span');
-        badge.className = 'engine-line-index';
-        badge.textContent = ri + 1;
-        block.appendChild(badge);
-      }
+      this._buildLineRow(rowEl, lineData, allSubLines, startTurn, startMoveNum, histIdxSnap, outerBlock);
 
-      // 평가 배지
-      if (lineData.eval) {
-        const evalBadge = document.createElement('span');
-        evalBadge.className = 'engine-line-eval';
-        const cp = parseFloat(lineData.eval);
-        if (!isNaN(cp)) evalBadge.classList.add(cp >= 0 ? 'positive' : 'negative');
-        evalBadge.textContent = lineData.eval;
-        block.appendChild(evalBadge);
-      }
-
-      let t2 = startTurn;
-      let moveNum2 = startMoveNum;
-
-      // 엔진라인 수들
-      lineData.moves.forEach((san, mi) => {
-        if (t2 === 'w') {
-          const ns = document.createElement('span');
-          ns.className = 'var-num';
-          ns.textContent = moveNum2 + '.';
-          block.appendChild(ns);
-        } else if (mi === 0) {
-          const ns = document.createElement('span');
-          ns.className = 'var-num';
-          ns.textContent = moveNum2 + '...';
-          block.appendChild(ns);
-        }
-        const ms = document.createElement('span');
-        ms.className = `var-move${mi === activeIdx ? ' active' : ''}`;
-        ms.innerHTML = _sanToMoveCellHTML(san, t2);
-        ms.addEventListener('click', () => this._applyEngineLine(histIdxSnap, pvIdx, mi));
-        block.appendChild(ms);
-
-        // 이 수 이후에 분기되는 서브라인이 있으면 분기 마커 표시
-        const branchKey = `engine:${mi}`;
-        const branchHere = subLines.filter(sl => sl.branchAt === branchKey);
-        if (branchHere.length > 0) {
-          const marker = document.createElement('span');
-          marker.className = 'branch-sep';
-          marker.title = `${branchHere.length}개 서브라인`;
-          block.appendChild(marker);
-        }
-
-        if (t2 === 'b') moveNum2++;
-        t2 = t2 === 'w' ? 'b' : 'w';
-      });
-
-      // extraMoves
-      const extraMoves = lineData.extraMoves || [];
-      if (extraMoves.length > 0) {
-        // extra 첫 수의 실제 턴/수번호로 리셋 (엔진라인 중간에서 두어진 수이므로)
-        t2 = extraMoves[0].turn;
-        moveNum2 = extraMoves[0].fullMove;
-      }
-      extraMoves.forEach((em, ei) => {
-        // extraMoves 시작 전에 분기 구분선 (처음 한 번만)
-        if (ei === 0) {
-          const sep = document.createElement('span');
-          sep.className = 'branch-sep';
-          sep.title = '직접 둔 수';
-          block.appendChild(sep);
-        }
-        if (t2 === 'w') {
-          const ns = document.createElement('span');
-          ns.className = 'var-num';
-          ns.textContent = moveNum2 + '.';
-          block.appendChild(ns);
-        } else if (t2 === 'b' && ei === 0) {
-          const ns = document.createElement('span');
-          ns.className = 'var-num';
-          ns.textContent = moveNum2 + '...';
-          block.appendChild(ns);
-        }
-        const ms = document.createElement('span');
-        ms.className = `var-move extra-move${ei === extraMoveIdx ? ' active' : ''}`;
-        ms.innerHTML = _sanToMoveCellHTML(em.san, t2);
-        ms.addEventListener('click', () => this._applyEngineLineExtra(histIdxSnap, pvIdx, ei));
-        block.appendChild(ms);
-
-        // extra 위치에서 분기되는 서브라인 마커
-        const extraBranchKey = `extra:${ei}`;
-        const extraBranchHere = subLines.filter(sl => sl.branchAt === extraBranchKey);
-        if (extraBranchHere.length > 0) {
-          const marker = document.createElement('span');
-          marker.className = 'branch-sep';
-          marker.title = `${extraBranchHere.length}개 서브라인`;
-          block.appendChild(marker);
-        }
-
-        if (t2 === 'b') moveNum2++;
-        t2 = t2 === 'w' ? 'b' : 'w';
-      });
-
-      // 닫기 버튼 — 루트라인이 1개면 전체 닫기, 여러 개면 해당 라인만 삭제
-      const closeBtn = document.createElement('span');
-      closeBtn.className = 'var-close';
-      closeBtn.title = multiRoot ? '이 라인 삭제' : '닫기';
-      closeBtn.textContent = '✕';
-      const closePvIdx = pvIdx;
-      closeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (multiRoot) {
-          // 해당 루트라인과 그 서브라인만 삭제
-          const ls = this.enginePreviews[histIdxSnap];
-          if (ls) {
-            const target = ls.find(l => l.pvIdx === closePvIdx);
-            const targetId = target?.id;
-            this.enginePreviews[histIdxSnap] = ls.filter(l =>
-              l.pvIdx !== closePvIdx && l.parentLineId !== targetId
-            );
-            if (this.enginePreview?.pvIdx === closePvIdx) {
-              this.enginePreview = null;
-              _engineLineAnalysisFen = null;
-              this._applyHistState(histIdxSnap);
-            }
-          }
-          this.renderMoveList();
-        } else {
-          this.removeEnginePreviewAt(histIdxSnap);
-        }
-      });
-      block.appendChild(closeBtn);
-      rootTarget.appendChild(block);
-
-      // ── 이 루트라인의 서브라인들을 바로 아래에 렌더 ──────────
-      for (const subLine of subLines.filter(sl => sl.parentLineId === lineData.id)) {
-        this._renderSubLine(subLine, subLines, histIdxSnap, rootTarget);
-      }
+      rootTarget.appendChild(outerBlock);
     }
   }
 
-  // ── 서브라인 렌더 (재귀 지원) ───────────────────────────────
-  _renderSubLine(subLine, allSubLines, histIdxSnap, el) {
+  // ── 단일 라인의 수 행 + 내부 서브라인들을 outerBlock에 빌드 ──
+  // 분기점에서 행을 끊고 → 서브라인 → 나머지 행 순서로 배치
+  _buildLineRow(rowEl, lineData, allSubLines, startTurn, startMoveNum, histIdxSnap, outerBlock) {
+    const pvIdx = lineData.pvIdx;
+    const isActiveLine = this.enginePreview &&
+      this.enginePreview.histIdx === histIdxSnap &&
+      this.enginePreview.pvIdx === pvIdx;
+    const activeIdx    = isActiveLine ? (this.enginePreview.activeIdx    ?? -1) : -1;
+    const extraMoveIdx = isActiveLine ? (this.enginePreview.extraMoveIdx ?? -1) : -1;
+
+    if (isActiveLine) outerBlock.classList.add('active-engine-line');
+
+    // 다중 루트라인 번호 배지
+    const multiRoot = outerBlock.classList.contains('multi-root-item');
+    const rootLines = (this.enginePreviews[histIdxSnap] || []).filter(l => !l.parentLineId);
+    if (multiRoot) {
+      const ri = rootLines.findIndex(l => l.pvIdx === pvIdx);
+      if (ri >= 0) {
+        const badge = document.createElement('span');
+        badge.className = 'engine-line-index';
+        badge.textContent = ri + 1;
+        rowEl.appendChild(badge);
+      }
+    }
+
+    // 평가 배지
+    if (lineData.eval) {
+      const evalBadge = document.createElement('span');
+      evalBadge.className = 'engine-line-eval';
+      const cp = parseFloat(lineData.eval);
+      if (!isNaN(cp)) evalBadge.classList.add(cp >= 0 ? 'positive' : 'negative');
+      evalBadge.textContent = lineData.eval;
+      rowEl.appendChild(evalBadge);
+    }
+
+    let t2 = startTurn;
+    let moveNum2 = startMoveNum;
+    // currentRow: 현재 수들이 추가되는 행 (서브라인 삽입 후 교체됨)
+    let currentRow = rowEl;
+
+    // 엔진라인 수들
+    console.log('[RENDER] lineData.id:', lineData.id, 'pvIdx:', pvIdx);
+    console.log('[RENDER] allSubLines for this line:', allSubLines.filter(sl => sl.parentLineId === lineData.id).map(sl => ({pvIdx: sl.pvIdx, branchAt: sl.branchAt})));
+    lineData.moves.forEach((san, mi) => {
+      const needsNum = t2 === 'w' || mi === 0 || currentRow._needsMoveNum;
+      if (needsNum) {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = t2 === 'w' ? moveNum2 + '.' : moveNum2 + '...';
+        currentRow.appendChild(ns);
+        currentRow._needsMoveNum = false;
+      }
+      const ms = document.createElement('span');
+      ms.className = `var-move${mi === activeIdx ? ' active' : ''}`;
+      ms.innerHTML = _sanToMoveCellHTML(san, t2);
+      ms.addEventListener('click', () => this._applyEngineLine(histIdxSnap, pvIdx, mi));
+      currentRow.appendChild(ms);
+
+      if (t2 === 'b') moveNum2++;
+      t2 = t2 === 'w' ? 'b' : 'w';
+
+      // 이 수 이후 분기 서브라인 → 행 끊기 + 서브라인 + 새 행
+      const branchKey = `engine:${mi}`;
+      const branchHere = allSubLines.filter(sl => sl.parentLineId === lineData.id && sl.branchAt === branchKey);
+      if (branchHere.length > 0) {
+        for (const sl of branchHere) {
+          this._renderSubLineInside(sl, allSubLines, histIdxSnap, outerBlock);
+        }
+        // 새 행 시작 — 나머지 수들은 여기에 추가
+        const nextRow = document.createElement('div');
+        nextRow.className = 'var-line-row var-line-continued';
+        outerBlock.appendChild(nextRow);
+        currentRow = nextRow;
+        // 수번호 컨텍스트 리셋 플래그 (다음 수에서 수번호를 항상 표시)
+        currentRow._needsMoveNum = true;
+      }
+    });
+
+    // ── extraMoves ──
+    const extraMoves = lineData.extraMoves || [];
+    if (extraMoves.length > 0) {
+      t2 = extraMoves[0].turn;
+      moveNum2 = extraMoves[0].fullMove;
+    }
+    extraMoves.forEach((em, ei) => {
+      if (ei === 0) {
+        const sep = document.createElement('span');
+        sep.className = 'branch-sep';
+        sep.title = '직접 둔 수';
+        currentRow.appendChild(sep);
+      }
+      if (t2 === 'w' || currentRow._needsMoveNum) {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = moveNum2 + '.';
+        currentRow.appendChild(ns);
+        currentRow._needsMoveNum = false;
+      } else if (t2 === 'b' && ei === 0) {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = moveNum2 + '...';
+        currentRow.appendChild(ns);
+      }
+      const ms = document.createElement('span');
+      ms.className = `var-move extra-move${ei === extraMoveIdx ? ' active' : ''}`;
+      ms.innerHTML = _sanToMoveCellHTML(em.san, t2);
+      ms.addEventListener('click', () => this._applyEngineLineExtra(histIdxSnap, pvIdx, ei));
+      currentRow.appendChild(ms);
+
+      if (t2 === 'b') moveNum2++;
+      t2 = t2 === 'w' ? 'b' : 'w';
+
+      const extraBranchKey = `extra:${ei}`;
+      const extraBranchHere = allSubLines.filter(sl => sl.parentLineId === lineData.id && sl.branchAt === extraBranchKey);
+      if (extraBranchHere.length > 0) {
+        for (const sl of extraBranchHere) {
+          this._renderSubLineInside(sl, allSubLines, histIdxSnap, outerBlock);
+        }
+        const nextRow = document.createElement('div');
+        nextRow.className = 'var-line-row var-line-continued';
+        outerBlock.appendChild(nextRow);
+        currentRow = nextRow;
+        currentRow._needsMoveNum = true;
+      }
+    });
+
+    // 닫기 버튼
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'var-close';
+    closeBtn.title = multiRoot ? '이 라인 삭제' : '닫기';
+    closeBtn.textContent = '✕';
+    const closePvIdx = pvIdx;
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (multiRoot) {
+        const ls = this.enginePreviews[histIdxSnap];
+        if (ls) {
+          const target = ls.find(l => l.pvIdx === closePvIdx);
+          const targetId = target?.id;
+          this.enginePreviews[histIdxSnap] = ls.filter(l =>
+            l.pvIdx !== closePvIdx && l.parentLineId !== targetId
+          );
+          if (this.enginePreview?.pvIdx === closePvIdx) {
+            this.enginePreview = null;
+            _engineLineAnalysisFen = null;
+            this._applyHistState(histIdxSnap);
+          }
+        }
+        this.renderMoveList();
+      } else {
+        this.removeEnginePreviewAt(histIdxSnap);
+      }
+    });
+    currentRow.appendChild(closeBtn);
+  }
+
+  // ── 서브라인을 부모 outerBlock 안에 들여쓰기하여 렌더 (재귀) ──
+  _renderSubLineInside(subLine, allSubLines, histIdxSnap, parentOuter) {
     const pvIdx = subLine.pvIdx;
     const histIdx = histIdxSnap;
-
-    // 분기 시작점 계산
     const { startTurn, startMoveNum } = this._getBranchStartContext(histIdx, subLine.branchAt, subLine.parentLineId);
 
     const isActiveLine = this.enginePreview &&
@@ -4662,42 +4815,59 @@ class ChessGame {
     const activeIdx    = isActiveLine ? (this.enginePreview.activeIdx    ?? -1) : -1;
     const extraMoveIdx = isActiveLine ? (this.enginePreview.extraMoveIdx ?? -1) : -1;
 
-    const block = document.createElement('div');
-    block.className = 'variation-block sub-engine-line';
-    if (isActiveLine) block.classList.add('active-engine-line');
+    // 서브라인 외부 컨테이너 (들여쓰기 + 왼쪽 초록 선)
+    const subOuter = document.createElement('div');
+    subOuter.className = 'sub-line-outer' + (isActiveLine ? ' active-engine-line' : '');
 
-    // 서브라인 평가 배지
+    // 수 행
+    const rowEl = document.createElement('div');
+    rowEl.className = 'var-line-row';
+    subOuter.appendChild(rowEl);
+
+    // 평가 배지
     if (subLine.eval) {
       const evalBadge = document.createElement('span');
       evalBadge.className = 'engine-line-eval';
       const cp = parseFloat(subLine.eval);
       if (!isNaN(cp)) evalBadge.classList.add(cp >= 0 ? 'positive' : 'negative');
       evalBadge.textContent = subLine.eval;
-      block.appendChild(evalBadge);
+      rowEl.appendChild(evalBadge);
     }
 
     let t2 = startTurn;
     let moveNum2 = startMoveNum;
+    let currentRow = rowEl;
 
     subLine.moves.forEach((san, mi) => {
-      if (t2 === 'w') {
+      const needsNum = t2 === 'w' || mi === 0 || currentRow._needsMoveNum;
+      if (needsNum) {
         const ns = document.createElement('span');
         ns.className = 'var-num';
-        ns.textContent = moveNum2 + '.';
-        block.appendChild(ns);
-      } else if (mi === 0) {
-        const ns = document.createElement('span');
-        ns.className = 'var-num';
-        ns.textContent = moveNum2 + '...';
-        block.appendChild(ns);
+        ns.textContent = t2 === 'w' ? moveNum2 + '.' : moveNum2 + '...';
+        currentRow.appendChild(ns);
+        currentRow._needsMoveNum = false;
       }
       const ms = document.createElement('span');
       ms.className = `var-move${mi === activeIdx ? ' active' : ''}`;
       ms.innerHTML = _sanToMoveCellHTML(san, t2);
       ms.addEventListener('click', () => this._applyEngineLine(histIdxSnap, pvIdx, mi));
-      block.appendChild(ms);
+      currentRow.appendChild(ms);
       if (t2 === 'b') moveNum2++;
       t2 = t2 === 'w' ? 'b' : 'w';
+
+      // 재귀: 이 서브라인의 자식 서브라인 — 행 끊고 삽입
+      const branchKey = `engine:${mi}`;
+      const branchHere = allSubLines.filter(sl => sl.parentLineId === subLine.id && sl.branchAt === branchKey);
+      if (branchHere.length > 0) {
+        for (const child of branchHere) {
+          this._renderSubLineInside(child, allSubLines, histIdxSnap, subOuter);
+        }
+        const nextRow = document.createElement('div');
+        nextRow.className = 'var-line-row var-line-continued';
+        subOuter.appendChild(nextRow);
+        currentRow = nextRow;
+        currentRow._needsMoveNum = true;
+      }
     });
 
     // extraMoves
@@ -4710,26 +4880,36 @@ class ChessGame {
       if (ei === 0) {
         const sep = document.createElement('span');
         sep.className = 'branch-sep';
-        block.appendChild(sep);
+        currentRow.appendChild(sep);
       }
-      if (t2 === 'w') {
+      const needsNum2 = t2 === 'w' || (t2 === 'b' && ei === 0) || currentRow._needsMoveNum;
+      if (needsNum2) {
         const ns = document.createElement('span');
         ns.className = 'var-num';
-        ns.textContent = moveNum2 + '.';
-        block.appendChild(ns);
-      } else if (t2 === 'b' && ei === 0) {
-        const ns = document.createElement('span');
-        ns.className = 'var-num';
-        ns.textContent = moveNum2 + '...';
-        block.appendChild(ns);
+        ns.textContent = t2 === 'w' ? moveNum2 + '.' : moveNum2 + '...';
+        currentRow.appendChild(ns);
+        currentRow._needsMoveNum = false;
       }
       const ms = document.createElement('span');
       ms.className = `var-move extra-move${ei === extraMoveIdx ? ' active' : ''}`;
       ms.innerHTML = _sanToMoveCellHTML(em.san, t2);
       ms.addEventListener('click', () => this._applyEngineLineExtra(histIdxSnap, pvIdx, ei));
-      block.appendChild(ms);
+      currentRow.appendChild(ms);
       if (t2 === 'b') moveNum2++;
       t2 = t2 === 'w' ? 'b' : 'w';
+
+      const extraBranchKey = `extra:${ei}`;
+      const extraBranchHere = allSubLines.filter(sl => sl.parentLineId === subLine.id && sl.branchAt === extraBranchKey);
+      if (extraBranchHere.length > 0) {
+        for (const child of extraBranchHere) {
+          this._renderSubLineInside(child, allSubLines, histIdxSnap, subOuter);
+        }
+        const nextRow = document.createElement('div');
+        nextRow.className = 'var-line-row var-line-continued';
+        subOuter.appendChild(nextRow);
+        currentRow = nextRow;
+        currentRow._needsMoveNum = true;
+      }
     });
 
     // 닫기
@@ -4739,10 +4919,16 @@ class ChessGame {
     closeBtn.textContent = '✕';
     closeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const lines = this.enginePreviews[histIdx];
-      if (!lines) return;
-      const idx = lines.findIndex(l => l.pvIdx === pvIdx);
-      if (idx >= 0) lines.splice(idx, 1);
+      const ls = this.enginePreviews[histIdx];
+      if (!ls) return;
+      // 이 서브라인 및 자식 서브라인 모두 삭제
+      const toDelete = new Set();
+      const collect = (id) => {
+        ls.forEach(l => { if (l.parentLineId === id) { toDelete.add(l.pvIdx); collect(l.id); } });
+      };
+      toDelete.add(pvIdx);
+      collect(subLine.id);
+      this.enginePreviews[histIdx] = ls.filter(l => !toDelete.has(l.pvIdx));
       if (this.enginePreview?.pvIdx === pvIdx) {
         this.enginePreview = null;
         _engineLineAnalysisFen = null;
@@ -4753,13 +4939,14 @@ class ChessGame {
       }
       this.renderMoveList();
     });
-    block.appendChild(closeBtn);
-    el.appendChild(block);
+    currentRow.appendChild(closeBtn);
 
-    // ── 이 서브라인의 자식 서브라인들도 재귀 렌더 ──────────────
-    for (const child of allSubLines.filter(sl => sl.parentLineId === subLine.id)) {
-      this._renderSubLine(child, allSubLines, histIdxSnap, el);
-    }
+    parentOuter.appendChild(subOuter);
+  }
+
+  // 구버전 _renderSubLine — 호환성 유지 (내부 호출 없음)
+  _renderSubLine(subLine, allSubLines, histIdxSnap, el) {
+    // _renderSubLineInside로 대체됨 — 빈 구현
   }
 
   // ── 분기 시작 컨텍스트 계산 ─────────────────────────────────
@@ -4768,54 +4955,66 @@ class ChessGame {
   _getBranchStartContext(histIdx, branchAt, parentLineId) {
     const lines = this.enginePreviews[histIdx] || [];
 
-    let startTurn, startMoveNum;
+    // 기준 루트 시작 턴/수번호
+    let rootTurn, rootMoveNum;
     if (histIdx >= 0 && this.history[histIdx]) {
       const s = this.history[histIdx];
-      startTurn = s.turn === 'w' ? 'b' : 'w';
-      startMoveNum = s.turn === 'b' ? s.fullMove + 1 : s.fullMove;
+      rootTurn = s.turn === 'w' ? 'b' : 'w';
+      rootMoveNum = s.turn === 'b' ? s.fullMove + 1 : s.fullMove;
     } else {
-      startTurn = 'w'; startMoveNum = 1;
+      rootTurn = 'w'; rootMoveNum = 1;
     }
 
     if (!branchAt || branchAt === -1) {
-      return { startTurn, startMoveNum };
+      return { startTurn: rootTurn, startMoveNum: rootMoveNum };
     }
 
-    // 부모 라인 찾기 (루트라인 or 서브라인)
+    // 부모 라인의 시작 컨텍스트를 재귀로 계산한 뒤,
+    // 거기서 branchAt까지만 수를 소비 → 서브라인의 시작점
+    const _computeLineStart = (line) => {
+      // 루트라인이면 기준 상태에서 시작
+      if (!line.parentLineId || !line.branchAt || line.branchAt === -1) {
+        return { t: rootTurn, mn: rootMoveNum };
+      }
+      // 서브라인이면: 부모의 시작 컨텍스트 + 부모의 branchAt까지 소비
+      const parent = lines.find(l => l.id === line.parentLineId);
+      if (!parent) return { t: rootTurn, mn: rootMoveNum };
+      const parentStart = _computeLineStart(parent);
+      let t = parentStart.t, mn = parentStart.mn;
+      // 부모 라인의 branchAt까지만 소비 (inclusive)
+      const ba = line.branchAt;
+      let consumeCount = 0;
+      if (ba.startsWith('engine:')) {
+        consumeCount = parseInt(ba.split(':')[1]) + 1;
+      } else if (ba.startsWith('extra:')) {
+        // 부모의 모든 엔진수 + extra 인덱스까지
+        consumeCount = (parent.moves || []).length + parseInt(ba.split(':')[1]) + 1;
+      }
+      for (let i = 0; i < consumeCount; i++) {
+        const wasTurn = t; t = t === 'w' ? 'b' : 'w'; if (wasTurn === 'b') mn++;
+      }
+      return { t, mn };
+    };
+
     const parentLine = parentLineId
       ? lines.find(l => l.id === parentLineId)
       : lines.find(l => !l.parentLineId);
 
-    if (!parentLine) return { startTurn, startMoveNum };
+    if (!parentLine) return { startTurn: rootTurn, startMoveNum: rootMoveNum };
 
-    // 부모 라인이 서브라인이면, 먼저 부모의 시작 컨텍스트를 재귀로 계산
-    let t = startTurn;
-    let mn = startMoveNum;
+    // 부모의 시작점 계산
+    const parentStart = _computeLineStart(parentLine);
+    let t = parentStart.t, mn = parentStart.mn;
 
-    if (parentLine.parentLineId) {
-      // 부모가 서브라인 → 부모의 시작 컨텍스트에서 시작
-      const parentCtx = this._getBranchStartContext(histIdx, parentLine.branchAt, parentLine.parentLineId);
-      t = parentCtx.startTurn;
-      mn = parentCtx.startMoveNum;
-      // 부모 서브라인의 수들 소비
-      for (let i = 0; i < parentLine.moves.length; i++) {
-        const wasTurn = t; t = t === 'w' ? 'b' : 'w'; if (wasTurn === 'b') mn++;
-      }
-    }
-
-    const consumeMove = () => {
-      const wasTurn = t;
-      t = t === 'w' ? 'b' : 'w';
-      if (wasTurn === 'b') mn++;
-    };
-
+    // 부모에서 branchAt까지 소비
+    let consumeCount = 0;
     if (branchAt.startsWith('engine:')) {
-      const branchMi = parseInt(branchAt.split(':')[1]);
-      for (let i = 0; i <= branchMi; i++) consumeMove();
+      consumeCount = parseInt(branchAt.split(':')[1]) + 1;
     } else if (branchAt.startsWith('extra:')) {
-      const extraIdx = parseInt(branchAt.split(':')[1]);
-      for (let i = 0; i < parentLine.moves.length; i++) consumeMove();
-      for (let i = 0; i <= extraIdx; i++) consumeMove();
+      consumeCount = (parentLine.moves || []).length + parseInt(branchAt.split(':')[1]) + 1;
+    }
+    for (let i = 0; i < consumeCount; i++) {
+      const wasTurn = t; t = t === 'w' ? 'b' : 'w'; if (wasTurn === 'b') mn++;
     }
 
     return { startTurn: t, startMoveNum: mn };
