@@ -1000,6 +1000,38 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
   opacity: 0.5;
 }
 
+/* ── 다중 루트라인: 라인 번호 배지 ── */
+.engine-line-index {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  font-size: 9.5px; font-weight: 700;
+  background: rgba(120,120,160,0.25);
+  color: var(--text-muted);
+  flex-shrink: 0; margin-right: 3px;
+}
+.variation-block.active-engine-line .engine-line-index {
+  background: var(--accent-blue);
+  color: #fff;
+}
+/* 루트라인 사이 구분선 */
+.engine-line-divider {
+  width: 100%; height: 1px;
+  background: rgba(120,120,160,0.18);
+  margin: 3px 0 3px 4px;
+  flex-shrink: 0;
+}
+/* 다중 루트라인 컨테이너 */
+.multi-root-container {
+  border-left: 2px solid rgba(120,120,140,0.3);
+  margin: 2px 0 2px 4px;
+  padding: 0;
+}
+.multi-root-container .variation-block {
+  border-left: none;
+  margin-left: 0;
+  padding-left: 6px;
+}
+
 /* extraMove 수 스타일 — 직접 둔 수 강조 */
 .var-move.extra-move {
   color: #d4c070;
@@ -2176,92 +2208,9 @@ function renderTopMoves(msg) {
       row.addEventListener('click', () => {
         document.querySelectorAll('.top-move-row').forEach(r => r.classList.remove('previewing'));
         row.classList.add('previewing');
-
-        // enginePreview가 활성 상태일 때
-        if (game.enginePreview) {
-          const ep = game.enginePreview;
-          const histIdx = ep.histIdx;
-
-          // 현재 분석 중인 FEN이 enginePreview 기준 FEN과 같은지 확인
-          // _engineLineAnalysisFen이 설정돼있으면 엔진라인 수 탐색 중 (같은 라인 계속 탐색)
-          // 다른 포지션(다른 기보 수)에서 클릭했으면 → previewEngineLine으로 새 라인 처리
-          const epBaseFen = _getHistFen(histIdx);
-          const isExploring = _engineLineAnalysisFen !== null; // 라인 내 수 탐색 중
-          const sameBase = epBaseFen && lastAnalyzedFen && (normFen(epBaseFen) === normFen(lastAnalyzedFen));
-
-          if (!isExploring && !sameBase) {
-            game.previewEngineLine(pvMovesSnap, pvIdxSnap);
-            return;
-          }
-
-          const linePvIdx = ep.pvIdx;
-          const lineData = (game.enginePreviews[histIdx] || []).find(l => l.pvIdx === linePvIdx);
-
-          if (lineData) {
-            const extraMoveIdx = ep.extraMoveIdx ?? -1;
-            const cutAt = extraMoveIdx >= 0 ? extraMoveIdx + 1 : 0;
-            lineData.extraMoves = (lineData.extraMoves || []).slice(0, cutAt);
-
-            let curBoard = game.board.map(r=>[...r]);
-            let curTurn = game.turn;
-            let curCast = {...game.castling};
-            let curEP = game.enPassant;
-            let curHM = game.halfMove;
-            let curFM = game.fullMove;
-            for (const san of pvMovesSnap) {
-              const allLM = getAllLegalMoves(curBoard, curTurn, curCast, curEP);
-              const matched = sanToMove(san, curBoard, curTurn, allLM);
-              if (!matched) break;
-              const boardAfter = applyMoveToBoard(curBoard.map(r=>[...r]), matched, curTurn);
-              const castAfter = {...curCast};
-              if (curBoard[matched.from[0]][matched.from[1]] === `${curTurn}K`) {
-                if (curTurn==='w') { castAfter.wK=false; castAfter.wQ=false; }
-                else { castAfter.bK=false; castAfter.bQ=false; }
-              }
-              if (matched.from[0]===7&&matched.from[1]===7) castAfter.wK=false;
-              if (matched.from[0]===7&&matched.from[1]===0) castAfter.wQ=false;
-              if (matched.from[0]===0&&matched.from[1]===7) castAfter.bK=false;
-              if (matched.from[0]===0&&matched.from[1]===0) castAfter.bQ=false;
-              const epAfter = matched.doublePush ? [matched.to[0]-(curTurn==='w'?-1:1), matched.to[1]] : null;
-              const fmAfter = curTurn==='b' ? curFM+1 : curFM;
-              lineData.extraMoves.push({
-                san, move: matched, turn: curTurn,
-                board: curBoard.map(r=>[...r]),
-                castling: {...curCast}, enPassant: curEP,
-                halfMove: curHM, fullMove: curFM,
-                boardAfter, castAfter, epAfter, fmAfter
-              });
-              curBoard = boardAfter;
-              curTurn = curTurn==='w'?'b':'w';
-              curCast = castAfter;
-              curEP = epAfter;
-              curHM++;
-              if (curTurn==='w') curFM++;
-            }
-            const newExtraIdx = lineData.extraMoves.length - 1;
-            game.enginePreview = { ...ep, extraMoveIdx: newExtraIdx };
-            if (newExtraIdx >= 0) {
-              const lastEm = lineData.extraMoves[newExtraIdx];
-              game.board = lastEm.boardAfter.map(r=>[...r]);
-              game.turn = lastEm.turn === 'w' ? 'b' : 'w';
-              game.castling = {...lastEm.castAfter};
-              game.enPassant = lastEm.epAfter;
-              game.halfMove = lastEm.halfMove + 1;
-              game.fullMove = lastEm.fmAfter;
-              game.lastMove = lastEm.move;
-              const fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
-              _engineLineAnalysisFen = fen;
-              _analyzeSpecificFen(fen);
-            }
-            game.selectedSq = null;
-            game.possibleMoves = [];
-            game.renderBoard();
-            game.renderMoveList();
-            game.updateStatus();
-            return;
-          }
-        }
-
+        // top-move 클릭은 항상 previewEngineLine으로 처리
+        // → 엔진라인 탐색 중이면 서브라인으로, 아니면 루트라인으로 추가
+        // → 기존 라인은 절대 덮어씌우지 않음
         game.previewEngineLine(pvMovesSnap, pvIdxSnap);
       });
 
@@ -3937,21 +3886,27 @@ class ChessGame {
     }
 
     const existingLines = this.enginePreviews[histIdx];
-    const rootLine = existingLines[0];
 
     // ── enginePreview가 활성화된 상태에서 새 라인 클릭 ──────────
-    // → 현재 보고 있는 수 위치에서 분기하는 서브라인으로 추가
     if (this.enginePreview && this.enginePreview.histIdx === histIdx) {
       const ep = this.enginePreview;
       const activeIdx = ep.activeIdx ?? -1;
       const extraMoveIdx = ep.extraMoveIdx ?? -1;
 
-      // 분기 지점 계산: extraMove 중이면 extraMoves에서의 위치, 아니면 엔진라인 수 위치
+      // 현재 탐색 중인 라인 (서브라인일 수도 있음)
+      const currentLine = existingLines.find(l => l.pvIdx === ep.pvIdx);
+      // 서브라인의 부모 루트라인 ID 구하기
+      const parentId = currentLine
+        ? (currentLine.parentLineId ?? currentLine.id)
+        : existingLines[0].id;
+
+      // 분기 지점: extra 탐색 중이면 extra 위치, 아니면 엔진라인 수 위치
       const branchAt = extraMoveIdx >= 0 ? `extra:${extraMoveIdx}` : `engine:${activeIdx}`;
 
-      // 같은 분기점에서 이미 같은 수순의 서브라인이 있으면 재사용
+      // 같은 분기점·같은 수순 서브라인 중복 방지
       const dupLine = existingLines.find(l =>
         l.branchAt === branchAt &&
+        l.parentLineId === parentId &&
         JSON.stringify(l.moves) === JSON.stringify(moves)
       );
       if (dupLine) {
@@ -3959,12 +3914,12 @@ class ChessGame {
         return;
       }
 
-      // 새 서브라인 생성 — pvIdx는 고유 ID로
+      // 새 서브라인 생성
       const newPvIdx = `sub_${Date.now()}`;
       const subLine = {
         pvIdx: newPvIdx, moves, eval: evalStr, depth,
         extraMoves: [], subLines: [],
-        parentLineId: rootLine.id,
+        parentLineId: parentId,
         branchAt,
         id: Date.now() + Math.random()
       };
@@ -3973,27 +3928,27 @@ class ChessGame {
       return;
     }
 
-    // ── 이미 같은 pvIdx의 루트라인이 있으면 업데이트 ──
-    const existingLine = existingLines.find(l => l.pvIdx === finalPvIdx && !l.parentLineId);
-    if (existingLine) {
-      existingLine.moves = moves;
-      existingLine.eval = evalStr;
-      existingLine.depth = depth;
-      // enginePreview가 null(기보 수 이동 후 새 클릭)이면 extraMoves도 초기화
-      if (!this.enginePreview) {
-        existingLine.extraMoves = [];
+    // ── enginePreview 없음(기보 수 이동 후 첫 클릭) ──────────────
+    // 같은 pvIdx 루트라인이 있어도 덮어쓰지 않고 새 루트라인으로 추가
+    // (모든 라인 보존 원칙)
+    const existingRootSamePv = existingLines.find(l => l.pvIdx === finalPvIdx && !l.parentLineId);
+    if (existingRootSamePv) {
+      // 완전히 같은 수순이면 재사용, 다르면 새 루트라인
+      if (JSON.stringify(existingRootSamePv.moves) === JSON.stringify(moves)) {
+        this._applyEngineLine(histIdx, existingRootSamePv.pvIdx, 0);
+        return;
       }
-      this._applyEngineLine(histIdx, existingLine.pvIdx, 0);
-      return;
+      // 수순이 다르면 고유 pvIdx로 새 루트라인 추가
     }
 
-    // ── 새 루트 라인 ──────────────────────────────────────────────
+    // ── 새 루트라인 추가 (기존 라인 절대 덮어씌우지 않음) ─────────
+    const uniquePvIdx = existingRootSamePv ? `root_${finalPvIdx}_${Date.now()}` : finalPvIdx;
     const line = {
-      pvIdx: finalPvIdx, moves, eval: evalStr, depth,
+      pvIdx: uniquePvIdx, moves, eval: evalStr, depth,
       extraMoves: [], subLines: [], parentLineId: null, branchAt: -1,
       id: Date.now()
     };
-    this.enginePreviews[histIdx] = [line];
+    existingLines.push(line);
     this._applyEngineLine(histIdx, line.pvIdx, 0);
   }
 
@@ -4382,8 +4337,18 @@ class ChessGame {
     // 루트 라인과 서브라인 분리
     const rootLines = lines.filter(l => !l.parentLineId);
     const subLines  = lines.filter(l =>  l.parentLineId);
+    const multiRoot = rootLines.length > 1;
 
-    for (const lineData of rootLines) {
+    // 루트라인이 여러 개면 컨테이너로 묶기
+    const rootContainer = multiRoot ? document.createElement('div') : null;
+    if (rootContainer) {
+      rootContainer.className = 'multi-root-container';
+      el.appendChild(rootContainer);
+    }
+    const rootTarget = rootContainer || el;
+
+    for (let ri = 0; ri < rootLines.length; ri++) {
+      const lineData = rootLines[ri];
       const pvIdx = lineData.pvIdx;
       const isActiveLine = this.enginePreview &&
         this.enginePreview.histIdx === histIdx &&
@@ -4391,9 +4356,24 @@ class ChessGame {
       const activeIdx     = isActiveLine ? (this.enginePreview.activeIdx    ?? -1) : -1;
       const extraMoveIdx  = isActiveLine ? (this.enginePreview.extraMoveIdx ?? -1) : -1;
 
+      // 루트라인 사이 구분선 (첫 번째 제외)
+      if (multiRoot && ri > 0) {
+        const div = document.createElement('div');
+        div.className = 'engine-line-divider';
+        rootTarget.appendChild(div);
+      }
+
       const block = document.createElement('div');
       block.className = 'variation-block';
       if (isActiveLine) block.classList.add('active-engine-line');
+
+      // 다중 루트라인 번호 배지
+      if (multiRoot) {
+        const badge = document.createElement('span');
+        badge.className = 'engine-line-index';
+        badge.textContent = ri + 1;
+        block.appendChild(badge);
+      }
 
       // 평가 배지
       if (lineData.eval) {
@@ -4487,21 +4467,40 @@ class ChessGame {
         t2 = t2 === 'w' ? 'b' : 'w';
       });
 
-      // 닫기 버튼
+      // 닫기 버튼 — 루트라인이 1개면 전체 닫기, 여러 개면 해당 라인만 삭제
       const closeBtn = document.createElement('span');
       closeBtn.className = 'var-close';
-      closeBtn.title = '닫기';
+      closeBtn.title = multiRoot ? '이 라인 삭제' : '닫기';
       closeBtn.textContent = '✕';
+      const closePvIdx = pvIdx;
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.removeEnginePreviewAt(histIdxSnap);
+        if (multiRoot) {
+          // 해당 루트라인과 그 서브라인만 삭제
+          const ls = this.enginePreviews[histIdxSnap];
+          if (ls) {
+            const target = ls.find(l => l.pvIdx === closePvIdx);
+            const targetId = target?.id;
+            this.enginePreviews[histIdxSnap] = ls.filter(l =>
+              l.pvIdx !== closePvIdx && l.parentLineId !== targetId
+            );
+            if (this.enginePreview?.pvIdx === closePvIdx) {
+              this.enginePreview = null;
+              _engineLineAnalysisFen = null;
+              this._applyHistState(histIdxSnap);
+            }
+          }
+          this.renderMoveList();
+        } else {
+          this.removeEnginePreviewAt(histIdxSnap);
+        }
       });
       block.appendChild(closeBtn);
-      el.appendChild(block);
+      rootTarget.appendChild(block);
 
       // ── 이 루트라인의 서브라인들을 바로 아래에 렌더 ──────────
       for (const subLine of subLines.filter(sl => sl.parentLineId === lineData.id)) {
-        this._renderSubLine(subLine, subLines, histIdxSnap, el);
+        this._renderSubLine(subLine, subLines, histIdxSnap, rootTarget);
       }
     }
   }
@@ -4512,7 +4511,7 @@ class ChessGame {
     const histIdx = histIdxSnap;
 
     // 분기 시작점 계산
-    const { startTurn, startMoveNum } = this._getBranchStartContext(histIdx, subLine.branchAt);
+    const { startTurn, startMoveNum } = this._getBranchStartContext(histIdx, subLine.branchAt, subLine.parentLineId);
 
     const isActiveLine = this.enginePreview &&
       this.enginePreview.histIdx === histIdx &&
@@ -4613,12 +4612,18 @@ class ChessGame {
     });
     block.appendChild(closeBtn);
     el.appendChild(block);
+
+    // ── 이 서브라인의 자식 서브라인들도 재귀 렌더 ──────────────
+    for (const child of allSubLines.filter(sl => sl.parentLineId === subLine.id)) {
+      this._renderSubLine(child, allSubLines, histIdxSnap, el);
+    }
   }
 
   // ── 분기 시작 컨텍스트 계산 ─────────────────────────────────
-  _getBranchStartContext(histIdx, branchAt) {
+  // subLine의 branchAt 기준으로 시작 턴/수번호 계산
+  // 부모가 루트가 아닌 서브라인일 수도 있으므로 부모 라인을 추적
+  _getBranchStartContext(histIdx, branchAt, parentLineId) {
     const lines = this.enginePreviews[histIdx] || [];
-    const rootLine = lines.find(l => !l.parentLineId);
 
     let startTurn, startMoveNum;
     if (histIdx >= 0 && this.history[histIdx]) {
@@ -4629,12 +4634,31 @@ class ChessGame {
       startTurn = 'w'; startMoveNum = 1;
     }
 
-    if (!rootLine || !branchAt || branchAt === -1) {
+    if (!branchAt || branchAt === -1) {
       return { startTurn, startMoveNum };
     }
 
+    // 부모 라인 찾기 (루트라인 or 서브라인)
+    const parentLine = parentLineId
+      ? lines.find(l => l.id === parentLineId)
+      : lines.find(l => !l.parentLineId);
+
+    if (!parentLine) return { startTurn, startMoveNum };
+
+    // 부모 라인이 서브라인이면, 먼저 부모의 시작 컨텍스트를 재귀로 계산
     let t = startTurn;
     let mn = startMoveNum;
+
+    if (parentLine.parentLineId) {
+      // 부모가 서브라인 → 부모의 시작 컨텍스트에서 시작
+      const parentCtx = this._getBranchStartContext(histIdx, parentLine.branchAt, parentLine.parentLineId);
+      t = parentCtx.startTurn;
+      mn = parentCtx.startMoveNum;
+      // 부모 서브라인의 수들 소비
+      for (let i = 0; i < parentLine.moves.length; i++) {
+        const wasTurn = t; t = t === 'w' ? 'b' : 'w'; if (wasTurn === 'b') mn++;
+      }
+    }
 
     const consumeMove = () => {
       const wasTurn = t;
@@ -4647,7 +4671,7 @@ class ChessGame {
       for (let i = 0; i <= branchMi; i++) consumeMove();
     } else if (branchAt.startsWith('extra:')) {
       const extraIdx = parseInt(branchAt.split(':')[1]);
-      for (let i = 0; i < rootLine.moves.length; i++) consumeMove();
+      for (let i = 0; i < parentLine.moves.length; i++) consumeMove();
       for (let i = 0; i <= extraIdx; i++) consumeMove();
     }
 
