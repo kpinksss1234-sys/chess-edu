@@ -111,9 +111,11 @@ body {
 #board-area {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  padding: 16px; background: var(--bg-primary);
+  padding: 16px; padding-bottom: 64px; background: var(--bg-primary);
   min-width: 0; overflow: hidden;
+  transition: padding-bottom 0.35s;
 }
+#board-area.coach-open { padding-bottom: 340px; }
 
 .player-info {
   display: flex; align-items: center; gap: 10px;
@@ -315,6 +317,8 @@ body {
   padding: 0;
   border-bottom: 1px solid var(--border);
   display: flex; flex-direction: column;
+  overflow-y: auto;
+  max-height: 280px;
 }
 
 /* 각 라인 행 */
@@ -322,7 +326,8 @@ body {
   display: flex; align-items: stretch;
   cursor: pointer; transition: background 0.12s;
   border-bottom: 1px solid var(--border);
-  min-height: 44px; position: relative; overflow: hidden;
+  height: 48px; min-height: 48px; max-height: 48px;
+  overflow: hidden; position: relative;
 }
 .top-move-row:last-child { border-bottom: none; }
 .top-move-row:hover { background: var(--bg-hover); }
@@ -355,21 +360,22 @@ body {
 .top-move-moves-col {
   flex: 1; display: flex; flex-direction: column;
   justify-content: center; padding: 6px 10px; gap: 2px; min-width: 0;
+  overflow: hidden;
 }
 
 /* 첫 번째 수 (굵게, 크게) */
 .top-move-first {
   font-size: 13px; font-weight: 700;
-  color: var(--text-primary); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
+  color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .top-move-row.rank-1 .top-move-first { color: #c8e8a0; }
 
-/* 나머지 수들 (작게) */
+/* 나머지 수들 (작게, 한 줄 고정 + ellipsis) */
 .top-move-rest {
   font-size: 11px; color: var(--text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1.4;
 }
 
 /* 빈 행 (분석 중) */
@@ -396,9 +402,9 @@ body {
 }
 .move-num { font-size: 12px; color: var(--text-muted); padding: 5px 4px; text-align: right; padding-right: 8px; }
 .move-cell {
-  padding: 5px 8px; font-size: 13px; font-weight: 500;
+  padding: 5px 6px; font-size: 13px; font-weight: 500;
   cursor: pointer; border-radius: 4px; transition: background 0.1s;
-  display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  display: flex; align-items: center; gap: 2px; white-space: nowrap;
 }
 .move-cell:hover { background: var(--bg-hover); }
 .move-cell.active { background: var(--accent-green-dark); color: #fff; }
@@ -571,11 +577,437 @@ body {
 .loading-text { color: var(--text-secondary); font-size: 14px; }
 
 /* Drag support */
-.piece-img { cursor: grab; }
+.piece-img {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  pointer-events: auto;
+}
 .piece-img:active { cursor: grabbing; }
+#chessboard {
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* 드래그 중 전체 선택 방지 */
+body.dragging, body.dragging * { user-select: none !important; cursor: grabbing !important; }
 
 .icon { display: block; }
 
+/* ===== AI COACH PANEL ===== */
+#coach-panel {
+  position: fixed;
+  bottom: 0; left: 72px; right: 300px;
+  height: 320px;
+  background: var(--bg-secondary);
+  border-top: 2px solid var(--accent-green-dark);
+  display: flex; flex-direction: column;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  z-index: 200;
+  overflow: hidden;
+}
+#coach-panel.open { transform: translateY(0); }
+
+#coach-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer; flex-shrink: 0;
+  user-select: none;
+}
+.coach-logo {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, #7fa650 0%, #5090d0 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.coach-title {
+  font-size: 13px; font-weight: 700;
+  color: var(--accent-green-bright); flex: 1;
+}
+.coach-subtitle {
+  font-size: 11px; color: var(--text-muted);
+}
+#coach-toggle-btn {
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg-tertiary);
+  color: var(--text-secondary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; font-size: 12px; flex-shrink: 0;
+}
+#coach-toggle-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+#coach-body {
+  flex: 1; overflow-y: auto; padding: 10px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  min-height: 0;
+}
+
+#coach-api-row {
+  display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+  padding: 7px 16px; border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+#coach-api-input {
+  flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text-primary); font-size: 12px;
+  padding: 6px 10px; outline: none; font-family: monospace;
+  transition: border-color 0.15s;
+}
+#coach-api-input:focus { border-color: var(--accent-green); }
+#coach-api-input::placeholder { color: var(--text-muted); }
+#coach-save-key-btn {
+  padding: 6px 12px; border-radius: 6px; border: none;
+  background: var(--accent-green-dark); color: #fff;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s; font-family: var(--font-main);
+  white-space: nowrap;
+}
+#coach-save-key-btn:hover { background: var(--accent-green); }
+
+.coach-question-row {
+  display: flex; gap: 8px; align-items: flex-end;
+}
+#coach-input {
+  flex: 1; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-primary); font-size: 13px;
+  padding: 8px 12px; outline: none; font-family: var(--font-main);
+  resize: none; min-height: 40px; max-height: 80px;
+  transition: border-color 0.15s; line-height: 1.5;
+}
+#coach-input:focus { border-color: var(--accent-green); }
+#coach-input::placeholder { color: var(--text-muted); }
+#coach-ask-btn {
+  padding: 9px 16px; border-radius: 8px; border: none;
+  background: var(--accent-green); color: #fff;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.15s; font-family: var(--font-main);
+  white-space: nowrap; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+#coach-ask-btn:hover:not(:disabled) { background: var(--accent-green-bright); }
+#coach-ask-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.quick-btns {
+  display: flex; gap: 5px; flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.quick-btn {
+  padding: 5px 10px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  color: var(--text-secondary); font-size: 11px; cursor: pointer;
+  transition: all 0.15s; font-family: var(--font-main);
+  white-space: nowrap;
+}
+.quick-btn:hover { background: var(--accent-green-dark); color: #fff; border-color: var(--accent-green); }
+
+#coach-response {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+  font-size: 13px; line-height: 1.7; color: var(--text-primary);
+  flex-shrink: 0;
+  max-height: 150px;
+  overflow-y: auto;
+  word-break: break-word;
+}
+#coach-response.loading {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--text-muted); font-style: italic;
+}
+.coach-dots span {
+  display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--accent-green);
+  animation: bounce 1.2s ease-in-out infinite;
+  margin: 0 1px;
+}
+.coach-dots span:nth-child(2) { animation-delay: 0.2s; }
+.coach-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,80%,100%{transform:scale(0.6);opacity:0.5} 40%{transform:scale(1);opacity:1} }
+
+.coach-context-line {
+  font-size: 11px; color: var(--text-muted);
+  background: var(--bg-tertiary); border-radius: 6px;
+  padding: 6px 10px; display: flex; gap: 8px; flex-wrap: wrap;
+}
+.ctx-tag {
+  background: var(--bg-hover); color: var(--text-secondary);
+  padding: 2px 8px; border-radius: 4px; font-size: 10px;
+  font-weight: 600; border: 1px solid var(--border);
+}
+.ctx-tag.green { background: #2a3a2a; color: var(--accent-green-bright); border-color: var(--accent-green-dark); }
+
+/* coach open trigger floating button */
+#coach-fab {
+  position: fixed;
+  bottom: 58px;          /* status-bar 높이(~42px) + 여백 */
+  left: calc(72px + (100vw - 72px - 300px) / 2);   /* 보드 영역 중앙 */
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #7fa650 0%, #5090d0 100%);
+  color: #fff; border: none; border-radius: 24px;
+  padding: 10px 20px; font-size: 13px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  transition: all 0.2s; z-index: 150; font-family: var(--font-main);
+  white-space: nowrap;
+}
+#coach-fab:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.5); filter: brightness(1.1); }
+#coach-fab.hidden { display: none; }
+
+/* ===== COACH STRUCTURED RESPONSE ===== */
+.coach-section {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 7px;
+  border-left: 3px solid var(--accent-blue);
+}
+.coach-section:last-child { margin-bottom: 0; }
+.coach-section-label {
+  font-size: 11px; font-weight: 800;
+  color: var(--accent-blue);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.coach-section:nth-child(2) { border-left-color: #7fa650; }
+.coach-section:nth-child(2) .coach-section-label { color: #7fa650; }
+.coach-section:nth-child(3) { border-left-color: #e0a030; }
+.coach-section:nth-child(3) .coach-section-label { color: #e0a030; }
+.coach-section-body {
+  font-size: 12.5px; line-height: 1.7;
+  color: var(--text-secondary);
+}
+.coach-plain {
+  font-size: 12.5px; line-height: 1.7;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ===== BEST MOVE EXPLAIN PANEL ===== */
+#best-explain-panel {
+  margin: 0 0 6px 0;
+  background: var(--bg-card);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+.best-seq-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  min-height: 32px;
+}
+.best-seq-move {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px 6px; border-radius: 4px;
+  font-size: 12px; font-weight: 700;
+  background: rgba(80,144,208,0.15);
+  color: var(--text-primary); cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.12s; white-space: nowrap;
+}
+.best-seq-move:hover { background: rgba(80,144,208,0.3); border-color: var(--accent-blue); }
+.best-seq-move.active {
+  background: var(--accent-blue); color: #fff; border-color: var(--accent-blue);
+}
+.best-seq-move img { width: 14px; height: 14px; object-fit: contain; }
+.best-seq-num {
+  font-size: 10px; color: var(--text-muted); margin: 0 2px; white-space: nowrap;
+}
+.best-explain-title {
+  padding: 8px 10px 4px;
+  font-size: 12.5px; font-weight: 800; color: var(--text-primary);
+}
+.best-explain-title .be-move {
+  display: inline-flex; align-items: center; gap: 3px;
+  color: var(--accent-blue);
+}
+.best-reason-list {
+  padding: 4px 10px 10px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.best-reason-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 12px; line-height: 1.55; color: var(--text-secondary);
+}
+.best-reason-icon {
+  flex-shrink: 0;
+  width: 14px; height: 14px; border-radius: 3px;
+  margin-top: 2px;
+}
+.reason-positive { background: var(--accent-blue); }
+.reason-neutral  { background: rgba(80,144,208,0.4); }
+.reason-warning  { background: #e0a030; }
+.reason-good     { background: #7fa650; }
+
+/* ===== THREAT ANALYSIS PANEL ===== */
+#threat-panel {
+  margin: 0 0 6px 0;
+  background: var(--bg-card);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+.threat-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border-color);
+}
+.threat-title {
+  font-size: 11px; font-weight: 800;
+  color: var(--text-primary); letter-spacing: 0.3px; text-transform: uppercase;
+}
+.threat-refresh-btn {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 14px; padding: 0 4px;
+  line-height: 1; transition: color 0.15s, transform 0.2s;
+}
+.threat-refresh-btn:hover { color: var(--text-primary); transform: rotate(90deg); }
+.threat-loading {
+  padding: 12px 10px; font-size: 12px; color: var(--text-muted); text-align: center;
+}
+.threat-section {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.threat-section:last-child { border-bottom: none; }
+.threat-section-label {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
+  margin-bottom: 4px; display: flex; align-items: center; gap: 5px;
+}
+.threat-label-idea  { color: #5090d0; }
+.threat-label-prob  { color: #e05050; }
+.threat-label-sol   { color: #7fa650; }
+.threat-section-body {
+  font-size: 12px; line-height: 1.65; color: var(--text-secondary);
+}
+.threat-section-body .t-move {
+  display: inline-flex; align-items: center; gap: 1px;
+  font-weight: 700; font-family: 'Courier New', monospace;
+  color: var(--text-primary); font-size: 11.5px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px; padding: 0 4px; margin: 0 1px;
+}
+.threat-toggle-btn {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+  color: var(--accent-blue); background: none; border: none;
+  cursor: pointer; padding: 6px 10px; width: 100%;
+  border-top: 1px solid var(--border-color);
+  transition: background 0.1s;
+}
+.threat-toggle-btn:hover { background: var(--bg-hover); }
+
+/* ===== VARIATION / ENGINE PREVIEW — chess.com 스타일 ===== */
+.variation-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  padding: 2px 4px 2px 8px;
+  margin: 1px 0 1px 4px;
+  font-size: 13px;
+  border-left: 2px solid rgba(120,120,140,0.4);
+  background: transparent;
+}
+.variation-block.active-engine-line {
+  border-left-color: var(--accent-blue);
+  background: rgba(80,144,208,0.04);
+}
+/* 서브라인 — 들여쓰기 + 다른 색 */
+.variation-block.sub-engine-line {
+  margin-left: 16px;
+  border-left-color: rgba(160,200,120,0.5);
+  background: rgba(80,160,80,0.03);
+  font-size: 12.5px;
+}
+.variation-block.sub-engine-line.active-engine-line {
+  border-left-color: #a0c878;
+  background: rgba(100,180,80,0.07);
+}
+.engine-preview-block { display: contents; }
+.variation-header { display: contents; }
+.var-bracket { display: none; } /* 괄호 숨김 */
+.var-label { display: none; }   /* 레이블 숨김 */
+.var-close {
+  font-size: 10px; color: var(--text-muted); cursor: pointer;
+  padding: 1px 4px; border-radius: 3px;
+  transition: background 0.15s;
+  margin-left: 2px; flex-shrink: 0;
+}
+.var-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+.variation-moves { display: contents; }
+.var-num {
+  color: var(--text-muted); font-size: 11.5px;
+  padding: 4px 1px 4px 4px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.var-move {
+  padding: 4px 4px; font-size: 13px; font-weight: 500;
+  cursor: pointer; border-radius: 4px; transition: background 0.1s;
+  display: inline-flex; align-items: center; gap: 2px; white-space: nowrap;
+  color: var(--text-primary);
+}
+.var-move img { width: 14px; height: 14px; object-fit: contain; vertical-align: middle; }
+.var-move:hover { background: var(--bg-hover); }
+.var-move.active { background: var(--accent-green-dark); color: #fff; }
+
+/* 엔진라인 행 */
+.engine-line-row { display: contents; }
+.engine-line-sep { width: 100%; height: 0; flex-basis: 100%; margin: 0; }
+
+/* 평가점수 배지 */
+.engine-line-eval {
+  font-size: 10.5px; font-weight: 800;
+  flex-shrink: 0;
+  padding: 3px 5px 3px 2px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.engine-line-eval.positive { color: #a0c878; }
+.engine-line-eval.negative { color: #e07070; }
+
+/* 엔진 라인 선택 하이라이트 */
+.top-move-row.previewing {
+  background: rgba(80,144,208,0.18) !important;
+  outline: 1px solid var(--accent-blue);
+}
+.top-move-row { cursor: pointer; }
+
+/* ── 분기점 구분선 (엔진라인 → extraMoves 경계) ── */
+.branch-sep {
+  display: inline-flex; align-items: center;
+  margin: 0 3px;
+  color: var(--accent-blue);
+  font-size: 11px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.branch-sep::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 14px;
+  background: var(--accent-blue);
+  margin-right: 4px;
+  opacity: 0.5;
+}
+
+/* extraMove 수 스타일 — 직접 둔 수 강조 */
+.var-move.extra-move {
+  color: #d4c070;
+}
+.var-move.extra-move.active {
+  background: #5a4a10;
+  color: #f0d870;
+}
 </style>
 </head>
 <body>
@@ -703,11 +1135,51 @@ body {
             <div class="engine-dot idle" id="engine-dot"></div>
             <span id="engine-name">Stockfish 18 WASM</span>
           </div>
-          <span class="depth-info" id="depth-info">로딩 중...</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button id="threat-toggle" onclick="toggleThreatPanel()" title="위협 분석 패널"
+              style="background:none;border:1px solid var(--border-color);border-radius:4px;
+                     color:var(--text-muted);cursor:pointer;font-size:10px;padding:2px 6px;
+                     transition:all 0.15s;white-space:nowrap;">
+              ⚡ 위협
+            </button>
+            <button id="best-explain-toggle" onclick="toggleBestExplainPanel()" title="최선수 설명"
+              style="background:none;border:1px solid var(--border-color);border-radius:4px;
+                     color:var(--text-muted);cursor:pointer;font-size:10px;padding:2px 6px;
+                     transition:all 0.15s;white-space:nowrap;">
+              📖 설명
+            </button>
+            <span class="depth-info" id="depth-info">로딩 중...</span>
+          </div>
         </div>
         <div class="top-moves" id="top-moves">
           <div class="top-moves-empty" id="top-moves-empty">엔진 초기화 중...</div>
         </div>
+
+        <!-- 위협 분석 패널 -->
+        <div id="threat-panel" style="display:none;">
+          <div class="threat-header">
+            <span class="threat-title">⚡ 위협 분석</span>
+            <button class="threat-refresh-btn" onclick="runThreatAnalysis()" title="새로고침">↻</button>
+          </div>
+          <div id="threat-content">
+            <div class="threat-loading">분석 중...</div>
+          </div>
+        </div>
+
+        <!-- 최선수 설명 패널 -->
+        <div id="best-explain-panel" style="display:none;">
+          <div class="threat-header">
+            <span class="threat-title">📖 최선수 설명</span>
+            <button class="threat-refresh-btn" onclick="runBestMoveExplain()" title="새로고침">↻</button>
+          </div>
+          <!-- 수순 바 -->
+          <div id="best-explain-seq" class="best-seq-bar"></div>
+          <!-- 설명 본문 -->
+          <div id="best-explain-content">
+            <div class="threat-loading">분석 중...</div>
+          </div>
+        </div>
+
         <div id="move-list-wrap">
           <div class="move-list-header">
             <span class="move-list-title">기보</span>
@@ -845,10 +1317,55 @@ body {
 <!-- Toast -->
 <div id="toast"></div>
 
+<!-- AI Coach FAB -->
+<button id="coach-fab" onclick="openCoach()">
+  🧠 AI 코치에게 질문
+</button>
+
+<!-- AI Coach Panel -->
+<div id="coach-panel">
+  <div id="coach-header" onclick="toggleCoach()">
+    <div class="coach-logo">🧠</div>
+    <div>
+      <div class="coach-title">AI 체스 코치</div>
+      <div class="coach-subtitle">Groq · Llama-3.3-70b | 현재 수의 전략적 의도를 분석합니다</div>
+    </div>
+    <button id="coach-toggle-btn" title="닫기">✕</button>
+  </div>
+
+  <div id="coach-api-row">
+    <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">API Key</span>
+    <input type="password" id="coach-api-input" placeholder="Groq API 키 입력 (gsk_...)"/>
+    <button id="coach-save-key-btn" onclick="saveApiKey()">저장</button>
+    <span id="coach-key-status" style="font-size:11px;color:var(--text-muted);white-space:nowrap;"></span>
+  </div>
+
+  <div id="coach-body">
+    <div id="coach-context-display" class="coach-context-line" style="display:none;"></div>
+
+    <div class="quick-btns" id="quick-btns">
+      <button class="quick-btn" onclick="askQuick('방금 둔 수의 전략적 의도를 전략/계획/목표 구조로 설명해주세요.')">이 수의 전략적 의도?</button>
+      <button class="quick-btn" onclick="askQuick('이 수를 두지 않았다면 상대방에게 어떤 기회가 생겼을지 전략/계획/목표 구조로 설명해주세요.')">안 두면 어떻게 되나요?</button>
+      <button class="quick-btn" onclick="askQuick('엔진 추천수와 내가 실제 둔 수의 전략적 차이를 전략/계획/목표 구조로 비교 설명해주세요.')">추천수 vs 내 수 비교</button>
+      <button class="quick-btn" onclick="askQuick('현재 포지션에서 양쪽의 핵심 전략 포인트를 전략/계획/목표 구조로 설명해주세요.')">현재 핵심 전략은?</button>
+      <button class="quick-btn" onclick="askQuick('이 포지션에서 백과 흑 각각의 장단점을 전략/계획/목표 구조로 분석해주세요.')">양쪽 장단점 분석</button>
+    </div>
+
+    <div class="coach-question-row">
+      <textarea id="coach-input" placeholder="체스 코치에게 질문하세요... (예: 이 수에 대한 전략,의도가 뭐니?)" rows="2"></textarea>
+      <button id="coach-ask-btn" onclick="askCoach()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        질문
+      </button>
+    </div>
+
+    <div id="coach-response" style="display:none;"></div>
+  </div>
+</div>
+
 <script>
 // ── abortController 폴백 (WASM에서는 사용 안 함) ─────────────
 let abortController = null;
-
 
 // ===== LICHESS PIECE IMAGE URLS =====
 const PIECE_STYLE_BASE = 'https://lichess1.org/assets/piece/';
@@ -878,7 +1395,6 @@ const INIT_BOARD = [
 ];
 
 const FILES = ['a','b','c','d','e','f','g','h'];
-
 
 // ===== CHESS LOGIC (standalone functions for UCI conversion) =====
 function isInBounds(r,c) { return r>=0&&r<8&&c>=0&&c<8; }
@@ -982,6 +1498,42 @@ function getAllLegalMoves(board, color, castling, enPassant) {
   return moves;
 }
 
+// SAN 문자열을 move 객체로 변환하는 헬퍼
+function sanToMove(san, board, turn, allMoves) {
+  const s = san.replace(/[+#!?]/g, '');
+  if (s === 'O-O' || s === '0-0') return allMoves.find(m => m.castle === 'K') || null;
+  if (s === 'O-O-O' || s === '0-0-0') return allMoves.find(m => m.castle === 'Q') || null;
+
+  let type = 'P', file = null, rank = null, promo = null;
+  let raw = s;
+  const promoMatch = raw.match(/=([QRBN])$/);
+  if (promoMatch) { promo = promoMatch[1]; raw = raw.replace(/=[QRBN]$/, ''); }
+  if ('KQRBN'.includes(raw[0])) { type = raw[0]; raw = raw.slice(1); }
+  raw = raw.replace('x', '');
+
+  if (raw.length >= 2) {
+    const toFile = raw[raw.length - 2], toRank = raw[raw.length - 1];
+    const disambig = raw.slice(0, raw.length - 2);
+    if (disambig) {
+      if ('abcdefgh'.includes(disambig)) file = disambig;
+      else if ('12345678'.includes(disambig)) rank = disambig;
+      else if (disambig.length === 2) { file = disambig[0]; rank = disambig[1]; }
+    }
+    const toC = FILES.indexOf(toFile), toR = 8 - parseInt(toRank);
+    const matched = allMoves.find(m => {
+      const p = board[m.from[0]][m.from[1]];
+      if (!p || p[1] !== type) return false;
+      if (m.to[0] !== toR || m.to[1] !== toC) return false;
+      if (file && FILES[m.from[1]] !== file) return false;
+      if (rank && (8 - m.from[0]).toString() !== rank) return false;
+      return true;
+    });
+    if (matched && promo) { matched.promoPiece = promo; }
+    return matched || null;
+  }
+  return null;
+}
+
 function moveToSAN(board, move, color, allMoves) {
   const[fr,fc]=move.from,[tr,tc]=move.to,p=board[fr][fc],type=p[1];
   const captured=board[tr][tc]||(move.enPassant?'ep':null);
@@ -1007,7 +1559,6 @@ function moveToSAN(board, move, color, allMoves) {
   }
   return san;
 }
-
 
 // ── FEN 파싱 헬퍼 (engine.js에서 legalMoveCount 계산용) ─────
 function parseFenBoard(fenBoard) {
@@ -1060,25 +1611,58 @@ function getWinProb(cpFromWhite, turn) {
 const PIECE_VALUE = { P:100, N:320, B:330, R:500, Q:900, K:0 };
 
 // ── 희생 수 판정 ─────────────────────────────────────────────
-// 조건: 내 기물 가치가 잡은 기물 가치보다 현저히 높은 교환
-//      또는 빈 칸으로 고가치 기물을 이동 (순수 희생)
+// 진짜 희생 = 내 기물이 상대에게 즉시 되잡힐 수 있는 상황에서 두는 수.
+// Be7xb4처럼 비숍으로 폰을 잡아도 상대가 즉시 되잡을 수 없으면 희생이 아님.
+//
+// 조건:
+//   1) 잡는 수
+//   2) 내 기물 가치 > 잡은 기물 가치 + 50 (손해 교환)
+//   3) 수를 둔 후 상대가 착지 칸을 공격하는 합법적 수가 있어야 함
 function isSacrifice(h) {
-  // 희생 수 조건: 상대 기물을 잡았는데 내 기물이 더 비쌀 때만
-  // (빈 칸 이동은 희생이 아님 — positional sacrifice는 엔진 평가로만 판단)
   if (!h || !h.move || !h.board) return false;
-  if (!h.captured) return false; // 잡는 수가 아니면 희생 아님
+  if (!h.captured) return false;
 
   const movingPiece = h.board[h.move.from[0]][h.move.from[1]];
   if (!movingPiece) return false;
   const myVal       = PIECE_VALUE[movingPiece[1]] || 0;
   const capturedVal = PIECE_VALUE[h.captured[1]]  || 0;
 
-  if (myVal < 300) return false; // 폰·킹 교환은 희생으로 보지 않음
+  if (myVal < 300) return false; // 폰·킹 이동은 제외
 
-  // 내 기물이 상대 기물보다 200cp 이상 비쌀 때만 희생으로 판정
-  // (예: 퀸(900)으로 폰(100) 잡기 = 800차이 → 희생)
-  // (예: 나이트(300)으로 폰(100) 잡기 = 200차이 → 희생)
-  return myVal > capturedVal + 200;
+  // 손해 교환이어야 함 (동등 교환 or 이득 교환은 희생 아님)
+  if (myVal <= capturedVal + 50) return false;
+
+  // 수를 둔 후 상대가 즉시 되잡을 수 있는지 확인
+  try {
+    const boardAfter = applyMoveToBoard(h.board.map(r=>[...r]), h.move, h.turn);
+    const enemy = h.turn === 'w' ? 'b' : 'w';
+    const toR = h.move.to[0];
+    const toC = h.move.to[1];
+
+    const castAfter = {...(h.castling || {wK:true,wQ:true,bK:true,bQ:true})};
+    if (movingPiece === h.turn + 'K') {
+      if (h.turn==='w') { castAfter.wK=false; castAfter.wQ=false; }
+      else               { castAfter.bK=false; castAfter.bQ=false; }
+    }
+    if (h.move.from[0]===7&&h.move.from[1]===7) castAfter.wK=false;
+    if (h.move.from[0]===7&&h.move.from[1]===0) castAfter.wQ=false;
+    if (h.move.from[0]===0&&h.move.from[1]===7) castAfter.bK=false;
+    if (h.move.from[0]===0&&h.move.from[1]===0) castAfter.bQ=false;
+
+    const epAfter = h.move.doublePush
+      ? [h.move.to[0] - (h.turn==='w' ? -1 : 1), h.move.to[1]] : null;
+
+    const enemyMoves = getAllLegalMoves(boardAfter, enemy, castAfter, epAfter);
+    const canRecapture = enemyMoves.some(m => m.to[0] === toR && m.to[1] === toC);
+
+    // 상대가 즉시 되잡을 수 없으면 희생이 아님 (그냥 공짜 기물 획득)
+    if (!canRecapture) return false;
+  } catch(e) {
+    // 계산 실패 시 단순 비교로 fallback: 큰 가치 차이일 때만 희생
+    return myVal > capturedVal + 250;
+  }
+
+  return true;
 }
 
 // ── 핵심: 수 분류 함수 ───────────────────────────────────────
@@ -1086,72 +1670,211 @@ function isSacrifice(h) {
 // cpBefore : 이 수를 두기 전 포지션 평가 (백 기준 cp)
 // cpAfter  : 이 수를 두고 난 후 포지션 평가 (백 기준 cp)
 // turn     : 이 수를 둔 플레이어 ('w' | 'b')
-// topAlts  : { best1cp, best2cp, hasSacrifice, legalMoveCount }
+// topAlts  : { best1cp, best2cp, hasSacrifice, legalMoveCount,
+//              mateInBefore, mateInAfter }
 //
-// 분류 기준 (승률 % 기준):
+// ── 분류 기준 (chess.com 기준 준수) ─────────────────────────
 //
 //  forced     합법적인 수가 1개뿐인 강제 수
-//  brilliant  전황 역전(불리→유리) + 희생 수, 또는 희생 수 + 승률 손실 없음
-//  great      유일수: 최선 수 1~2개뿐, 나머지는 크게 불리 (격차 15%p 이상)
-//  best       엔진 1순위 (승률 손실 < 2%)
-//  excellent  최선에 근접 (승률 손실 2~5%)
-//  good       무난히 좋은 수 (승률 손실 5~10%)
-//  inaccuracy 좋지 않지만 실수는 아님 (승률 손실 10~20%)
-//  mistake    자신의 진영을 불리하게 만드는 수 (승률 손실 ~10%p, 국면 전환)
-//  miss       상대 실수를 응징하지 못함 (별도 처리: updateMoveAnnotations)
-//  blunder    치명적 실수 (기물 헌납, 체크메이트 허용, 승률 대폭 손실)
 //
-// ── chess.com 기준 승률 손실 임계값 ──────────────────────────
-//   best        0  ~ 2%p  손실
-//   excellent   2  ~ 5%p  손실
-//   good        5  ~ 10%p 손실
-//   inaccuracy  10 ~ 20%p 손실
-//   mistake     20 ~ 40%p 손실  OR  국면 전환(이기던→비기는, 비기던→지는)
-//   blunder     40%p 초과 손실  OR  체크메이트 허용 OR 기물 헌납
+//  brilliant  탁월한 수 (!!)
+//             기물 희생이면서 최선수 (승률 손실 ≤ 2%p)
+//             또는 기물 희생 + 완전 역전 (불리→유리)
+//             또는 비희생 대역전 + 유일한 정답수
+//
+//  great      훌륭한 수 (!)
+//             유일한 이기는 수 or 매우 좁은 정답폭에서 최선수 발견
+//             (best1cp vs best2cp 승률 격차 ≥ 10%p + 내 수 손실 ≤ 5%p)
+//
+//  best       최선의 수 — cp 손실 ≈ 0, 엔진 1순위와 일치
+//  excellent  뛰어난 수 — cp 손실 0~10cp (또는 승률 손실 < 3%p)
+//  good       좋은 수   — cp 손실 10~25cp (또는 승률 손실 3~6%p)
+//  inaccuracy 부정확한 수 (?) — cp 손실 25~100cp (승률 손실 6~14%p)
+//  mistake    실수 (?)  — cp 손실 100~200cp (승률 손실 14~30%p)
+//  blunder    블런더 (??) — cp 손실 >200cp (승률 손실 >30%p) 또는 결정적 국면 역전
+//
+//  miss       놓친 수 (✗) — updateMoveAnnotations에서 별도 처리
 //
 function classifyMove(cpBefore, cpAfter, turn, topAlts) {
+  // ── 내 기준 cp 계산 ──────────────────────────────────────
+  // cpBefore, cpAfter 는 백 기준 cp.
+  // 내(turn) 기준으로 환산: 백이면 그대로, 흑이면 부호 반전
+  const cpMe      = turn === 'w' ? cpBefore : -cpBefore;
+  const cpMeAfter = turn === 'w' ? cpAfter  : -cpAfter;
+  const cpLoss    = cpMe - cpMeAfter;   // 양수 = 내 평가 하락 (손실)
+
+  // ── 메이트 수순 포지션 여부 ──────────────────────────────
+  // ±9000 이상 = 엔진이 메이트 수순 발견 (computeCp가 ±9900으로 인코딩)
+  const iMateWin    = cpMe      >=  9000;  // 내가 메이트 수순 보유
+  const iMateLose   = cpMe      <= -9000;  // 상대에게 메이트당하는 중
+  const afterMateWin  = cpMeAfter >=  9000; // 수 후에도 내 메이트 수순 유지
+  const afterMateLose = cpMeAfter <= -9000; // 수 후 상대 메이트 수순 생김
+
+  // ── 승률 계산 (내 기준, 0~100%) ─────────────────────────
   const wpBefore = getWinProb(cpBefore, turn);
   const wpAfter  = getWinProb(cpAfter,  turn);
   const wpDrop   = wpBefore - wpAfter;   // 양수 = 내 승률 하락
 
-  // ── Forced: 강제 수 (다른 분류보다 최우선) ───────────────
+  // ── best1cp, best2cp → 내 기준 승률 ─────────────────────
+  const best1cp = topAlts?.best1cp ?? null;
+  const best2cp = topAlts?.best2cp ?? null;
+  const best1cpMe = best1cp != null ? (turn === 'w' ? best1cp : -best1cp) : null;
+  const wp1 = best1cp != null ? getWinProb(best1cp, turn) : null;
+  const wp2 = best2cp != null ? getWinProb(best2cp, turn) : null;
+  // 엔진 최선수 기준 내 승률 손실 (내 수가 최선수 대비 얼마나 못한가)
+  // best1cp가 메이트 수순(>=9000)이면 wp1 ≈ 100%가 되어 lossVsBest가 왜곡됨
+  // → best1cp가 메이트 수순이면서 after.cp도 충분히 유리하면 lossVsBest = 0으로 처리
+  let lossVsBest = wp1 != null ? (wp1 - wpAfter) : wpDrop;
+  if (best1cpMe != null && best1cpMe >= 9000 && cpMeAfter >= 200) {
+    // before 포지션이 메이트 수순이고 after도 여전히 유리 → lossVsBest 신뢰 불가, 0으로 처리
+    lossVsBest = 0;
+  }
+
+  // ── Forced: 강제 수 (합법적 수가 1개뿐) ─────────────────
   if (topAlts?.legalMoveCount === 1) return 'forced';
 
+  // ── 메이트 관련 특수 처리 ────────────────────────────────
+  const hadMateWin  = topAlts?.mateInBefore != null && topAlts.mateInBefore > 0;
+  const gaveMate    = topAlts?.mateInAfter  != null && topAlts.mateInAfter  > 0;
+  const wasBadBefore = wpBefore <= 30;
+
+  if (gaveMate) {
+    if (wasBadBefore) {
+      if (wpDrop >= 15) return 'mistake';
+      return 'inaccuracy';
+    }
+    return 'blunder';
+  }
+
+  // ── 메이트 수순 진행 중인 포지션 처리 ──────────────────────
+  //
+  // 핵심 문제: 백그라운드 분석이 after.cp를 얕게 분석해
+  // 메이트 수순 진행 중에도 after.cp = 0 혹은 낮게 나와
+  // h6, h7, h8=Q+ 같은 정상적인 메이트 진행수가 전부 오분류됨.
+  //
+  // 해결 원칙:
+  //   - before에서 내가 메이트 수순 보유(iMateWin)이면
+  //     after.cp의 절대값보다 "상대에게 역전됐는가"만 판단
+  //   - after.cp가 낮더라도 상대가 메이트를 얻지 못했으면 정상 수순으로 처리
+  if ((hadMateWin || iMateWin) && !gaveMate) {
+    if (afterMateLose) {
+      // 내가 메이트 수순을 가졌는데 상대에게 메이트를 허용 → blunder
+      return 'blunder';
+    }
+    // after.cp의 절대값에 관계없이, 상대가 메이트를 얻지 못했다면
+    // 메이트 수순을 진행하는 정상적인 수이거나 실수.
+    // before.cp(메이트 수순)와 after.cp(일반 cp or 다른 메이트 수순)를
+    // 직접 비교하는 것은 의미 없음 (단위가 다름).
+    // 대신 after 포지션이 여전히 유리한지만 확인:
+    if (cpMeAfter >= -50) {
+      // 수 후에도 유리하거나 거의 균형 → 메이트 수순 진행 or 최선의 수
+      // before의 best1cp도 메이트 수순일 가능성이 높으므로 lossVsBest 신뢰 불가
+      // → best/excellent 처리
+      return cpMeAfter >= 9000 ? 'best' : (cpMeAfter >= 200 ? 'best' : 'excellent');
+    }
+    if (cpMeAfter >= -300) {
+      // 약간 불리해짐 → mistake
+      return 'mistake';
+    }
+    // 크게 역전 → blunder
+    return 'blunder';
+  }
+
+  // ── 내가 메이트당하는 포지션 (iMateLose) ────────────────
+  // 상대가 메이트 수순 보유 → 어떤 수를 둬도 결국 지는 상황.
+  // 이 경우 모든 수를 blunder/mistake로 도배하면 안 됨.
+  if (iMateLose) {
+    if (afterMateLose) {
+      // 수 후에도 여전히 지는 상황 → 더 빠른 메이트를 허용했는지만 확인
+      if (cpLoss <= 0) return 'best';    // 동일하거나 더 오래 버팀
+      if (cpLoss <= 500) return 'good';  // 약간 더 빠른 메이트 허용
+      return 'inaccuracy';
+    }
+    if (cpMeAfter > -200) {
+      // 역전 성공 → best (희생이면 brilliant)
+      const sacrifice2 = topAlts?.hasSacrifice ?? false;
+      return sacrifice2 ? 'brilliant' : 'best';
+    }
+    // 여전히 불리하지만 메이트 수순 벗어남 → inaccuracy 최대
+    return 'inaccuracy';
+  }
+
   // ── Brilliant: 탁월한 수 (!!) ────────────────────────────
-  // 조건: 기물 희생 수 이면서
-  //   A) 불리(≤40%) → 유리(≥55%) 완전 역전
-  //   B) 희생임에도 승률 손실 2%p 이하 (주는 게 오히려 최선)
   const sacrifice = topAlts?.hasSacrifice ?? false;
+
   if (sacrifice) {
-    const reversal = wpBefore <= 40 && wpAfter >= 55;
-    if (reversal || wpDrop <= 2) return 'brilliant';
+    // A) 기물 희생 + 승률 손실 2%p 이하 (희생이 최선수)
+    if (lossVsBest <= 2) return 'brilliant';
+    // B) 기물 희생 + 완전 역전 (불리≤40% → 유리≥55%)
+    if (wpBefore <= 40 && wpAfter >= 55) return 'brilliant';
+  }
+
+  // C) 비희생 대역전: 매우 불리(≤35%) → 유리(≥58%) + 유일수
+  if (wpBefore <= 35 && wpAfter >= 58) {
+    if (wp1 != null && wp2 != null) {
+      const gap = wp1 - wp2;
+      if (gap >= 20 && lossVsBest <= 5) return 'brilliant';
+    }
   }
 
   // ── Great: 훌륭한 수 (!) ─────────────────────────────────
-  // 최선 수와 차선 수의 승률 격차가 크고 (≥20%p)
-  // 이 수가 최선에 근접 (손실 ≤5%p) — 진짜 "유일수"만 해당
-  if (topAlts?.best1cp != null && topAlts?.best2cp != null) {
-    const wp1    = getWinProb(topAlts.best1cp, turn);
-    const wp2    = getWinProb(topAlts.best2cp, turn);
-    const gap    = wp1 - wp2;
-    const myLoss = wp1 - wpAfter;
-    if (gap >= 20 && myLoss <= 5) return 'great';
+  // best1~2 승률 격차 ≥ 10%p + 내 수가 최선에 근접 (손실 ≤ 5%p)
+  if (wp1 != null && wp2 != null) {
+    const gap = wp1 - wp2;
+    if (gap >= 10 && lossVsBest <= 5) {
+      // "너무 당연한 수" 필터: 합법적 수 ≤ 3이면서 극단적 상황
+      const lmCount = topAlts?.legalMoveCount ?? 99;
+      const tooObvious = (lmCount <= 3) && (wpAfter >= 80 || wpBefore <= 20);
+      if (!tooObvious) return 'great';
+    }
   }
 
-  // ── Best / Excellent / Good / Inaccuracy ─────────────────
-  if (wpDrop <  2)  return 'best';        // 최선의 수
-  if (wpDrop <  5)  return 'excellent';   // 뛰어난 수
-  if (wpDrop < 10)  return 'good';        // 좋은 수
-  if (wpDrop < 20)  return 'inaccuracy';  // 부정확한 수
+  // ── Best: 엔진 1순위와 사실상 동일 ──────────────────────
+  // cp 손실 5 이하 OR 승률 손실 2%p 이하
+  if (cpLoss <= 5 || lossVsBest <= 2) return 'best';
 
-  // ── Mistake / Blunder 분류 ──────────────────────────────
-  // 국면 전환이 심할수록 blunder
-  if (wpBefore >= 60 && wpAfter < 40) return 'blunder';  // 이기던 → 지는
-  if (wpDrop >= 40)                   return 'blunder';  // 40%p 이상 손실
-  if (wpBefore >= 60 && wpAfter < 55) return 'mistake';  // 이기던 → 비기는
-  if (wpBefore >= 40 && wpBefore < 60 && wpAfter < 35) return 'mistake'; // 비기던 → 지는
-  if (wpDrop >= 20)                   return 'mistake';  // 20~40%p 단순 손실
-  return 'inaccuracy'; // edge case (10~20% 사이 분기 누락 방지)
+  // ── Excellent / Good / Inaccuracy / Mistake / Blunder ───
+  // cp 손실 기준 (체스닷컴 방식) + 승률 기준 병행
+  // 실질 손실 = 엔진 최선수 대비 손실 (lossVsBest 사용)
+
+  if (cpLoss <= 10  && lossVsBest <= 3)  return 'excellent';
+  if (cpLoss <= 25  && lossVsBest <= 6)  return 'good';
+
+  // Excellent/Good 경계: cp 기준이 낮아도 승률 손실 기준으로 재판단
+  if (lossVsBest <  3)  return 'excellent';
+  if (lossVsBest <  6)  return 'good';
+  if (lossVsBest < 14)  return 'inaccuracy'; // cp 약 50~100 손실 영역
+
+  // ── Mistake / Blunder (wpDrop 기준 확정) ────────────────
+
+  // 기물 헌납: 폰 이상 기물을 공짜로 잃음 + 승률 급락
+  const isGiveaway = cpLoss >= 200 && wpDrop >= 20;
+  if (isGiveaway) {
+    if (wpBefore <= 35) return 'mistake';  // 이미 불리한 상황
+    return 'blunder';
+  }
+
+  // 국면 전환 분류
+  const winBefore  = wpBefore >= 60;
+  const drawBefore = wpBefore >= 40 && wpBefore < 60;
+
+  const winAfter   = wpAfter  >= 55;
+  const drawAfter  = wpAfter  >= 40 && wpAfter  < 55;
+  const loseAfter  = wpAfter  < 40;
+
+  // Blunder: 이기던 → 지는 (완전 역전)
+  if (winBefore && loseAfter) return 'blunder';
+  // Blunder: 30%p 이상 대폭 손실
+  if (wpDrop >= 30) return 'blunder';
+
+  // Mistake: 이기던 → 비기는
+  if (winBefore && drawAfter) return 'mistake';
+  // Mistake: 비기던 → 지는
+  if (drawBefore && loseAfter) return 'mistake';
+  // Mistake: 14~30%p 손실
+  if (lossVsBest < 30) return 'mistake';
+
+  return 'blunder'; // 30%p 이상이면 블런더
 }
 
 // ── 배지 아이콘 ─────────────────────────────────────────────
@@ -1206,17 +1929,31 @@ function updateMoveAnnotations() {
       best2cp:        before.topAlts?.best2cp  ?? null,
       hasSacrifice:   isSacrifice(h),
       legalMoveCount: before.legalMoveCount    ?? null,
+      // 메이트 정보:
+      // mateInBefore: 이 수 두기 전, 현재 두는 플레이어가 메이트 수순 보유했는가
+      //   (before는 이 수를 두기 전 포지션, 현재 플레이어가 h.turn)
+      //   before.mateIn > 0 → 현재 플레이어(h.turn)가 N수 메이트 가능
+      mateInBefore:   (before.mateIn != null && before.mateIn > 0)
+                        ? before.mateIn : null,
+      // mateInAfter: 이 수 후 상대에게 메이트 수순이 생겼는가
+      //   after는 이 수 후 포지션, 상대 차례.
+      //   after.mateIn > 0 → 상대가 N수 메이트 가능 (= 내가 메이트를 허용)
+      mateInAfter:    (after.mateIn != null && after.mateIn > 0)
+                        ? after.mateIn : null,
     };
 
     let cls = classifyMove(before.cp, after.cp, h.turn, topAlts);
 
     // ── Miss 판정 ──────────────────────────────────────────
-    // 상대가 직전에 실수/블런더를 했는데 내가 응징하지 못한 경우
+    // 상대가 직전에 실수/블런더를 했는데 내가 응징하지 못한 경우.
     // 스펙트럼이 넓음:
-    //   - 유리함을 키우지 못한 경미한 경우 (상대 blunder → 내 good)
-    //   - 이긴 게임을 비기거나 진 게임으로 바꾼 심각한 경우
-    // brilliant / great / forced는 miss로 격하하지 않음
-    if (cls !== 'brilliant' && cls !== 'great' && cls !== 'forced') {
+    //   - 경미: 상대 실수로 생긴 유리함을 살리지 못한 경우 (→ miss)
+    //   - 심각: 이긴 게임을 비기거나 진 게임으로 바꾼 경우 (→ 기존 blunder/mistake 유지)
+    //
+    // brilliant / great / best / forced 는 miss로 격하하지 않음
+    // 이미 blunder/mistake인 경우도 miss로 격하하지 않음 (더 심한 실수 유지)
+    const missExempt = new Set(['brilliant','great','best','forced','blunder','mistake']);
+    if (!missExempt.has(cls)) {
       if (i > 0) {
         const prevH         = game.history[i - 1];
         const prevFenBefore = prevH.fenBefore;
@@ -1230,13 +1967,15 @@ function updateMoveAnnotations() {
             const oppWpDrop = getWinProb(prevBefore.cp, oppTurn)
                             - getWinProb(prevAfter.cp,  oppTurn);
 
-            // 상대가 15%p 이상 승률 손실 → 내게 기회 발생
-            if (oppWpDrop >= 15) {
+            // 상대가 10%p 이상 승률 손실 → 내게 기회 발생
+            if (oppWpDrop >= 10) {
               const myWpBefore = getWinProb(before.cp, h.turn);
               const myWpAfter  = getWinProb(after.cp,  h.turn);
               const myWpDrop   = myWpBefore - myWpAfter;
 
-              // 내 승률이 오히려 떨어짐 → 기회를 살리지 못함
+              // 기회를 살리지 못함:
+              // - 내 승률이 유지되지 않거나 (5%p 이상 하락)
+              // - 또는 myWpBefore는 여전히 유리한데 살리지 못한 경우
               if (myWpDrop >= 5) cls = 'miss';
             }
           }
@@ -1253,16 +1992,75 @@ function updateMoveAnnotations() {
   if (changed) game.renderMoveList();
 }
 
-// ── 기보 셀 HTML 생성 ────────────────────────────────────────
+// ── 기보 셀 HTML 생성 (기물 아이콘 포함) ──────────────────────
+const SAN_PIECE_MAP = { 'N': 'N', 'B': 'B', 'R': 'R', 'Q': 'Q', 'K': 'K' };
+
 function moveCellHTML(h) {
   const ann      = h.annotation;
   const icon     = ann && ANN_ICON[ann] ? ANN_ICON[ann] : '';
   const iconHTML = icon
     ? `<span class="move-ann ann-${ann}" title="${ANN_LABEL[ann] || ann}">${icon}</span>`
     : '';
-  return `<span>${h.san}</span>${iconHTML}`;
+
+  // 기물 아이콘 이미지 추가
+  const san = h.san;
+  const color = h.turn; // 'w' or 'b'
+  let pieceCode = null;
+  if (san === 'O-O' || san === 'O-O-O') {
+    pieceCode = color + 'K';
+  } else if (san && 'NBRQK'.includes(san[0])) {
+    pieceCode = color + san[0];
+  } else {
+    pieceCode = color + 'P';
+  }
+  const pieceIconHTML = `<img src="${pieceImg(pieceCode)}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:2px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3))">`;
+
+  // SAN 표시 정제:
+  // 1) 기물 대문자(아이콘으로 대체) 제거
+  // 2) 출발 칸(파일/랭크 명시 부분) 제거 → 목적지 + 캡처 기호만 표시
+  let displaySan = san;
+  if (san === 'O-O' || san === 'O-O-O') {
+    displaySan = san; // 캐슬링은 그대로
+  } else {
+    // 기물 기호 제거
+    if (displaySan && 'NBRQK'.includes(displaySan[0])) {
+      displaySan = displaySan.slice(1);
+    }
+    // 출발 칸 표기 제거: xa6 → xa6 (출발 파일 없음)
+    // 패턴: [a-h]?[1-8]?x[a-h][1-8] 또는 [a-h][1-8][a-h][1-8]
+    // 즉 목적지 앞에 있는 출발 파일/랭크 제거
+    // e2xe7 → xe7 / a6xb5 → xb5 / f3e5 → e5 / g3xf5 → xf5
+    displaySan = displaySan.replace(
+      /^([a-h]?[1-8]?)(x?)([a-h][1-8].*)$/,
+      (_, _from, cap, dest) => cap + dest
+    );
+  }
+
+  return `${pieceIconHTML}<span>${displaySan}</span>${iconHTML}`;
 }
 
+// SAN 문자열 + 차례(turn)로 moveCellHTML과 동일한 HTML 생성 (엔진라인용)
+function _sanToMoveCellHTML(san, turn) {
+  if (!san) return san;
+  let pieceCode;
+  if (san === 'O-O' || san === 'O-O-O') {
+    pieceCode = turn + 'K';
+  } else if ('NBRQK'.includes(san[0])) {
+    pieceCode = turn + san[0];
+  } else {
+    pieceCode = turn + 'P';
+  }
+  const pieceIconHTML = `<img src="${pieceImg(pieceCode)}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:2px;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.3))">`;
+  let displaySan = san;
+  if (san !== 'O-O' && san !== 'O-O-O') {
+    if ('NBRQK'.includes(displaySan[0])) displaySan = displaySan.slice(1);
+    displaySan = displaySan.replace(
+      /^([a-h]?[1-8]?)(x?)([a-h][1-8].*)$/,
+      (_, _from, cap, dest) => cap + dest
+    );
+  }
+  return `${pieceIconHTML}<span>${displaySan}</span>`;
+}
 
 function uciMovesToSan(uciMoves, startBoard, startTurn, startCastling, startEnPassant) {
   let board = startBoard.map(r=>[...r]);
@@ -1335,7 +2133,27 @@ function renderTopMoves(msg) {
       // 수 분리: 첫 번째 수 + 나머지
       const allMoves = pv.moves || [];
       const firstMove = allMoves[0] || '';
-      const restMoves = allMoves.slice(1, 7).join(' ');
+      // 수순 전체 표시 (수 번호 포함 — 첫 수 이후부터)
+      const restMoves = (() => {
+        const moves = allMoves.slice(1);
+        if (!moves.length) return '';
+        const turnAfterFirst = (game.turn === 'w') ? 'b' : 'w';
+        let t = turnAfterFirst;
+        let moveNum = game.fullMove;
+        if (game.turn === 'w') moveNum = game.fullMove; // white played first
+        let parts = [];
+        moves.forEach((m, idx) => {
+          const absIdx = idx + 1; // offset from firstMove
+          // t here is whose turn it was for this move
+          // game.turn = current turn (before first move)
+          // firstMove was by game.turn, so move index 0 = game.turn
+          const moverTurn = (absIdx % 2 === 0) ? game.turn : (game.turn === 'w' ? 'b' : 'w');
+          if (moverTurn === 'w') { parts.push(moveNum + '.'); moveNum++; }
+          else if (absIdx === 1) parts.push(moveNum + '...');
+          parts.push(m);
+        });
+        return parts.join(' ');
+      })();
 
       // depth 배지
       const depthStr = pv.depth ? `d${pv.depth}` : '';
@@ -1351,6 +2169,101 @@ function renderTopMoves(msg) {
           ${restMoves ? `<span class="top-move-rest">${restMoves}</span>` : ''}
         </div>
       `;
+      // 엔진 라인 클릭 → 기보 패널에 미리보기
+      // ★ 버그1 수정: 클릭 시점 pvMoves를 즉시 딥카피로 고정 (이후 pvData 변경에 영향 안 받음)
+      const pvMovesSnap = JSON.parse(JSON.stringify(pv.moves || []));
+      const pvIdxSnap = i;
+      row.addEventListener('click', () => {
+        document.querySelectorAll('.top-move-row').forEach(r => r.classList.remove('previewing'));
+        row.classList.add('previewing');
+
+        // enginePreview가 활성 상태일 때
+        if (game.enginePreview) {
+          const ep = game.enginePreview;
+          const histIdx = ep.histIdx;
+
+          // 현재 분석 중인 FEN이 enginePreview 기준 FEN과 같은지 확인
+          // _engineLineAnalysisFen이 설정돼있으면 엔진라인 수 탐색 중 (같은 라인 계속 탐색)
+          // 다른 포지션(다른 기보 수)에서 클릭했으면 → previewEngineLine으로 새 라인 처리
+          const epBaseFen = _getHistFen(histIdx);
+          const isExploring = _engineLineAnalysisFen !== null; // 라인 내 수 탐색 중
+          const sameBase = epBaseFen && lastAnalyzedFen && (normFen(epBaseFen) === normFen(lastAnalyzedFen));
+
+          if (!isExploring && !sameBase) {
+            game.previewEngineLine(pvMovesSnap, pvIdxSnap);
+            return;
+          }
+
+          const linePvIdx = ep.pvIdx;
+          const lineData = (game.enginePreviews[histIdx] || []).find(l => l.pvIdx === linePvIdx);
+
+          if (lineData) {
+            const extraMoveIdx = ep.extraMoveIdx ?? -1;
+            const cutAt = extraMoveIdx >= 0 ? extraMoveIdx + 1 : 0;
+            lineData.extraMoves = (lineData.extraMoves || []).slice(0, cutAt);
+
+            let curBoard = game.board.map(r=>[...r]);
+            let curTurn = game.turn;
+            let curCast = {...game.castling};
+            let curEP = game.enPassant;
+            let curHM = game.halfMove;
+            let curFM = game.fullMove;
+            for (const san of pvMovesSnap) {
+              const allLM = getAllLegalMoves(curBoard, curTurn, curCast, curEP);
+              const matched = sanToMove(san, curBoard, curTurn, allLM);
+              if (!matched) break;
+              const boardAfter = applyMoveToBoard(curBoard.map(r=>[...r]), matched, curTurn);
+              const castAfter = {...curCast};
+              if (curBoard[matched.from[0]][matched.from[1]] === `${curTurn}K`) {
+                if (curTurn==='w') { castAfter.wK=false; castAfter.wQ=false; }
+                else { castAfter.bK=false; castAfter.bQ=false; }
+              }
+              if (matched.from[0]===7&&matched.from[1]===7) castAfter.wK=false;
+              if (matched.from[0]===7&&matched.from[1]===0) castAfter.wQ=false;
+              if (matched.from[0]===0&&matched.from[1]===7) castAfter.bK=false;
+              if (matched.from[0]===0&&matched.from[1]===0) castAfter.bQ=false;
+              const epAfter = matched.doublePush ? [matched.to[0]-(curTurn==='w'?-1:1), matched.to[1]] : null;
+              const fmAfter = curTurn==='b' ? curFM+1 : curFM;
+              lineData.extraMoves.push({
+                san, move: matched, turn: curTurn,
+                board: curBoard.map(r=>[...r]),
+                castling: {...curCast}, enPassant: curEP,
+                halfMove: curHM, fullMove: curFM,
+                boardAfter, castAfter, epAfter, fmAfter
+              });
+              curBoard = boardAfter;
+              curTurn = curTurn==='w'?'b':'w';
+              curCast = castAfter;
+              curEP = epAfter;
+              curHM++;
+              if (curTurn==='w') curFM++;
+            }
+            const newExtraIdx = lineData.extraMoves.length - 1;
+            game.enginePreview = { ...ep, extraMoveIdx: newExtraIdx };
+            if (newExtraIdx >= 0) {
+              const lastEm = lineData.extraMoves[newExtraIdx];
+              game.board = lastEm.boardAfter.map(r=>[...r]);
+              game.turn = lastEm.turn === 'w' ? 'b' : 'w';
+              game.castling = {...lastEm.castAfter};
+              game.enPassant = lastEm.epAfter;
+              game.halfMove = lastEm.halfMove + 1;
+              game.fullMove = lastEm.fmAfter;
+              game.lastMove = lastEm.move;
+              const fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
+              _engineLineAnalysisFen = fen;
+              _analyzeSpecificFen(fen);
+            }
+            game.selectedSq = null;
+            game.possibleMoves = [];
+            game.renderBoard();
+            game.renderMoveList();
+            game.updateStatus();
+            return;
+          }
+        }
+
+        game.previewEngineLine(pvMovesSnap, pvIdxSnap);
+      });
 
     } else {
       // 빈 행
@@ -1422,6 +2335,9 @@ let pendingFen     = '';
 let lastSentFen    = '';
 let currentAnalysisId = 0;
 
+// 엔진라인 수 클릭 시 분석 중인 FEN (null이면 기보 기준 분석)
+let _engineLineAnalysisFen = null;
+
 const evalCache = {};
 
 // ── Worker 풀 ────────────────────────────────────────────────
@@ -1470,7 +2386,6 @@ function createStockfishWorker(threads = 1, hashMb = 64) {
     }, 15000);
   });
 }
-
 
 // ── 엔진 초기화 ──────────────────────────────────────────────
 async function initEngine() {
@@ -1564,6 +2479,73 @@ function flushCycleToDisplay() {
   document.getElementById('eval-score').textContent = best.eval;
   updateEvalBarFromCp(best.cpFromWhite);
   renderTopMoves();
+
+  // ── 엔진 라인 실시간 동기화 ──────────────────────────────
+  // _engineLineAnalysisFen 이 설정되어 있으면 엔진라인 수 포지션을 분석 중
+  // → 기보 패널 enginePreviews 덮어쓰기 금지 (최선수 패널만 업데이트됨)
+  if (_engineLineAnalysisFen) return;
+
+  // ★ 버그1 근본 수정: enginePreview가 활성화된 상태(사용자가 라인 클릭해서 탐색 중)이면
+  // 기보 패널의 moves를 절대 업데이트하지 않음 (클릭 시점으로 고정)
+  // top-move 패널(renderTopMoves)만 계속 최신 분석으로 업데이트됨
+  if (game && game.enginePreview) return;
+
+  // 현재 분석 FEN이 어떤 histIdx의 기준 포지션과 일치하면
+  // 그 histIdx의 enginePreviews를 새 pvData로 갱신하고 기보 패널도 업데이트
+  if (game && game.enginePreviews) {
+    const analyzedFen = lastAnalyzedFen;
+    let syncedHistIdx = null;
+
+    // 활성 엔진라인이 없으면 전체 맵 탐색
+    for (const hIdx of Object.keys(game.enginePreviews)) {
+      const hi = parseInt(hIdx);
+      if (_getHistFen(hi) === analyzedFen) {
+        syncedHistIdx = hi;
+        break;
+      }
+    }
+
+    if (syncedHistIdx !== null && game.enginePreviews[syncedHistIdx]) {
+      // 현재 표시 중인 pvIdx의 라인만 업데이트 (1개만 표시 정책)
+      const existingLines = game.enginePreviews[syncedHistIdx];
+      const activePvIdx = existingLines[0]?.pvIdx ?? 1;
+      const updatedPv = pvData[activePvIdx] || pvData[1];
+      if (updatedPv && updatedPv.moves && updatedPv.moves.length > 0) {
+        // 기존 라인 찾아서 moves/eval/depth만 업데이트 (extraMoves 보존)
+        const existingLine = existingLines.find(l => l.pvIdx === activePvIdx) || existingLines[0];
+        if (existingLine) {
+          existingLine.moves = [...updatedPv.moves];
+          existingLine.eval = updatedPv.eval;
+          existingLine.depth = updatedPv.depth;
+          game.renderMoveList();
+        }
+      }
+    }
+  }
+}
+
+// 특정 histIdx의 기준 포지션 FEN 계산 헬퍼
+function _getHistFen(histIdx) {
+  if (!game) return null;
+  try {
+    if (histIdx < 0) {
+      return boardToFen(INIT_BOARD, 'w', { wK: true, wQ: true, bK: true, bQ: true }, null, 0, 1);
+    }
+    const s = game.history[histIdx];
+    if (!s) return null;
+    const b = applyMoveToBoard(s.board.map(r=>[...r]), s.move, s.turn);
+    const t = s.turn === 'w' ? 'b' : 'w';
+    const c = {...s.castling};
+    if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
+      if (s.turn==='w') { c.wK=false; c.wQ=false; } else { c.bK=false; c.bQ=false; }
+    }
+    if (s.move.from[0]===7&&s.move.from[1]===7) c.wK=false;
+    if (s.move.from[0]===7&&s.move.from[1]===0) c.wQ=false;
+    if (s.move.from[0]===0&&s.move.from[1]===7) c.bK=false;
+    if (s.move.from[0]===0&&s.move.from[1]===0) c.bQ=false;
+    const ep = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
+    return boardToFen(b, t, c, ep, s.halfMove+1, s.turn==='b'?s.fullMove+1:s.fullMove);
+  } catch(e) { return null; }
 }
 
 // 엔진 정지 상태에서만 호출 — go 명령 전송
@@ -1665,6 +2647,20 @@ function handleMainWorkerMessage(e) {
     // evalCache 저장
     const savedFen = lastSentFen || pendingFen;
     if (savedFen && b) {
+      // 메이트 수순 정보 추출 (양수: 현재 플레이어가 메이트 가능, 음수: 상대가 메이트 가능)
+      // b는 현재 플레이어 기준 1순위 PV
+      let mateIn = null;
+      if (b.score_type === 'mate') {
+        // score_val 양수 = 현재 플레이어가 N수 내 메이트
+        // score_val 음수 = 현재 플레이어가 N수 내 메이트당함
+        mateIn = b.score_val; // 그대로 저장 (부호 포함)
+      } else if (Math.abs(b.cpFromWhite) >= 9000) {
+        // cp가 ±9000 이상이면 메이트로 간주 (score_type 누락 방어)
+        const turn = savedFen.split(' ')[1] || 'w';
+        mateIn = b.cpFromWhite > 0
+          ? (turn === 'w' ? 99 : -99)
+          : (turn === 'w' ? -99 : 99);
+      }
       const topAlts = {
         best1cp: pvData[1] ? pvData[1].cpFromWhite : null,
         best2cp: pvData[2] ? pvData[2].cpFromWhite : null,
@@ -1682,6 +2678,7 @@ function handleMainWorkerMessage(e) {
       } catch(e) {}
       evalCache[normFen(savedFen)] = {
         cp: b.cpFromWhite, depth: b.depth, topAlts, legalMoveCount,
+        mateIn,
         pvs: rawPvStore,
         turn: pendingTurn,
       };
@@ -1782,6 +2779,7 @@ let pendingEP       = null;
 let settingsDirty = false;
 
 function analyzePosition(force) {
+  if (coachOpen) updateCoachContext();
   if (!autoAnalyze || !mainReady) return;
   if (analysisTimeout) clearTimeout(analysisTimeout);
 
@@ -1856,6 +2854,50 @@ function reanalyzeWithSettings() {
   settingsDirty = true;
   lastAnalyzedFen = '';   // FEN 캐시 무효화
   analyzePosition(true);
+}
+
+// 엔진라인 탐색 중 특정 FEN 분석 (게임 보드 상태와 무관)
+function _analyzeSpecificFen(fen) {
+  if (!autoAnalyze || !mainReady || !fen) return;
+  if (analysisTimeout) clearTimeout(analysisTimeout);
+  if (fen === lastAnalyzedFen) return;
+
+  const fenParts = fen.split(' ');
+  const turn = fenParts[1] || 'w';
+  const board = parseFenBoard(fenParts[0]);
+  const castling = parseFenCastling(fenParts[2] || '-');
+  const ep = parseFenEP(fenParts[3] || '-');
+  if (!board) return;
+
+  currentAnalysisId++;
+  const myId = currentAnalysisId;
+  pendingTurn = turn;
+  pendingFen = fen;
+  pendingBoard = board;
+  pendingCastling = castling;
+  pendingEP = ep;
+
+  document.getElementById('engine-dot').className = 'engine-dot thinking';
+
+  analysisTimeout = setTimeout(() => {
+    if (myId !== currentAnalysisId) return;
+    if (!mainWorker) return;
+    lastAnalyzedFen = fen;
+    lastSentFen = fen;
+    pvData = {};
+    rawPvStore = {};
+    cycleStore = {};
+    cycleDepth = 0;
+    cycleSnap = null;
+    cycleId = 0;
+    if (engineSearching) {
+      pendingNextFen = { fen, myId, multiPV, movetime: analysisTime };
+      mainWorker.postMessage('stop');
+    } else {
+      pendingNextFen = null;
+      _sendGoCommand(fen, myId, multiPV, analysisTime);
+    }
+  }, 100);
 }
 
 function setEngineBadge(state, text) {
@@ -1944,8 +2986,8 @@ async function startBgAnalysis() {
     return;
   }
 
-  const bgDepth    = Math.min(analysisDepth, 18); // 백그라운드 depth 18
-  const bgMovetime = 2000;                         // 포지션당 최대 2초 (메이트 라인 탐색)
+  const bgDepth    = Math.min(analysisDepth, 22); // 백그라운드 depth 22 (메이트 탐색 정확도 향상)
+  const bgMovetime = 3000;                         // 포지션당 최대 3초
   const bgMultipv  = 3;
 
   showToast(`📊 전체 분석 시작 (${toAnalyze.length}개 · ${bgWorkers.length}개 병렬)`);
@@ -1995,6 +3037,19 @@ function handleBgResult({ fen, turn, pvs }) {
     best2cp: pv2 ? pv2.cpFromWhite : null,
   };
 
+  // 메이트 수순 정보 추출
+  // pv1.score_val: UCI 기준 현재 두는 플레이어(turn) 관점 양수=내가 메이트, 음수=상대가 메이트
+  // 단, cpFromWhite로도 메이트 여부 확인 가능 (±9900 이상)
+  let mateIn = null;
+  if (pv1.score_type === 'mate') {
+    mateIn = pv1.score_val; // 양수: turn 플레이어가 메이트 가능, 음수: 메이트당함
+  } else if (Math.abs(pv1.cpFromWhite) >= 9000) {
+    // score_type이 없어도 cp가 ±9000 이상이면 메이트 수순으로 간주
+    mateIn = pv1.cpFromWhite > 0
+      ? (turn === 'w' ? 99 : -99)
+      : (turn === 'w' ? -99 : 99);
+  }
+
   let legalMoveCount = null;
   try {
     const fp = fen.split(' ');
@@ -2011,12 +3066,31 @@ function handleBgResult({ fen, turn, pvs }) {
     depth: pv1.depth,
     topAlts,
     legalMoveCount,
+    mateIn,
     pvs,   // 라인 전체 저장 (기보 탐색 시 top-moves 복원용)
     turn,
   };
 
   // 실시간 배지 업데이트
   updateMoveAnnotations();
+
+  // 위협 분석 자동 트리거: 패널 열려있고 depth 충분하고 FEN 바뀐 경우에만
+  if (pv1.depth >= 16 && fen !== lastThreatFen && coachApiKey && !threatLoading) {
+    clearTimeout(window._threatTimer);
+    window._threatTimer = setTimeout(() => {
+      const panel = document.getElementById('threat-panel');
+      const panelOpen = panel && panel.style.display !== 'none';
+      if (panelOpen && fen !== lastThreatFen && !threatLoading) {
+        runThreatAnalysis();
+      }
+      // 최선수 설명도 함께 갱신
+      const bestPanel = document.getElementById('best-explain-panel');
+      const bestOpen = bestPanel && bestPanel.style.display !== 'none';
+      if (bestOpen && fen !== lastBestExplainFen && !bestExplainLoading) {
+        runBestMoveExplain();
+      }
+    }, 1200);
+  }
 }
 
 // ===== GAME CLASS =====
@@ -2039,6 +3113,10 @@ class ChessGame {
     this.possibleMoves = [];
     this.history = [];
     this.historyIndex = -1;
+    this.variations = [];
+    this.currentVariation = null;
+    this.enginePreview = null;  // 현재 보드에 반영된 엔진라인 상태
+    this.enginePreviews = {};   // histIdx → [ {pvIdx, moves, eval, depth} ] 영구 맵
     this.pendingPromo = null;
     this.halfMove = 0;
     this.fullMove = 1;
@@ -2059,6 +3137,14 @@ class ChessGame {
     this.selectedSq = null;
     this.possibleMoves = [];
     this.lastMove = null;
+    // 변화수 트리: { afterIndex: number, moves: state[] }[]
+    // afterIndex = 이 변화수가 분기되는 메인라인 historyIndex
+    this.variations = [];
+    // 현재 보고 있는 변화수 (null = 메인라인)
+    this.currentVariation = null; // { varIdx, moveIdx }
+    // 엔진 라인 미리보기 상태
+    this.enginePreview = null; // { histIdx, pvIdx, activeIdx, moves, states }
+    this.enginePreviews = {};  // histIdx → [{pvIdx, moves, eval, depth}]
   }
 
   cloneBoard(b) { return b.map(r => [...r]); }
@@ -2071,11 +3157,31 @@ class ChessGame {
     }
     if (promoPiece) move.promoPiece = promoPiece;
 
+    // variation 모드에서 makeMove 호출 시 → _addToVariation으로 라우팅
+    if (this.currentVariation) {
+      return this._addToVariation(move);
+    }
+
+    // 엔진라인 탐색 중에 수를 두면 → 엔진라인 뒤에 extraMoves로 이어붙임
+    if (this.enginePreview) {
+      return this._addToEngineLineExtra(move);
+    }
+
     const allMoves = getAllLegalMoves(this.board, this.turn, this.castling, this.enPassant);
     const san = moveToSAN(this.board, move, this.turn, allMoves);
 
+    // 기보 중간에서 다른 수를 두면 → variation으로 저장 (메인라인 보존)
     if (this.historyIndex < this.history.length - 1) {
-      this.history = this.history.slice(0, this.historyIndex + 1);
+      const nextMain = this.history[this.historyIndex + 1];
+      // 같은 수면 그냥 앞으로 이동
+      if (nextMain && nextMain.san === san) {
+        this.historyIndex++;
+        this.restoreState();
+        return true;
+      }
+      // 다른 수 → variation 시작
+      this._startVariation(san, move);
+      return true;
     }
 
     const fenBefore = boardToFen(this.board, this.turn, this.castling, this.enPassant, this.halfMove, this.fullMove);
@@ -2134,29 +3240,80 @@ class ChessGame {
     this.renderMoveList();
     this.updateStatus();
     analyzePosition(true);  // 수 이동: 강제 재분석
+    // 위협/최선수 패널 리셋 (새 수에 맞게 재분석 대기)
+    const tpanel = document.getElementById('threat-panel');
+    if (tpanel && tpanel.style.display !== 'none') {
+      document.getElementById('threat-content').innerHTML = '<div class="threat-loading">⚡ 분석 대기 중...</div>';
+      lastThreatFen = '';
+    }
+    const bpanel = document.getElementById('best-explain-panel');
+    if (bpanel && bpanel.style.display !== 'none') {
+      document.getElementById('best-explain-content').innerHTML = '<div class="threat-loading">📖 분석 대기 중...</div>';
+      document.getElementById('best-explain-seq').innerHTML = '';
+      lastBestExplainFen = '';
+    }
     return true;
   }
 
   goToStart() {
+    this.currentVariation = null;
+    this.enginePreview = null;
     this.historyIndex = -1;
-    this.restoreState();
+    this._restoreMainState();
   }
 
   goToEnd() {
+    this.currentVariation = null;
+    this.enginePreview = null;
     this.historyIndex = this.history.length - 1;
-    this.restoreState();
+    this._restoreMainState();
   }
 
   prevMove() {
-    if (this.historyIndex >= 0) { this.historyIndex--; this.restoreState(); }
+    if (this.enginePreview) {
+      // 엔진라인 탐색 중 → 원래 포지션으로 먼저 복원
+      this.enginePreview = null;
+    }
+    if (this.currentVariation) {
+      const { varIdx, lineIdx, moveIdx } = this.currentVariation;
+      if (moveIdx > 0) {
+        this.currentVariation.moveIdx--;
+        this._restoreVariationState(); return;
+      } else {
+        this.currentVariation = null;
+        this._restoreMainState(); return;
+      }
+    }
+    if (this.historyIndex >= 0) { this.historyIndex--; this._restoreMainState(); }
   }
 
   nextMove() {
-    if (this.historyIndex < this.history.length - 1) { this.historyIndex++; this.restoreState(); }
+    if (this.enginePreview) {
+      this.enginePreview = null;
+    }
+    if (this.currentVariation) {
+      const { varIdx, lineIdx, moveIdx } = this.currentVariation;
+      const line = this.variations[varIdx].lines[lineIdx];
+      if (moveIdx < line.length - 1) {
+        this.currentVariation.moveIdx++;
+        this._restoreVariationState(); return;
+      }
+      return;
+    }
+    if (this.historyIndex < this.history.length - 1) { this.historyIndex++; this._restoreMainState(); }
   }
 
   gotoMove(idx) {
+    this.currentVariation = null;
+    if (this.enginePreview) this.enginePreview = null;
     this.historyIndex = idx;
+    this._restoreMainState();
+  }
+
+  // 메인라인 포지션 복원 (엔진라인 유지하면서)
+  _restoreMainState() {
+    _engineLineAnalysisFen = null;  // 엔진라인 수 분석 FEN 초기화
+    this.enginePreview = null;      // 기보 수 이동 시 탐색 중인 enginePreview 초기화 (enginePreviews 맵은 유지)
     this.restoreState();
   }
 
@@ -2194,10 +3351,21 @@ class ChessGame {
     this.renderMoveList();
     this.updateStatus();
     analyzePosition(true);  // 기보 이동: 항상 강제 재분석
+    // 패널 리셋
+    lastThreatFen = '';
+    lastBestExplainFen = '';
+    const tp = document.getElementById('threat-panel');
+    if (tp && tp.style.display !== 'none') {
+      document.getElementById('threat-content').innerHTML = '<div class="threat-loading">⚡ 분석 대기 중...</div>';
+    }
+    const bp = document.getElementById('best-explain-panel');
+    if (bp && bp.style.display !== 'none') {
+      document.getElementById('best-explain-content').innerHTML = '<div class="threat-loading">📖 분석 대기 중...</div>';
+      document.getElementById('best-explain-seq').innerHTML = '';
+    }
   }
 
   resetBoard() {
-    // abortController: WASM 방식에서는 Worker.terminate()로 처리
     this.reset();
     pvData = {};
     lastAnalyzedFen = '';
@@ -2217,8 +3385,26 @@ class ChessGame {
   }
 
   handleSquareClick(r, c) {
-    if (this.historyIndex < this.history.length - 1 && this.history.length > 0) {
-      showToast('현재 수로 이동하세요 (→ 키)');
+    // variation 모드일 때는 variation에 수 추가
+    if (this.currentVariation) {
+      const piece = this.board[r][c];
+      if (this.selectedSq) {
+        const [sr, sc] = this.selectedSq;
+        const lm = legalMoves(this.board, sr, sc, this.castling, this.enPassant);
+        const target = lm.find(m => m.to[0]===r && m.to[1]===c);
+        if (target) { this._addToVariation(target); return; }
+        if (piece && piece[0]===this.turn) {
+          this.selectedSq = [r,c];
+          this.possibleMoves = legalMoves(this.board,r,c,this.castling,this.enPassant);
+          this.renderBoard(); return;
+        }
+        this.selectedSq = null; this.possibleMoves = []; this.renderBoard(); return;
+      }
+      if (piece && piece[0]===this.turn) {
+        this.selectedSq = [r,c];
+        this.possibleMoves = legalMoves(this.board,r,c,this.castling,this.enPassant);
+        this.renderBoard();
+      }
       return;
     }
 
@@ -2324,16 +3510,694 @@ class ChessGame {
           img.className = 'piece-img';
           img.src = pieceImg(piece);
           img.alt = piece;
-          img.draggable = false;
+          img.draggable = false; // HTML5 drag 완전 비활성
+          // mousedown → 드래그 시작
+          img.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            this._startMouseDrag(r, c, e, img);
+          });
           sq.appendChild(img);
         }
 
-        sq.addEventListener('click', () => this.handleSquareClick(r, c));
+        // 빈 칸 클릭: 선택된 기물의 이동 목적지로 처리
+        sq.addEventListener('mousedown', (e) => {
+          if (e.button !== 0) return;
+          if (e.target.classList.contains('piece-img')) return; // 기물은 img mousedown이 처리
+          e.preventDefault();
+          // 이미 선택된 기물이 있으면 이동 시도
+          if (this.selectedSq) {
+            const [sr, sc] = this.selectedSq;
+            const lm = legalMoves(this.board, sr, sc, this.castling, this.enPassant);
+            const target = lm.find(m => m.to[0] === r && m.to[1] === c);
+            if (target) {
+              this.selectedSq = null; this.possibleMoves = [];
+              this.makeMove(target);
+              return;
+            }
+          }
+          this.handleSquareClick(r, c);
+        });
+
         board.appendChild(sq);
       }
     }
 
     this.updateCapturedPieces();
+  }
+
+  // ── 마우스 드래그 이동 (mousedown 즉시 드래그 시작) ──────────
+  _startMouseDrag(r, c, e, img) {
+    const piece = this.board[r][c];
+    if (!piece) return;
+
+    // 상대방 기물 → 클릭 선택 fallback
+    if (piece[0] !== this.turn) {
+      this.handleSquareClick(r, c);
+      return;
+    }
+
+    // 기보 중간이면 variation 분기 준비 (잘라내기 안함)
+    // 실제 잘라내기는 makeMove/_startVariation에서 처리
+
+    // 선택 + 이동 가능한 칸 계산
+    this.selectedSq = [r, c];
+    this.possibleMoves = legalMoves(this.board, r, c, this.castling, this.enPassant);
+    this.renderBoard();
+
+    // ── 고스트 기물: mousedown 즉시 생성 ──────────────────
+    const boardEl = document.getElementById('chessboard');
+
+    const getRect  = () => boardEl.getBoundingClientRect();
+    const getSqSize = () => getRect().width / 8;
+
+    const ghost = document.createElement('img');
+    ghost.src = img.src;
+    const sz0 = getSqSize();
+    ghost.style.cssText = [
+      'position:fixed',
+      `width:${sz0}px`,
+      `height:${sz0}px`,
+      'object-fit:contain',
+      'pointer-events:none',
+      'z-index:9999',
+      'opacity:0.9',
+      'filter:drop-shadow(0 6px 16px rgba(0,0,0,0.7))',
+      'transform:translate(-50%,-50%)',
+      `left:${e.clientX}px`,
+      `top:${e.clientY}px`,
+      'transition:none',
+      'will-change:left,top',
+    ].join(';');
+    document.body.appendChild(ghost);
+
+    // 커서를 grabbing으로 전체 변경
+    document.body.classList.add('dragging');
+    document.body.style.cursor = 'grabbing';
+
+    let lastKey = null;  // 마지막으로 하이라이트한 칸 키
+
+    // ── 칸 좌표 계산 헬퍼 ───────────────────────────────
+    const getSquare = (cx, cy) => {
+      const rect = getRect();
+      const sqSz = rect.width / 8;
+      const x = cx - rect.left;
+      const y = cy - rect.top;
+      const dc = Math.floor(x / sqSz);
+      const dr = Math.floor(y / sqSz);
+      if (dc < 0 || dc >= 8 || dr < 0 || dr >= 8) return null;
+      return {
+        tr: this.flipped ? 7 - dr : dr,
+        tc: this.flipped ? 7 - dc : dc,
+      };
+    };
+
+    // ── 하이라이트 업데이트 ─────────────────────────────
+    const updateHighlight = (tr, tc) => {
+      const key = `${tr},${tc}`;
+      if (key === lastKey) return;
+      lastKey = key;
+      const squares = boardEl.querySelectorAll('.square');
+      const theme = this.boardThemes[this.currentTheme];
+      squares.forEach((sq, idx) => {
+        const sqR = this.flipped ? 7 - Math.floor(idx / 8) : Math.floor(idx / 8);
+        const sqC = this.flipped ? 7 - (idx % 8) : (idx % 8);
+        const isLight = (sqR + sqC) % 2 === 0;
+        // 마지막 수 하이라이트
+        let bg = isLight ? theme.light : theme.dark;
+        if (this.showHighlight && this.lastMove) {
+          const [fr2,fc2] = this.lastMove.from, [tr2,tc2] = this.lastMove.to;
+          if ((sqR===fr2&&sqC===fc2)||(sqR===tr2&&sqC===tc2)) bg = isLight?'#cdd46e':'#aaa23a';
+        }
+        // 출발 칸 초록
+        if (sqR === r && sqC === c) { sq.style.background = 'rgba(50,200,100,0.55)'; return; }
+        // 이동 가능 표시 (possible-move/capture는 CSS로)
+        const isPoss = this.possibleMoves.some(m => m.to[0]===sqR && m.to[1]===sqC);
+        // 현재 커서 칸 강조
+        if (sqR === tr && sqC === tc) {
+          sq.style.background = isPoss ? 'rgba(80,210,80,0.75)' : 'rgba(200,200,80,0.35)';
+          return;
+        }
+        sq.style.background = bg;
+      });
+    };
+
+    // ── mousemove: 고스트 이동 + 하이라이트 ─────────────
+    const onMove = (ev) => {
+      ev.preventDefault();
+      const cx = ev.clientX;
+      const cy = ev.clientY;
+      // 고스트 크기 갱신 (창 리사이즈 대응)
+      const sz = getSqSize();
+      ghost.style.width  = sz + 'px';
+      ghost.style.height = sz + 'px';
+      ghost.style.left   = cx + 'px';
+      ghost.style.top    = cy + 'px';
+      const sq = getSquare(cx, cy);
+      if (sq) updateHighlight(sq.tr, sq.tc);
+    };
+
+    // ── mouseup: 수 확정 ────────────────────────────────
+    const onUp = (ev) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      ghost.remove();
+      document.body.classList.remove('dragging');
+      document.body.style.cursor = '';
+
+      const sq = getSquare(ev.clientX, ev.clientY);
+
+      // 같은 칸 mouseup → 클릭 선택 상태 유지 (다음 클릭으로 목적지 지정)
+      if (!sq || (sq.tr === r && sq.tc === c)) {
+        // 선택은 유지, 보드만 다시 렌더
+        this.renderBoard();
+        return;
+      }
+
+      const target = this.possibleMoves.find(m => m.to[0] === sq.tr && m.to[1] === sq.tc);
+      if (target) {
+        this.selectedSq = null; this.possibleMoves = [];
+        if (this.currentVariation) {
+          this._addToVariation(target);
+        } else {
+          this.makeMove(target);
+        }
+      } else {
+        this.selectedSq = null; this.possibleMoves = [];
+        this.renderBoard();
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  // ── 변화수(Variation) 시작 ─────────────────────────────────
+  _startVariation(san, move) {
+    const branchIdx = this.historyIndex; // 분기점 메인라인 index
+
+    // 기존 같은 분기점의 variation이 있으면 거기에 추가 (새 라인)
+    // 아니면 새 variation 생성
+    let varObj = this.variations.find(v => v.afterIndex === branchIdx);
+    if (!varObj) {
+      varObj = { afterIndex: branchIdx, lines: [] };
+      this.variations.push(varObj);
+    }
+
+    // 현재 보드 상태로부터 수를 실행해 variation 라인 만들기
+    const s = this.historyIndex >= 0 ? this.history[this.historyIndex] : null;
+    let board = s ? this.cloneBoard(this.board) : INIT_BOARD.map(r=>[...r]);
+    let turn = this.turn;
+    let castling = {...this.castling};
+    let enPassant = this.enPassant;
+    let halfMove = s ? s.halfMove + 1 : 1;
+    let fullMove = s ? (turn === 'b' ? s.fullMove + 1 : s.fullMove) : 1;
+
+    const fenBefore = boardToFen(board, turn, castling, enPassant, halfMove-1, fullMove);
+    const boardAfter = applyMoveToBoard(this.cloneBoard(board), move, turn);
+    const castAfter = {...castling};
+    if (board[move.from[0]][move.from[1]] === `${turn}K`) {
+      if (turn==='w') { castAfter.wK=false; castAfter.wQ=false; }
+      else            { castAfter.bK=false; castAfter.bQ=false; }
+    }
+    if (move.from[0]===7&&move.from[1]===7) castAfter.wK=false;
+    if (move.from[0]===7&&move.from[1]===0) castAfter.wQ=false;
+    if (move.from[0]===0&&move.from[1]===7) castAfter.bK=false;
+    if (move.from[0]===0&&move.from[1]===0) castAfter.bQ=false;
+    const epAfter = move.doublePush ? [move.to[0]-(turn==='w'?-1:1), move.to[1]] : null;
+    const fenAfter = boardToFen(boardAfter, turn==='w'?'b':'w', castAfter, epAfter, halfMove, fullMove);
+
+    const varState = {
+      board: this.cloneBoard(board),
+      turn, castling: {...castling}, enPassant, halfMove: halfMove-1, fullMove,
+      san, move,
+      captured: board[move.to[0]][move.to[1]],
+      fenBefore, fenAfter, annotation: null,
+    };
+
+    // 이 variation line 생성 (첫 수)
+    const newLine = [varState];
+    varObj.lines.push(newLine);
+    const lineIdx = varObj.lines.length - 1;
+
+    // currentVariation 으로 진입
+    this.currentVariation = { varIdx: this.variations.indexOf(varObj), lineIdx, moveIdx: 0 };
+
+    // 보드 상태를 variation 첫 수 이후로 업데이트
+    this.board = boardAfter;
+    this.turn = turn === 'w' ? 'b' : 'w';
+    this.castling = castAfter;
+    this.enPassant = epAfter;
+    if (turn==='b') this.fullMove++;
+    this.halfMove++;
+    this.lastMove = move;
+    this.selectedSq = null;
+    this.possibleMoves = [];
+
+    this.renderBoard();
+    this.renderMoveList();
+    this.updateStatus();
+    analyzePosition(true);
+  }
+
+  // ── Variation 내에서 수 추가 ────────────────────────────────
+  _addToVariation(move) {
+    const { varIdx, lineIdx, moveIdx } = this.currentVariation;
+    const varObj = this.variations[varIdx];
+    const line = varObj.lines[lineIdx];
+
+    // 이미 다음 수가 있으면 (앞으로 이동) 체크
+    if (moveIdx + 1 < line.length && line[moveIdx+1].san === moveToSAN(this.board, move, this.turn,
+        getAllLegalMoves(this.board, this.turn, this.castling, this.enPassant))) {
+      this.currentVariation.moveIdx++;
+      this._restoreVariationState();
+      return;
+    }
+
+    const allMoves = getAllLegalMoves(this.board, this.turn, this.castling, this.enPassant);
+    const san = moveToSAN(this.board, move, this.turn, allMoves);
+    const fenBefore = boardToFen(this.board, this.turn, this.castling, this.enPassant, this.halfMove, this.fullMove);
+    const boardAfter = applyMoveToBoard(this.cloneBoard(this.board), move, this.turn);
+    const castAfter = {...this.castling};
+    if (this.board[move.from[0]][move.from[1]] === `${this.turn}K`) {
+      if (this.turn==='w') { castAfter.wK=false; castAfter.wQ=false; }
+      else            { castAfter.bK=false; castAfter.bQ=false; }
+    }
+    if (move.from[0]===7&&move.from[1]===7) castAfter.wK=false;
+    if (move.from[0]===7&&move.from[1]===0) castAfter.wQ=false;
+    if (move.from[0]===0&&move.from[1]===7) castAfter.bK=false;
+    if (move.from[0]===0&&move.from[1]===0) castAfter.bQ=false;
+    const epAfter = move.doublePush ? [move.to[0]-(this.turn==='w'?-1:1), move.to[1]] : null;
+    const fmAfter = this.turn==='b' ? this.fullMove+1 : this.fullMove;
+    const fenAfter = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, this.halfMove+1, fmAfter);
+
+    const varState = {
+      board: this.cloneBoard(this.board), turn: this.turn,
+      castling: {...this.castling}, enPassant: this.enPassant,
+      halfMove: this.halfMove, fullMove: this.fullMove,
+      san, move,
+      captured: this.board[move.to[0]][move.to[1]],
+      fenBefore, fenAfter, annotation: null,
+    };
+
+    // 현재 위치 이후를 잘라내고 추가
+    line.splice(moveIdx + 1);
+    line.push(varState);
+    this.currentVariation.moveIdx = line.length - 1;
+
+    this.board = boardAfter;
+    this.turn = this.turn === 'w' ? 'b' : 'w';
+    this.castling = castAfter;
+    this.enPassant = epAfter;
+    if (this.turn==='w') this.fullMove++;
+    this.halfMove++;
+    this.lastMove = move;
+    this.selectedSq = null;
+    this.possibleMoves = [];
+
+    this.renderBoard();
+    this.renderMoveList();
+    this.updateStatus();
+    analyzePosition(true);
+    return true;
+  }
+
+  // ── 엔진라인 탐색 중 수를 두면 extraMoves에 이어붙임 ─────────
+  _addToEngineLineExtra(move) {
+    const ep = this.enginePreview;
+    if (!ep) return false;
+    const { histIdx, pvIdx } = ep;
+    const lineData = (this.enginePreviews[histIdx] || []).find(l => l.pvIdx === pvIdx);
+    if (!lineData) return false;
+    if (!lineData.extraMoves) lineData.extraMoves = [];
+
+    const allMoves = getAllLegalMoves(this.board, this.turn, this.castling, this.enPassant);
+    const san = moveToSAN(this.board, move, this.turn, allMoves);
+
+    // 현재 activeIdx 이후를 잘라내고 추가
+    const currentExtraIdx = ep.extraMoveIdx ?? -1;
+    lineData.extraMoves.splice(currentExtraIdx + 1);
+
+    // 보드 상태 계산
+    const boardAfter = applyMoveToBoard(this.cloneBoard(this.board), move, this.turn);
+    const castAfter = {...this.castling};
+    if (this.board[move.from[0]][move.from[1]] === `${this.turn}K`) {
+      if (this.turn==='w') { castAfter.wK=false; castAfter.wQ=false; }
+      else { castAfter.bK=false; castAfter.bQ=false; }
+    }
+    if (move.from[0]===7&&move.from[1]===7) castAfter.wK=false;
+    if (move.from[0]===7&&move.from[1]===0) castAfter.wQ=false;
+    if (move.from[0]===0&&move.from[1]===7) castAfter.bK=false;
+    if (move.from[0]===0&&move.from[1]===0) castAfter.bQ=false;
+    const epAfter = move.doublePush ? [move.to[0]-(this.turn==='w'?-1:1), move.to[1]] : null;
+    const fmAfter = this.turn==='b' ? this.fullMove+1 : this.fullMove;
+
+    lineData.extraMoves.push({
+      san, move, turn: this.turn,
+      board: this.cloneBoard(this.board),
+      castling: {...this.castling}, enPassant: this.enPassant,
+      halfMove: this.halfMove, fullMove: this.fullMove,
+      boardAfter, castAfter, epAfter, fmAfter
+    });
+
+    ep.extraMoveIdx = lineData.extraMoves.length - 1;
+
+    // 보드 상태 업데이트
+    this.board = boardAfter;
+    this.turn = this.turn === 'w' ? 'b' : 'w';
+    this.castling = castAfter;
+    this.enPassant = epAfter;
+    this.halfMove++;
+    if (this.turn==='w') this.fullMove++;
+    this.lastMove = move;
+    this.selectedSq = null;
+    this.possibleMoves = [];
+
+    this.renderBoard();
+    this.renderMoveList();
+    this.updateStatus();
+    // 새 수 이후 포지션 분석
+    const fen = boardToFen(this.board, this.turn, this.castling, this.enPassant, this.halfMove, this.fullMove);
+    _engineLineAnalysisFen = fen;
+    _analyzeSpecificFen(fen);
+    return true;
+  }
+
+  // ── Variation 상태 복원 ─────────────────────────────────────
+  _restoreVariationState() {
+    if (!this.currentVariation) return;
+    const { varIdx, lineIdx, moveIdx } = this.currentVariation;
+    const line = this.variations[varIdx].lines[lineIdx];
+    const s = line[moveIdx];
+    this.board = applyMoveToBoard(this.cloneBoard(s.board), s.move, s.turn);
+    this.turn = s.turn === 'w' ? 'b' : 'w';
+    this.castling = {...s.castling};
+    const castAfter = {...s.castling};
+    if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
+      if (s.turn==='w') { castAfter.wK=false; castAfter.wQ=false; }
+      else              { castAfter.bK=false; castAfter.bQ=false; }
+    }
+    this.castling = castAfter;
+    this.enPassant = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
+    this.halfMove = s.halfMove;
+    this.fullMove = s.fullMove;
+    this.lastMove = s.move;
+    this.selectedSq = null;
+    this.possibleMoves = [];
+    this.renderBoard();
+    this.renderMoveList();
+    this.updateStatus();
+    analyzePosition(true);
+  }
+
+  // ── 엔진 라인 저장 (현재 히스토리 인덱스에 pvData 전체 저장) ──
+  previewEngineLine(pvMovesSnap, pvIdx) {
+    const histIdx = this.historyIndex;
+    const finalPvIdx = pvIdx || 1;
+
+    // ★ pvMovesSnap(클릭 시점 고정값) 우선 사용
+    const clickedPv = pvData[finalPvIdx] || pvData[1];
+    const moves = (pvMovesSnap && pvMovesSnap.length > 0)
+      ? [...pvMovesSnap]
+      : (clickedPv ? [...(clickedPv.moves || [])] : []);
+    const evalStr = clickedPv ? clickedPv.eval : '';
+    const depth = clickedPv ? clickedPv.depth : 0;
+
+    // ── 기존 라인이 없으면 루트 라인으로 새로 생성 ──────────────
+    if (!this.enginePreviews[histIdx] || this.enginePreviews[histIdx].length === 0) {
+      const line = {
+        pvIdx: finalPvIdx, moves, eval: evalStr, depth,
+        extraMoves: [], subLines: [], parentLineId: null, branchAt: -1,
+        id: Date.now()
+      };
+      this.enginePreviews[histIdx] = [line];
+      this._applyEngineLine(histIdx, line.pvIdx, 0);
+      return;
+    }
+
+    const existingLines = this.enginePreviews[histIdx];
+    const rootLine = existingLines[0];
+
+    // ── enginePreview가 활성화된 상태에서 새 라인 클릭 ──────────
+    // → 현재 보고 있는 수 위치에서 분기하는 서브라인으로 추가
+    if (this.enginePreview && this.enginePreview.histIdx === histIdx) {
+      const ep = this.enginePreview;
+      const activeIdx = ep.activeIdx ?? -1;
+      const extraMoveIdx = ep.extraMoveIdx ?? -1;
+
+      // 분기 지점 계산: extraMove 중이면 extraMoves에서의 위치, 아니면 엔진라인 수 위치
+      const branchAt = extraMoveIdx >= 0 ? `extra:${extraMoveIdx}` : `engine:${activeIdx}`;
+
+      // 같은 분기점에서 이미 같은 수순의 서브라인이 있으면 재사용
+      const dupLine = existingLines.find(l =>
+        l.branchAt === branchAt &&
+        JSON.stringify(l.moves) === JSON.stringify(moves)
+      );
+      if (dupLine) {
+        this._applyEngineLine(histIdx, dupLine.pvIdx, 0);
+        return;
+      }
+
+      // 새 서브라인 생성 — pvIdx는 고유 ID로
+      const newPvIdx = `sub_${Date.now()}`;
+      const subLine = {
+        pvIdx: newPvIdx, moves, eval: evalStr, depth,
+        extraMoves: [], subLines: [],
+        parentLineId: rootLine.id,
+        branchAt,
+        id: Date.now() + Math.random()
+      };
+      existingLines.push(subLine);
+      this._applyEngineLine(histIdx, newPvIdx, 0);
+      return;
+    }
+
+    // ── 이미 같은 pvIdx의 루트라인이 있으면 업데이트 ──
+    const existingLine = existingLines.find(l => l.pvIdx === finalPvIdx && !l.parentLineId);
+    if (existingLine) {
+      existingLine.moves = moves;
+      existingLine.eval = evalStr;
+      existingLine.depth = depth;
+      // enginePreview가 null(기보 수 이동 후 새 클릭)이면 extraMoves도 초기화
+      if (!this.enginePreview) {
+        existingLine.extraMoves = [];
+      }
+      this._applyEngineLine(histIdx, existingLine.pvIdx, 0);
+      return;
+    }
+
+    // ── 새 루트 라인 ──────────────────────────────────────────────
+    const line = {
+      pvIdx: finalPvIdx, moves, eval: evalStr, depth,
+      extraMoves: [], subLines: [], parentLineId: null, branchAt: -1,
+      id: Date.now()
+    };
+    this.enginePreviews[histIdx] = [line];
+    this._applyEngineLine(histIdx, line.pvIdx, 0);
+  }
+
+  // 엔진라인 특정 수를 보드에 반영
+  _applyEngineLine(histIdx, pvIdx, moveIdx) {
+    const lines = this.enginePreviews[histIdx];
+    if (!lines) return;
+    const line = lines.find(l => l.pvIdx === pvIdx);
+    if (!line) return;
+
+    // 시작 보드 상태
+    let startBoard, startTurn, startCast, startEP, startHM, startFM;
+    if (histIdx >= 0 && this.history[histIdx]) {
+      const s = this.history[histIdx];
+      startBoard = applyMoveToBoard(s.board.map(r=>[...r]), s.move, s.turn);
+      startTurn = s.turn === 'w' ? 'b' : 'w';
+      startCast = {...s.castling};
+      if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
+        if (s.turn==='w') { startCast.wK=false; startCast.wQ=false; }
+        else { startCast.bK=false; startCast.bQ=false; }
+      }
+      if (s.move.from[0]===7&&s.move.from[1]===7) startCast.wK=false;
+      if (s.move.from[0]===7&&s.move.from[1]===0) startCast.wQ=false;
+      if (s.move.from[0]===0&&s.move.from[1]===7) startCast.bK=false;
+      if (s.move.from[0]===0&&s.move.from[1]===0) startCast.bQ=false;
+      startEP = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
+      startHM = s.halfMove + 1;
+      startFM = s.turn === 'b' ? s.fullMove + 1 : s.fullMove;
+    } else {
+      startBoard = INIT_BOARD.map(r=>[...r]);
+      startTurn = 'w';
+      startCast = { wK: true, wQ: true, bK: true, bQ: true };
+      startEP = null; startHM = 0; startFM = 1;
+    }
+
+    // 각 수의 보드 상태 계산
+    const states = [];
+    let curBoard = startBoard.map(r=>[...r]);
+    let curTurn = startTurn;
+    let curCast = {...startCast};
+    let curEP = startEP;
+    let curHM = startHM;
+    let curFM = startFM;
+
+    for (const san of line.moves) {
+      const allLM = getAllLegalMoves(curBoard, curTurn, curCast, curEP);
+      const matched = sanToMove(san, curBoard, curTurn, allLM);
+      if (!matched) break;
+      const boardAfter = applyMoveToBoard(curBoard.map(r=>[...r]), matched, curTurn);
+      const castAfter = {...curCast};
+      if (curBoard[matched.from[0]][matched.from[1]] === `${curTurn}K`) {
+        if (curTurn==='w') { castAfter.wK=false; castAfter.wQ=false; }
+        else { castAfter.bK=false; castAfter.bQ=false; }
+      }
+      if (matched.from[0]===7&&matched.from[1]===7) castAfter.wK=false;
+      if (matched.from[0]===7&&matched.from[1]===0) castAfter.wQ=false;
+      if (matched.from[0]===0&&matched.from[1]===7) castAfter.bK=false;
+      if (matched.from[0]===0&&matched.from[1]===0) castAfter.bQ=false;
+      const epAfter = matched.doublePush ? [matched.to[0]-(curTurn==='w'?-1:1), matched.to[1]] : null;
+      const fmAfter = curTurn==='b' ? curFM+1 : curFM;
+      states.push({
+        board: boardAfter, turn: curTurn==='w'?'b':'w',
+        castling: castAfter, enPassant: epAfter,
+        halfMove: curHM+1, fullMove: fmAfter, lastMove: matched
+      });
+      curBoard = boardAfter;
+      curTurn = curTurn==='w'?'b':'w';
+      curCast = castAfter;
+      curEP = epAfter;
+      curHM++;
+      if (curTurn==='w') curFM++;
+    }
+
+    // 기존 enginePreview의 extraMoveIdx는 엔진라인 수 클릭 시 초기화 (엔진라인 수 선택)
+    this.enginePreview = { histIdx, pvIdx, activeIdx: moveIdx, moves: line.moves, states, extraMoveIdx: -1 };
+    this.historyIndex = histIdx; // 기준 포지션으로 히스토리 복원
+
+    // 보드 상태 적용
+    if (moveIdx >= 0 && states[moveIdx]) {
+      const st = states[moveIdx];
+      this.board = st.board.map(r=>[...r]);
+      this.turn = st.turn;
+      this.castling = {...st.castling};
+      this.enPassant = st.enPassant;
+      this.halfMove = st.halfMove;
+      this.fullMove = st.fullMove;
+      this.lastMove = st.lastMove;
+    } else {
+      // 기준 포지션 복원
+      this._applyHistState(histIdx);
+    }
+    this.selectedSq = null;
+    this.possibleMoves = [];
+    this.renderBoard();
+    this.renderMoveList();
+    this.updateStatus();
+
+    // ── 클릭된 수의 포지션으로 실시간 분석 ──────────────────
+    // moveIdx >= 0 이면 그 수 이후 포지션을 분석, -1이면 기준 포지션 분석
+    if (moveIdx >= 0 && states[moveIdx]) {
+      const st = states[moveIdx];
+      const fen = boardToFen(
+        st.board, st.turn, st.castling, st.enPassant,
+        st.halfMove, st.fullMove
+      );
+      // 분석 컨텍스트에 현재 엔진라인 수 FEN 저장 (flushCycle 동기화용)
+      _engineLineAnalysisFen = fen;
+      _analyzeSpecificFen(fen);
+    } else {
+      _engineLineAnalysisFen = null;
+      this._analyzeBasePosition(histIdx);
+    }
+  }
+
+  _analyzeBasePosition(histIdx) {
+    // _getHistFen 과 동일 로직으로 기준 FEN 계산 후 분석 요청
+    const fen = _getHistFen(histIdx);
+    if (fen) _analyzeSpecificFen(fen);
+  }
+
+  // extraMove 클릭 → 해당 수 이후 보드 상태 적용
+  _applyEngineLineExtra(histIdx, pvIdx, extraIdx) {
+    const lineData = (this.enginePreviews[histIdx] || []).find(l => l.pvIdx === pvIdx);
+    if (!lineData || !lineData.extraMoves) return;
+    const em = lineData.extraMoves[extraIdx];
+    if (!em) return;
+
+    this.enginePreview = {
+      ...this.enginePreview,
+      histIdx, pvIdx,
+      activeIdx: lineData.moves.length - 1, // 마지막 엔진라인 수
+      extraMoveIdx: extraIdx,
+      moves: lineData.moves,
+    };
+    this.historyIndex = histIdx;
+
+    this.board = em.boardAfter.map(r=>[...r]);
+    this.turn = em.turn === 'w' ? 'b' : 'w';
+    this.castling = {...em.castAfter};
+    this.enPassant = em.epAfter;
+    this.halfMove = em.halfMove + 1;
+    this.fullMove = em.fmAfter;
+    this.lastMove = em.move;
+    this.selectedSq = null;
+    this.possibleMoves = [];
+
+    this.renderBoard();
+    this.renderMoveList();
+    this.updateStatus();
+
+    const fen = boardToFen(this.board, this.turn, this.castling, this.enPassant, this.halfMove, this.fullMove);
+    _engineLineAnalysisFen = fen;
+    _analyzeSpecificFen(fen);
+  }
+
+  _applyHistState(histIdx) {
+    if (histIdx < 0) {
+      this.board = INIT_BOARD.map(r=>[...r]);
+      this.turn = 'w'; this.castling = { wK: true, wQ: true, bK: true, bQ: true };
+      this.enPassant = null; this.halfMove = 0; this.fullMove = 1; this.lastMove = null;
+    } else {
+      const s = this.history[histIdx];
+      this.board = applyMoveToBoard(s.board.map(r=>[...r]), s.move, s.turn);
+      this.turn = s.turn === 'w' ? 'b' : 'w';
+      this.castling = {...s.castling};
+      if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
+        if (s.turn==='w') { this.castling.wK=false; this.castling.wQ=false; }
+        else { this.castling.bK=false; this.castling.bQ=false; }
+      }
+      if (s.move.from[0]===7&&s.move.from[1]===7) this.castling.wK=false;
+      if (s.move.from[0]===7&&s.move.from[1]===0) this.castling.wQ=false;
+      if (s.move.from[0]===0&&s.move.from[1]===7) this.castling.bK=false;
+      if (s.move.from[0]===0&&s.move.from[1]===0) this.castling.bQ=false;
+      this.enPassant = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
+      this.halfMove = s.halfMove; this.fullMove = s.fullMove; this.lastMove = s.move;
+    }
+  }
+
+  clearEnginePreview() {
+    if (!this.enginePreview) return;
+    const histIdx = this.enginePreview.histIdx;
+    this.enginePreview = null;
+    _engineLineAnalysisFen = null;
+    this.historyIndex = histIdx;
+    this._applyHistState(histIdx);
+    this.selectedSq = null; this.possibleMoves = [];
+    this.renderBoard();
+    this.renderMoveList();
+    this.updateStatus();
+    analyzePosition(true);
+  }
+
+  removeEnginePreviewAt(histIdx) {
+    delete this.enginePreviews[histIdx];
+    if (this.enginePreview && this.enginePreview.histIdx === histIdx) {
+      this.enginePreview = null;
+      _engineLineAnalysisFen = null;
+      this._applyHistState(histIdx);
+      this.selectedSq = null; this.possibleMoves = [];
+      this.renderBoard();
+      this.updateStatus();
+      analyzePosition(true);
+    }
+    this.renderMoveList();
   }
 
   updateCapturedPieces() {
@@ -2377,38 +4241,417 @@ class ChessGame {
     const el = document.getElementById('move-list');
     el.innerHTML = '';
 
-    for (let i=0; i<this.history.length; i+=2) {
+    // ── 메인라인 렌더 ────────────────────────────────────────
+    for (let i = 0; i < this.history.length; i += 2) {
       const pair = document.createElement('div');
       pair.className = 'move-pair';
 
       const num = document.createElement('span');
       num.className = 'move-num';
-      num.textContent = Math.floor(i/2)+1+'.';
+      num.textContent = (Math.floor(i/2)+1) + '.';
       pair.appendChild(num);
 
+      const isVarActive = this.currentVariation !== null;
       const wCell = document.createElement('div');
-      wCell.className = `move-cell${this.historyIndex===i?' active':''}`;
+      wCell.className = `move-cell${(!isVarActive && this.historyIndex===i) ? ' active' : ''}`;
       wCell.innerHTML = moveCellHTML(this.history[i]);
-      wCell.onclick = () => this.gotoMove(i);
+      wCell.onclick = () => { this.currentVariation=null; this.gotoMove(i); };
       pair.appendChild(wCell);
 
       if (this.history[i+1]) {
         const bCell = document.createElement('div');
-        bCell.className = `move-cell${this.historyIndex===i+1?' active':''}`;
+        bCell.className = `move-cell${(!isVarActive && this.historyIndex===i+1) ? ' active' : ''}`;
         bCell.innerHTML = moveCellHTML(this.history[i+1]);
-        bCell.onclick = () => this.gotoMove(i+1);
+        bCell.onclick = () => { this.currentVariation=null; this.gotoMove(i+1); };
         pair.appendChild(bCell);
       } else {
         pair.appendChild(document.createElement('div'));
       }
-
       el.appendChild(pair);
+
+      // 백의 수(i) 다음에 variation + 엔진라인이 있으면 렌더
+      const varAfterW = this.variations.filter(v => v.afterIndex === i);
+      for (const varObj of varAfterW) {
+        for (let li = 0; li < varObj.lines.length; li++) {
+          const varIdx = this.variations.indexOf(varObj);
+          el.appendChild(this._buildVariationBlock(varObj, li, varIdx));
+        }
+      }
+      // 백의 수(i) 다음 엔진라인
+      this._renderEnginePreviewsAt(i, el);
+
+      // 흑의 수(i+1) 다음에 variation이 있으면 렌더
+      if (this.history[i+1]) {
+        const varAfterB = this.variations.filter(v => v.afterIndex === i+1);
+        for (const varObjB of varAfterB) {
+          for (let li = 0; li < varObjB.lines.length; li++) {
+            const varIdx = this.variations.indexOf(varObjB);
+            el.appendChild(this._buildVariationBlock(varObjB, li, varIdx));
+          }
+        }
+      }
+      // 흑의 수(i+1) 다음 엔진라인
+      if (this.history[i+1]) {
+        this._renderEnginePreviewsAt(i+1, el);
+      }
     }
 
-    el.scrollTop = el.scrollHeight;
+    // ── 엔진 미리보기 (각 수 바로 아래에 삽입됨 — _renderEnginePreviewsAt 에서 처리)
+    // (이 위치에는 별도 블록 없음)
+
+    // 현재 활성 수로 스크롤
+    const activeEl = el.querySelector('.move-cell.active, .var-move.active');
+    if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
     const count = this.history.length;
     document.getElementById('move-count').textContent = `${count} 수`;
     document.getElementById('move-count-bar').textContent = `${count} 수`;
+  }
+
+  // ── 변화수 블록 빌더 (인라인 스타일) ──────────────────────
+  _buildVariationBlock(varObj, li, varIdx) {
+    const line = varObj.lines[li];
+    const branchMove = varObj.afterIndex >= 0 ? this.history[varObj.afterIndex] : null;
+    let moveNum = branchMove ? branchMove.fullMove : 1;
+    let curTurn = branchMove ? (branchMove.turn === 'w' ? 'b' : 'w') : 'w';
+
+    const block = document.createElement('div');
+    block.className = 'variation-block';
+
+    line.forEach((vs, mi) => {
+      if (curTurn === 'w') {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = moveNum + '.';
+        block.appendChild(ns);
+      } else if (mi === 0) {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = moveNum + '...';
+        block.appendChild(ns);
+      }
+      const isActive = this.currentVariation &&
+        this.currentVariation.varIdx === varIdx &&
+        this.currentVariation.lineIdx === li &&
+        this.currentVariation.moveIdx === mi;
+      const cell = document.createElement('span');
+      cell.className = `var-move${isActive ? ' active' : ''}`;
+      cell.innerHTML = moveCellHTML(vs);
+      cell.onclick = () => {
+        this.currentVariation = { varIdx, lineIdx: li, moveIdx: mi };
+        this._restoreVariationState();
+      };
+      block.appendChild(cell);
+      if (curTurn === 'b') moveNum++;
+      curTurn = curTurn === 'w' ? 'b' : 'w';
+    });
+
+    // 삭제 버튼
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'var-close';
+    closeBtn.title = '삭제';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.variations[varIdx].lines.splice(li, 1);
+      if (this.variations[varIdx].lines.length === 0) this.variations.splice(varIdx, 1);
+      if (this.currentVariation?.varIdx === varIdx) this.currentVariation = null;
+      this.renderMoveList();
+    });
+    block.appendChild(closeBtn);
+
+    return block;
+  }
+
+  // ── 특정 histIdx에 저장된 엔진라인들을 el에 렌더 ──────────
+  _renderEnginePreviewsAt(histIdx, el) {
+    const lines = this.enginePreviews[histIdx];
+    if (!lines || lines.length === 0) return;
+
+    let startTurn, startMoveNum;
+    if (histIdx >= 0 && this.history[histIdx]) {
+      const s = this.history[histIdx];
+      startTurn = s.turn === 'w' ? 'b' : 'w';
+      startMoveNum = s.turn === 'b' ? s.fullMove + 1 : s.fullMove;
+    } else {
+      startTurn = 'w'; startMoveNum = 1;
+    }
+
+    const histIdxSnap = histIdx;
+
+    // 루트 라인과 서브라인 분리
+    const rootLines = lines.filter(l => !l.parentLineId);
+    const subLines  = lines.filter(l =>  l.parentLineId);
+
+    for (const lineData of rootLines) {
+      const pvIdx = lineData.pvIdx;
+      const isActiveLine = this.enginePreview &&
+        this.enginePreview.histIdx === histIdx &&
+        this.enginePreview.pvIdx === pvIdx;
+      const activeIdx     = isActiveLine ? (this.enginePreview.activeIdx    ?? -1) : -1;
+      const extraMoveIdx  = isActiveLine ? (this.enginePreview.extraMoveIdx ?? -1) : -1;
+
+      const block = document.createElement('div');
+      block.className = 'variation-block';
+      if (isActiveLine) block.classList.add('active-engine-line');
+
+      // 평가 배지
+      if (lineData.eval) {
+        const evalBadge = document.createElement('span');
+        evalBadge.className = 'engine-line-eval';
+        const cp = parseFloat(lineData.eval);
+        if (!isNaN(cp)) evalBadge.classList.add(cp >= 0 ? 'positive' : 'negative');
+        evalBadge.textContent = lineData.eval;
+        block.appendChild(evalBadge);
+      }
+
+      let t2 = startTurn;
+      let moveNum2 = startMoveNum;
+
+      // 엔진라인 수들
+      lineData.moves.forEach((san, mi) => {
+        if (t2 === 'w') {
+          const ns = document.createElement('span');
+          ns.className = 'var-num';
+          ns.textContent = moveNum2 + '.';
+          block.appendChild(ns);
+        } else if (mi === 0) {
+          const ns = document.createElement('span');
+          ns.className = 'var-num';
+          ns.textContent = moveNum2 + '...';
+          block.appendChild(ns);
+        }
+        const ms = document.createElement('span');
+        ms.className = `var-move${mi === activeIdx ? ' active' : ''}`;
+        ms.innerHTML = _sanToMoveCellHTML(san, t2);
+        ms.addEventListener('click', () => this._applyEngineLine(histIdxSnap, pvIdx, mi));
+        block.appendChild(ms);
+
+        // 이 수 이후에 분기되는 서브라인이 있으면 분기 마커 표시
+        const branchKey = `engine:${mi}`;
+        const branchHere = subLines.filter(sl => sl.branchAt === branchKey);
+        if (branchHere.length > 0) {
+          const marker = document.createElement('span');
+          marker.className = 'branch-sep';
+          marker.title = `${branchHere.length}개 서브라인`;
+          block.appendChild(marker);
+        }
+
+        if (t2 === 'b') moveNum2++;
+        t2 = t2 === 'w' ? 'b' : 'w';
+      });
+
+      // extraMoves
+      const extraMoves = lineData.extraMoves || [];
+      if (extraMoves.length > 0) {
+        // extra 첫 수의 실제 턴/수번호로 리셋 (엔진라인 중간에서 두어진 수이므로)
+        t2 = extraMoves[0].turn;
+        moveNum2 = extraMoves[0].fullMove;
+      }
+      extraMoves.forEach((em, ei) => {
+        // extraMoves 시작 전에 분기 구분선 (처음 한 번만)
+        if (ei === 0) {
+          const sep = document.createElement('span');
+          sep.className = 'branch-sep';
+          sep.title = '직접 둔 수';
+          block.appendChild(sep);
+        }
+        if (t2 === 'w') {
+          const ns = document.createElement('span');
+          ns.className = 'var-num';
+          ns.textContent = moveNum2 + '.';
+          block.appendChild(ns);
+        } else if (t2 === 'b' && ei === 0) {
+          const ns = document.createElement('span');
+          ns.className = 'var-num';
+          ns.textContent = moveNum2 + '...';
+          block.appendChild(ns);
+        }
+        const ms = document.createElement('span');
+        ms.className = `var-move extra-move${ei === extraMoveIdx ? ' active' : ''}`;
+        ms.innerHTML = _sanToMoveCellHTML(em.san, t2);
+        ms.addEventListener('click', () => this._applyEngineLineExtra(histIdxSnap, pvIdx, ei));
+        block.appendChild(ms);
+
+        // extra 위치에서 분기되는 서브라인 마커
+        const extraBranchKey = `extra:${ei}`;
+        const extraBranchHere = subLines.filter(sl => sl.branchAt === extraBranchKey);
+        if (extraBranchHere.length > 0) {
+          const marker = document.createElement('span');
+          marker.className = 'branch-sep';
+          marker.title = `${extraBranchHere.length}개 서브라인`;
+          block.appendChild(marker);
+        }
+
+        if (t2 === 'b') moveNum2++;
+        t2 = t2 === 'w' ? 'b' : 'w';
+      });
+
+      // 닫기 버튼
+      const closeBtn = document.createElement('span');
+      closeBtn.className = 'var-close';
+      closeBtn.title = '닫기';
+      closeBtn.textContent = '✕';
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.removeEnginePreviewAt(histIdxSnap);
+      });
+      block.appendChild(closeBtn);
+      el.appendChild(block);
+
+      // ── 이 루트라인의 서브라인들을 바로 아래에 렌더 ──────────
+      for (const subLine of subLines.filter(sl => sl.parentLineId === lineData.id)) {
+        this._renderSubLine(subLine, subLines, histIdxSnap, el);
+      }
+    }
+  }
+
+  // ── 서브라인 렌더 (재귀 지원) ───────────────────────────────
+  _renderSubLine(subLine, allSubLines, histIdxSnap, el) {
+    const pvIdx = subLine.pvIdx;
+    const histIdx = histIdxSnap;
+
+    // 분기 시작점 계산
+    const { startTurn, startMoveNum } = this._getBranchStartContext(histIdx, subLine.branchAt);
+
+    const isActiveLine = this.enginePreview &&
+      this.enginePreview.histIdx === histIdx &&
+      this.enginePreview.pvIdx === pvIdx;
+    const activeIdx    = isActiveLine ? (this.enginePreview.activeIdx    ?? -1) : -1;
+    const extraMoveIdx = isActiveLine ? (this.enginePreview.extraMoveIdx ?? -1) : -1;
+
+    const block = document.createElement('div');
+    block.className = 'variation-block sub-engine-line';
+    if (isActiveLine) block.classList.add('active-engine-line');
+
+    // 서브라인 평가 배지
+    if (subLine.eval) {
+      const evalBadge = document.createElement('span');
+      evalBadge.className = 'engine-line-eval';
+      const cp = parseFloat(subLine.eval);
+      if (!isNaN(cp)) evalBadge.classList.add(cp >= 0 ? 'positive' : 'negative');
+      evalBadge.textContent = subLine.eval;
+      block.appendChild(evalBadge);
+    }
+
+    let t2 = startTurn;
+    let moveNum2 = startMoveNum;
+
+    subLine.moves.forEach((san, mi) => {
+      if (t2 === 'w') {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = moveNum2 + '.';
+        block.appendChild(ns);
+      } else if (mi === 0) {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = moveNum2 + '...';
+        block.appendChild(ns);
+      }
+      const ms = document.createElement('span');
+      ms.className = `var-move${mi === activeIdx ? ' active' : ''}`;
+      ms.innerHTML = _sanToMoveCellHTML(san, t2);
+      ms.addEventListener('click', () => this._applyEngineLine(histIdxSnap, pvIdx, mi));
+      block.appendChild(ms);
+      if (t2 === 'b') moveNum2++;
+      t2 = t2 === 'w' ? 'b' : 'w';
+    });
+
+    // extraMoves
+    const extraMoves = subLine.extraMoves || [];
+    if (extraMoves.length > 0) {
+      t2 = extraMoves[0].turn;
+      moveNum2 = extraMoves[0].fullMove;
+    }
+    extraMoves.forEach((em, ei) => {
+      if (ei === 0) {
+        const sep = document.createElement('span');
+        sep.className = 'branch-sep';
+        block.appendChild(sep);
+      }
+      if (t2 === 'w') {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = moveNum2 + '.';
+        block.appendChild(ns);
+      } else if (t2 === 'b' && ei === 0) {
+        const ns = document.createElement('span');
+        ns.className = 'var-num';
+        ns.textContent = moveNum2 + '...';
+        block.appendChild(ns);
+      }
+      const ms = document.createElement('span');
+      ms.className = `var-move extra-move${ei === extraMoveIdx ? ' active' : ''}`;
+      ms.innerHTML = _sanToMoveCellHTML(em.san, t2);
+      ms.addEventListener('click', () => this._applyEngineLineExtra(histIdxSnap, pvIdx, ei));
+      block.appendChild(ms);
+      if (t2 === 'b') moveNum2++;
+      t2 = t2 === 'w' ? 'b' : 'w';
+    });
+
+    // 닫기
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'var-close';
+    closeBtn.title = '서브라인 삭제';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const lines = this.enginePreviews[histIdx];
+      if (!lines) return;
+      const idx = lines.findIndex(l => l.pvIdx === pvIdx);
+      if (idx >= 0) lines.splice(idx, 1);
+      if (this.enginePreview?.pvIdx === pvIdx) {
+        this.enginePreview = null;
+        _engineLineAnalysisFen = null;
+        this._applyHistState(histIdx);
+        this.historyIndex = histIdx;
+        this.selectedSq = null; this.possibleMoves = [];
+        this.renderBoard(); this.updateStatus(); analyzePosition(true);
+      }
+      this.renderMoveList();
+    });
+    block.appendChild(closeBtn);
+    el.appendChild(block);
+  }
+
+  // ── 분기 시작 컨텍스트 계산 ─────────────────────────────────
+  _getBranchStartContext(histIdx, branchAt) {
+    const lines = this.enginePreviews[histIdx] || [];
+    const rootLine = lines.find(l => !l.parentLineId);
+
+    let startTurn, startMoveNum;
+    if (histIdx >= 0 && this.history[histIdx]) {
+      const s = this.history[histIdx];
+      startTurn = s.turn === 'w' ? 'b' : 'w';
+      startMoveNum = s.turn === 'b' ? s.fullMove + 1 : s.fullMove;
+    } else {
+      startTurn = 'w'; startMoveNum = 1;
+    }
+
+    if (!rootLine || !branchAt || branchAt === -1) {
+      return { startTurn, startMoveNum };
+    }
+
+    let t = startTurn;
+    let mn = startMoveNum;
+
+    const consumeMove = () => {
+      const wasTurn = t;
+      t = t === 'w' ? 'b' : 'w';
+      if (wasTurn === 'b') mn++;
+    };
+
+    if (branchAt.startsWith('engine:')) {
+      const branchMi = parseInt(branchAt.split(':')[1]);
+      for (let i = 0; i <= branchMi; i++) consumeMove();
+    } else if (branchAt.startsWith('extra:')) {
+      const extraIdx = parseInt(branchAt.split(':')[1]);
+      for (let i = 0; i < rootLine.moves.length; i++) consumeMove();
+      for (let i = 0; i <= extraIdx; i++) consumeMove();
+    }
+
+    return { startTurn: t, startMoveNum: mn };
   }
 
   updateStatus() {
@@ -2431,6 +4674,9 @@ class ChessGame {
   }
 
   parsePGN(pgn) {
+    this.variations = [];
+    this.currentVariation = null;
+    this.enginePreview = null;
     // Parse headers
     const whiteMatch = pgn.match(/\[White "([^"]+)"\]/);
     const blackMatch = pgn.match(/\[Black "([^"]+)"\]/);
@@ -2516,8 +4762,6 @@ class ChessGame {
   }
 }
 
-
-
 // ui.js 내용 (analyzePosition은 engine.js에 있음)
 // ===== EVAL BAR =====
 function updateEvalBarFromCp(cpFromWhite) {
@@ -2569,6 +4813,8 @@ function init() {
   game = new ChessGame();
   setupKeyboard();
   initEngine();
+  loadApiKey();
+  setupCoachKeyboard();
 }
 
 function switchTab(tab) {
@@ -2697,6 +4943,8 @@ function toggleColorMode() {
 }
 
 function setupKeyboard() {
+  // 보드 우클릭 컨텍스트 메뉴 방지
+  document.getElementById('chessboard')?.addEventListener('contextmenu', e => e.preventDefault());
   document.addEventListener('keydown', e => {
     if (e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT') return;
     if (e.key==='ArrowLeft')  game.prevMove();
@@ -2713,6 +4961,728 @@ function showToast(msg) {
   t.classList.add('show');
   clearTimeout(t._timer);
   t._timer = setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// AI CHESS COACH — Anthropic API 연동
+// ═══════════════════════════════════════════════════════════
+
+let coachApiKey = '';
+let coachOpen = false;
+let coachLoading = false;
+
+// API 키 저장/불러오기
+function saveApiKey() {
+  const input = document.getElementById('coach-api-input');
+  const key = input.value.trim();
+  if (!key) { showToast('API 키를 입력하세요'); return; }
+  coachApiKey = key;
+  try { sessionStorage.setItem('chess_groq_key', key); } catch(e) {}
+  document.getElementById('coach-key-status').textContent = '✓ 저장됨';
+  document.getElementById('coach-key-status').style.color = '#7fa650';
+  showToast('API 키 저장 완료');
+}
+
+function loadApiKey() {
+  // 하드코딩된 Groq API 키
+  const FIXED_KEY = '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';
+  coachApiKey = FIXED_KEY;
+  const inp = document.getElementById('coach-api-input');
+  if (inp) { inp.value = FIXED_KEY; inp.disabled = true; inp.style.opacity='0.5'; }
+  const st = document.getElementById('coach-key-status');
+  if (st) { st.textContent = '✓ 고정됨'; st.style.color = '#7fa650'; }
+  const btn = document.getElementById('coach-save-key-btn');
+  if (btn) btn.style.display = 'none';
+}
+
+// 패널 열기/닫기
+function openCoach() {
+  coachOpen = true;
+  document.getElementById('coach-panel').classList.add('open');
+  document.getElementById('coach-fab').classList.add('hidden');
+  document.getElementById('board-area').classList.add('coach-open');
+  updateCoachContext();
+}
+
+function closeCoach() {
+  coachOpen = false;
+  document.getElementById('coach-panel').classList.remove('open');
+  document.getElementById('coach-fab').classList.remove('hidden');
+  document.getElementById('board-area').classList.remove('coach-open');
+}
+
+function toggleCoach() {
+  if (coachOpen) closeCoach(); else openCoach();
+}
+
+// 현재 포지션 컨텍스트 업데이트 (패널 상단 요약)
+function updateCoachContext() {
+  const ctx = document.getElementById('coach-context-display');
+  if (!ctx) return;
+  const context = buildChessContext();
+  if (!context) { ctx.style.display = 'none'; return; }
+
+  ctx.style.display = 'flex';
+  ctx.innerHTML = `
+    <span class="ctx-tag">차례: ${context.turn === 'w' ? '⬜백' : '⬛흑'}</span>
+    ${context.bestMove ? `<span class="ctx-tag green">추천수: ${context.bestMove}</span>` : ''}
+    ${context.evaluation ? `<span class="ctx-tag">평가: ${context.evaluation}</span>` : ''}
+    ${context.lastMove ? `<span class="ctx-tag">마지막 수: ${context.lastMove}</span>` : ''}
+    ${context.depth ? `<span class="ctx-tag">분석 깊이: d${context.depth}</span>` : ''}
+  `;
+}
+
+// 체스 컨텍스트 데이터 빌드
+function buildChessContext() {
+  if (!game) return null;
+
+  const turn = game.turn;
+  const fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
+
+  // 엔진 최선수 (pvData에서)
+  const pv1 = pvData && pvData[1];
+  const pv2 = pvData && pvData[2];
+  const bestMove = pv1 && pv1.moves && pv1.moves[0] ? pv1.moves[0] : null;
+  const bestLine = pv1 && pv1.moves ? pv1.moves.slice(0, 6).join(' ') : null;
+  const altLine  = pv2 && pv2.moves ? pv2.moves.slice(0, 4).join(' ') : null;
+  const evaluation = pv1 ? pv1.eval : null;
+  const depth = pv1 ? pv1.depth : null;
+  const cpFromWhite = pv1 ? pv1.cpFromWhite : null;
+
+  // 마지막으로 둔 수
+  let lastMove = null;
+  let lastMoveSan = null;
+  let lastMoveAnnotation = null;
+  if (game.historyIndex >= 0 && game.history[game.historyIndex]) {
+    const h = game.history[game.historyIndex];
+    lastMoveSan = h.san;
+    lastMoveAnnotation = h.annotation;
+    lastMove = h.san;
+  }
+
+  // 이전 포지션의 엔진 최선수 (내가 둔 수와 비교)
+  let engineBestForPrevPos = null;
+  let engineLineForPrevPos = null;
+  if (game.historyIndex >= 0 && game.history[game.historyIndex]) {
+    const h = game.history[game.historyIndex];
+    const prevFen = h.fenBefore;
+    if (prevFen) {
+      const cached = evalCache[normFen(prevFen)];
+      if (cached && cached.pvs) {
+        const prevPv1 = cached.pvs[1];
+        if (prevPv1) {
+          const prevBoard = parseFenBoard(prevFen.split(' ')[0]);
+          const prevTurn = prevFen.split(' ')[1] || 'w';
+          const prevCast = parseFenCastling(prevFen.split(' ')[2] || '-');
+          const prevEP = parseFenEP(prevFen.split(' ')[3] || '-');
+          if (prevBoard) {
+            const sanList = uciMovesToSan(prevPv1.pv || [], prevBoard, prevTurn, prevCast, prevEP);
+            engineBestForPrevPos = sanList[0] || null;
+            engineLineForPrevPos = sanList.slice(0, 6).join(' ') || null;
+          }
+        }
+      }
+    }
+  }
+
+  // 게임 전체 PGN
+  let pgnMoves = '';
+  game.history.forEach((s, i) => {
+    if (s.turn === 'w') pgnMoves += `${s.fullMove}. `;
+    pgnMoves += s.san + ' ';
+  });
+
+  // 게임 단계 판단
+  const moveCount = game.history.length;
+  const phase = moveCount <= 10 ? '오프닝' : moveCount <= 30 ? '미들게임' : '엔드게임';
+
+  // 평가 방향
+  let advantageDesc = '균형';
+  if (cpFromWhite !== null) {
+    const v = cpFromWhite / 100;
+    if (v > 3) advantageDesc = '백이 크게 우세';
+    else if (v > 1) advantageDesc = '백이 약간 우세';
+    else if (v < -3) advantageDesc = '흑이 크게 우세';
+    else if (v < -1) advantageDesc = '흑이 약간 우세';
+  }
+
+  return {
+    turn, fen, bestMove, bestLine, altLine, evaluation, depth, cpFromWhite,
+    lastMove, lastMoveSan, lastMoveAnnotation,
+    engineBestForPrevPos, engineLineForPrevPos,
+    pgnMoves: pgnMoves.trim(),
+    phase, moveCount, advantageDesc,
+  };
+}
+
+// 빠른 질문 버튼
+function askQuick(question) {
+  document.getElementById('coach-input').value = question;
+  askCoach();
+}
+
+// 엔터 키로 질문 제출
+function setupCoachKeyboard() {
+  const input = document.getElementById('coach-input');
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      askCoach();
+    }
+  });
+}
+
+// AI 코치 질문 실행
+async function askCoach() {
+  if (coachLoading) return;
+  if (!coachApiKey) {
+    showToast('⚠️ API 키를 먼저 입력하고 저장하세요');
+    document.getElementById('coach-api-input').focus();
+    return;
+  }
+
+  const userQuestion = document.getElementById('coach-input').value.trim();
+  if (!userQuestion) {
+    showToast('질문을 입력하세요');
+    return;
+  }
+
+  const context = buildChessContext();
+  if (!context) {
+    showToast('게임 데이터를 불러올 수 없습니다');
+    return;
+  }
+
+  coachLoading = true;
+  document.getElementById('coach-ask-btn').disabled = true;
+
+  const responseDiv = document.getElementById('coach-response');
+  responseDiv.style.display = 'flex';
+  responseDiv.className = 'loading';
+  responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> AI 코치가 분석 중입니다...`;
+
+  updateCoachContext();
+
+  try {
+    const prompt = buildCoachPrompt(context, userQuestion);
+    const answer = await callAnthropicAPI(prompt);
+    responseDiv.className = '';
+    responseDiv.style.display = 'block';
+    responseDiv.innerHTML = formatCoachResponse(answer);
+  } catch (err) {
+    responseDiv.className = '';
+    responseDiv.style.display = 'block';
+    responseDiv.innerHTML = `<span style="color:var(--accent-red)">⚠️ 오류: ${err.message}</span>`;
+    console.error('[Coach] API 오류:', err);
+  } finally {
+    coachLoading = false;
+    document.getElementById('coach-ask-btn').disabled = false;
+  }
+}
+
+// 코치 컨텍스트 빌드
+function buildCoachPrompt(ctx, question) {
+  const lines = [];
+
+  lines.push(`아래 체스 포지션 데이터를 바탕으로 질문에 한국어로 답변해 주세요.`);
+  lines.push(``);
+  lines.push(`[포지션 데이터]`);
+  lines.push(`게임 단계: ${ctx.phase} | 진행 수: ${ctx.moveCount}수 | 차례: ${ctx.turn === 'w' ? '백(White)' : '흑(Black)'}`);
+
+  if (ctx.lastMoveSan) {
+    const ann = ctx.lastMoveAnnotation ? ` (${ctx.lastMoveAnnotation})` : '';
+    lines.push(`방금 둔 수: ${ctx.lastMoveSan}${ann}`);
+  }
+
+  if (ctx.engineBestForPrevPos && ctx.lastMoveSan && ctx.engineBestForPrevPos !== ctx.lastMoveSan) {
+    lines.push(`엔진 추천수: ${ctx.engineBestForPrevPos}${ctx.engineLineForPrevPos ? ' → ' + ctx.engineLineForPrevPos : ''}`);
+    lines.push(`→ 실제 둔 수(${ctx.lastMoveSan})와 엔진 추천수(${ctx.engineBestForPrevPos})가 다릅니다. 반드시 이 두 수의 전략적 차이를 비교해 주세요.`);
+  } else if (ctx.engineBestForPrevPos && ctx.lastMoveSan && ctx.engineBestForPrevPos === ctx.lastMoveSan) {
+    lines.push(`엔진 추천수: ${ctx.engineBestForPrevPos} ✓ (실제 둔 수와 동일)`);
+  }
+
+  if (ctx.bestMove) {
+    lines.push(`현재 포지션 최선수: ${ctx.bestMove}${ctx.bestLine ? ' → ' + ctx.bestLine : ''}`);
+  }
+  if (ctx.altLine) {
+    lines.push(`2순위 대안: ${ctx.altLine}`);
+  }
+  if (ctx.pgnMoves) {
+    lines.push(`전체 기보: ${ctx.pgnMoves}`);
+  }
+
+  lines.push(``);
+  lines.push(`[사용자 질문]`);
+  lines.push(question);
+  lines.push(``);
+  lines.push(`위 데이터를 참고하여, 반드시 **전략 / 계획 / 목표** 구조로 한국어 답변을 작성하세요.`);
+
+  return lines.join('\n');
+}
+
+// ══════════════════════════════════════════════════════
+// 위협 분석 패널
+// ══════════════════════════════════════════════════════
+let threatLoading = false;
+let lastThreatFen = '';
+
+function toggleThreatPanel() {
+  const panel = document.getElementById('threat-panel');
+  const btn   = document.getElementById('threat-toggle');
+  if (panel.style.display === 'none' || !panel.style.display) {
+    panel.style.display = 'block';
+    btn.style.color = 'var(--accent-blue)';
+    btn.style.borderColor = 'var(--accent-blue)';
+    // 패널을 열 때 분석 실행
+    if (!lastThreatFen || lastThreatFen !== (buildChessContext()?.fen || '')) {
+      runThreatAnalysis();
+    }
+  } else {
+    panel.style.display = 'none';
+    btn.style.color = 'var(--text-muted)';
+    btn.style.borderColor = 'var(--border-color)';
+  }
+}
+
+async function runThreatAnalysis() {
+  if (!coachApiKey || threatLoading) return;
+  const ctx = buildChessContext();
+  if (!ctx) return;
+
+  const fenKey = ctx.fen;
+  if (fenKey === lastThreatFen) return; // 동일 포지션 방지
+
+  const panel = document.getElementById('threat-panel');
+  const contentEl = document.getElementById('threat-content');
+  panel.style.display = 'block';
+  contentEl.innerHTML = '<div class="threat-loading">⚡ 위협 분석 중...</div>';
+  threatLoading = true;
+  lastThreatFen = fenKey;
+
+  try {
+    const answer = await callThreatAPI(ctx);
+    const cleaned = cleanKorean(answer);
+    renderThreatPanel(cleaned);
+  } catch(e) {
+    document.getElementById('threat-content').innerHTML =
+      `<div class="threat-loading" style="color:var(--accent-red)">분석 실패: ${e.message}</div>`;
+    lastThreatFen = ''; // 오류 시 재시도 허용
+  } finally {
+    threatLoading = false;
+  }
+}
+
+async function callThreatAPI(ctx) {
+  const THREAT_SYSTEM = `You are a Korean chess analyst. Output ONLY in Korean (한국어).
+Never use Japanese, Chinese characters, Arabic, or any non-Korean script.
+Chess move notation (Nf3, e4, dxc4, O-O) stays in algebraic form.
+
+Output format — use EXACTLY these three section headers:
+**핵심 계획:** (백/흑의 주요 위협과 공격 아이디어 1~2문장)
+**문제점:** (상대방이 대응할 수 있는 반격 또는 방어 수단 1~2문장)
+**최선책:** (최선의 대응 수순 또는 해결책 1~2문장. 구체적인 수를 포함할 것)
+
+Keep each section to 1-2 sentences. Total response under 300 characters.`;
+
+  const userMsg = [
+    `현재 포지션을 분석해주세요.`,
+    `차례: ${ctx.turn === 'w' ? '백(White)' : '흑(Black)'}`,
+    ctx.lastMoveSan ? `방금 둔 수: ${ctx.lastMoveSan}` : '',
+    ctx.bestMove ? `엔진 최선수: ${ctx.bestMove}${ctx.bestLine ? ' → ' + ctx.bestLine : ''}` : '',
+    ctx.pgnMoves ? `기보: ${ctx.pgnMoves}` : '',
+    `FEN: ${ctx.fen}`,
+  ].filter(Boolean).join('\n');
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + coachApiKey },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 500,
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: THREAT_SYSTEM },
+        { role: 'user',   content: userMsg }
+      ],
+    })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+function renderThreatPanel(text) {
+  const el = document.getElementById('threat-content');
+  if (!text) { el.innerHTML = '<div class="threat-loading">분석 결과 없음</div>'; return; }
+
+  const SECTIONS = [
+    { key: '핵심 계획',  cls: 'idea',  icon: '💡', labelCls: 'threat-label-idea' },
+    { key: '문제점',     cls: 'prob',  icon: '⚠️', labelCls: 'threat-label-prob' },
+    { key: '최선책',     cls: 'sol',   icon: '✅', labelCls: 'threat-label-sol'  },
+  ];
+
+  // 섹션 파싱: **키:** 패턴으로 분리
+  const parsed = {};
+  // **핵심 계획:** ... **문제점:** ... **최선책:** ... 형태로 파싱
+  const allKeys = ['핵심 계획', '문제점', '최선책'];
+  let remaining = text;
+  for (let ki = 0; ki < allKeys.length; ki++) {
+    const key = allKeys[ki];
+    const nextKey = allKeys[ki + 1];
+
+    // 정규표현식 이스케이프 및 생성 (\\s로 수정)
+    const keyPattern = new RegExp('\\*\\*' + key + '[:\\s：]*\\*\\*|\\*\\*' + key + '\\*\\*');
+    const startIdx = remaining.search(keyPattern);
+    if (startIdx < 0) continue;
+
+    // 헤더가 끝나는 지점 찾기
+    const headerMatch = remaining.slice(startIdx).match(keyPattern);
+    const bodyFrom = startIdx + headerMatch[0].length;
+
+    // 다음 키 위치를 찾아 본문의 끝(bodyEnd) 설정
+    let bodyEnd = remaining.length;
+    if (nextKey) {
+        const nextKeyPattern = new RegExp('\\*\\*' + nextKey);
+        const nextIdx = remaining.slice(bodyFrom).search(nextKeyPattern);
+        if (nextIdx >= 0) {
+            bodyEnd = bodyFrom + nextIdx;
+        }
+    }
+
+    // 결과 저장 및 정돈
+    parsed[key] = remaining.slice(bodyFrom, bodyEnd).trim().replace(/^[:：\s]+/, '').trim();
+}
+
+  if (Object.keys(parsed).length === 0) {
+    // 파싱 실패 시 원문 표시
+    el.innerHTML = `<div class="threat-section"><div class="threat-section-body">${
+      text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+    }</div></div>`;
+    return;
+  }
+
+  let html = '';
+  for (const s of SECTIONS) {
+    if (!parsed[s.key]) continue;
+    const body = parsed[s.key]
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      // 체스 수 표기 강조
+      .replace(/\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x?[a-h][1-8][+#=]?|[a-h][1-8][+#]?)\b/g,
+               (m) => m.length >= 2 ? '<span class="t-move">' + m + '</span>' : m)
+      .replace(/\n/g,'<br>');
+    html += `
+      <div class="threat-section">
+        <div class="threat-section-label ${s.labelCls}">${s.icon} ${s.key}</div>
+        <div class="threat-section-body">${body}</div>
+      </div>`;
+  }
+  el.innerHTML = html;
+}
+
+// ── 한국어 후처리: 비한국어 문자 제거 ────────────────────────
+function cleanKorean(text) {
+  if (!text) return text;
+  return text
+    // 일본어 히라가나/가타카나 제거
+    .replace(/[\u3040-\u309F\u30A0-\u30FF]+/g, '')
+    // CJK 한자 (한국어 한자 아닌 일본어/중국어식 표현 제거 — 완전 제거)
+    .replace(/[\u4E00-\u9FFF\u3400-\u4DBF]+/g, '')
+    // 아랍어 제거
+    .replace(/[\u0600-\u06FF]+/g, '')
+    // 태국어, 힌디 등 기타 스크립트
+    .replace(/[\u0E00-\u0E7F\u0900-\u097F]+/g, '')
+    // 연속 공백 정리
+    .replace(/  +/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// ══════════════════════════════════════════════════════
+// 최선수 설명 패널 (Explaining the next best moves)
+// ══════════════════════════════════════════════════════
+let bestExplainLoading = false;
+let lastBestExplainFen = '';
+let bestExplainMoves = []; // 현재 표시 중인 수순
+let bestExplainFocusIdx = 0; // 선택된 수 인덱스
+
+function toggleBestExplainPanel() {
+  const panel = document.getElementById('best-explain-panel');
+  const btn   = document.getElementById('best-explain-toggle');
+  const isOpen = panel.style.display !== 'none' && panel.style.display !== '';
+  if (!isOpen) {
+    panel.style.display = 'block';
+    btn.style.color = 'var(--accent-blue)';
+    btn.style.borderColor = 'var(--accent-blue)';
+    if (!lastBestExplainFen || lastBestExplainFen !== (buildChessContext()?.fen || '')) {
+      runBestMoveExplain();
+    }
+  } else {
+    panel.style.display = 'none';
+    btn.style.color = 'var(--text-muted)';
+    btn.style.borderColor = 'var(--border-color)';
+  }
+}
+
+async function runBestMoveExplain(focusIdx) {
+  if (!coachApiKey || bestExplainLoading) return;
+  const ctx = buildChessContext();
+  if (!ctx) return;
+  // pvData에서 최선 라인 가져오기
+  const pv = pvData[1];
+  if (!pv || !pv.moves || pv.moves.length === 0) return;
+
+  const fenKey = ctx.fen;
+  if (fenKey === lastBestExplainFen && focusIdx === undefined) return;
+
+  bestExplainLoading = true;
+  lastBestExplainFen = fenKey;
+  bestExplainFocusIdx = focusIdx ?? 0;
+  bestExplainMoves = pv.moves.slice(0, 6);
+
+  const panel = document.getElementById('best-explain-panel');
+  panel.style.display = 'block';
+
+  // 수순 바 렌더 (로딩 중에도 표시)
+  renderBestSeqBar(bestExplainMoves, bestExplainFocusIdx, ctx);
+
+  document.getElementById('best-explain-content').innerHTML =
+    '<div class="threat-loading">📖 최선수 분석 중...</div>';
+
+  try {
+    const focusMove = bestExplainMoves[bestExplainFocusIdx] || bestExplainMoves[0];
+    const answer = await callBestExplainAPI(ctx, bestExplainMoves, bestExplainFocusIdx);
+    const cleaned = cleanKorean(answer);
+    renderBestExplain(cleaned, focusMove, bestExplainMoves, bestExplainFocusIdx, ctx);
+  } catch(e) {
+    document.getElementById('best-explain-content').innerHTML =
+      `<div class="threat-loading" style="color:var(--accent-red)">분석 실패: ${e.message}</div>`;
+    lastBestExplainFen = '';
+  } finally {
+    bestExplainLoading = false;
+  }
+}
+
+function renderBestSeqBar(moves, activeIdx, ctx) {
+  const bar = document.getElementById('best-explain-seq');
+  if (!bar || !moves.length) return;
+
+  let html = '';
+  let moveNum = ctx.fullMove || 1;
+  let turn = ctx.turn; // 'w' or 'b'
+
+  moves.forEach((san, i) => {
+    // 수번호 표시
+    if (turn === 'w' || i === 0) {
+      html += `<span class="best-seq-num">${moveNum}${turn === 'b' && i === 0 ? '...' : '.'}</span>`;
+      if (turn === 'w') {}
+    }
+    // 기물 아이콘 추출
+    let pieceCode = null;
+    const color = turn;
+    if (san === 'O-O' || san === 'O-O-O') pieceCode = color + 'K';
+    else if (san && 'NBRQK'.includes(san[0])) pieceCode = color + san[0];
+    else pieceCode = color + 'P';
+    const imgTag = `<img src="${pieceImg(pieceCode)}" alt="">`;
+
+    html += `<span class="best-seq-move${i === activeIdx ? ' active' : ''}" 
+      onclick="runBestMoveExplain(${i})" title="${san}">${imgTag}${san}</span>`;
+
+    if (turn === 'b') moveNum++;
+    turn = turn === 'w' ? 'b' : 'w';
+  });
+  bar.innerHTML = html;
+}
+
+async function callBestExplainAPI(ctx, moves, focusIdx) {
+  const EXPLAIN_SYSTEM = `You are a Korean chess coach. Output ONLY in Korean (한국어).
+Never use Japanese, Chinese characters, or non-Korean script.
+Chess move notation (Nf3, e4, O-O) stays in English algebraic form.
+
+The user wants to understand why a specific move is good.
+Output format:
+Line 1: "[수 표기]이/가 좋은 이유:" (예: "Qa1이 좋은 이유:")
+Then list 3-4 bullet reasons, each starting with "• " followed by a short Korean sentence.
+Each reason should be 1 sentence, about a chess concept (escape threat, control center, support piece, create threat, etc.)
+Keep total response under 250 characters.`;
+
+  const focusMove = moves[focusIdx] || moves[0];
+  const seq = moves.slice(0, 5).join(' ');
+
+  const userMsg = [
+    `현재 포지션에서 엔진 최선 수순: ${seq}`,
+    `그 중 ${focusIdx + 1}번째 수인 "${focusMove}"이/가 왜 좋은지 설명해주세요.`,
+    `차례: ${ctx.turn === 'w' ? '백' : '흑'}`,
+    ctx.lastMoveSan ? `직전 수: ${ctx.lastMoveSan}` : '',
+    `FEN: ${ctx.fen}`,
+  ].filter(Boolean).join('\n');
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + coachApiKey },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 400,
+      temperature: 0.25,
+      messages: [
+        { role: 'system', content: EXPLAIN_SYSTEM },
+        { role: 'user',   content: userMsg }
+      ],
+    })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+function renderBestExplain(text, focusMove, moves, activeIdx, ctx) {
+  const contentEl = document.getElementById('best-explain-content');
+  if (!text) { contentEl.innerHTML = '<div class="threat-loading">결과 없음</div>'; return; }
+
+  const escaped = text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // 첫 줄 타이틀 추출
+  const lines = escaped.split('\n').map(l => l.trim()).filter(Boolean);
+  let titleLine = '';
+  const reasonLines = [];
+
+  for (const line of lines) {
+    if (line.startsWith('•') || line.startsWith('-') || line.startsWith('·') || line.match(/^\d+\./)) {
+      const txt = line.replace(/^[•\-·]\s*/, '').replace(/^\d+\.\s*/, '');
+      reasonLines.push(txt);
+    } else if (!titleLine) {
+      titleLine = line;
+    }
+  }
+
+  // 기물 아이콘
+  const color = ctx.turn;
+  let pieceCode = null;
+  if (focusMove === 'O-O' || focusMove === 'O-O-O') pieceCode = color + 'K';
+  else if (focusMove && 'NBRQK'.includes(focusMove[0])) pieceCode = color + focusMove[0];
+  else pieceCode = color + 'P';
+  const imgTag = `<img src="${pieceImg(pieceCode)}" style="width:16px;height:16px;vertical-align:middle;margin-right:2px;">`;
+
+  // 이유 색상 순환
+  const iconClasses = ['reason-positive','reason-neutral','reason-good','reason-warning'];
+
+  let html = `<div class="best-explain-title"><span class="be-move">${imgTag}${focusMove}</span>이/가 좋은 이유:</div>`;
+  html += '<div class="best-reason-list">';
+
+  if (reasonLines.length > 0) {
+    reasonLines.slice(0, 4).forEach((reason, i) => {
+      const cls = iconClasses[i % iconClasses.length];
+      html += `<div class="best-reason-item">
+        <div class="best-reason-icon ${cls}"></div>
+        <span>${reason.replace(/(O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8][+#=]?)/g, '<strong>$1</strong>')}</span>
+      </div>`;
+    });
+  } else {
+    // 파싱 실패 시 전체 텍스트
+    html += `<div class="best-reason-item"><div class="best-reason-icon reason-positive"></div><span>${escaped}</span></div>`;
+  }
+
+  html += '</div>';
+  contentEl.innerHTML = html;
+}
+
+// Groq API 호출
+async function callAnthropicAPI(userContent) {
+  const SYSTEM_PROMPT = `You are a Korean-language chess coach. You must ALWAYS respond in Korean only.
+
+LANGUAGE RULES (CRITICAL):
+- Output language: Korean (한국어) ONLY. No Japanese, Chinese, Arabic, or any other language.
+- Chess move notation (e.g. Nf3, e4, O-O, dxc4) stays in English/algebraic form.
+- All other text must be in Korean. If a word mixes Japanese/Chinese characters, replace it with Korean.
+
+ANSWER FORMAT — follow this exact structure for ALL questions:
+
+**전략:** (1~2문장: 이 수/포지션의 전략적 의도를 체스 개념으로 설명)
+**계획:** (2~3문장: 구체적인 후속 수순이나 기물 배치 계획. 수 표기 포함)
+**목표:** (1~2문장: 이 전략이 달성하려는 최종 목표. 상대방의 위협 또는 기회도 언급)
+
+CONTENT RULES:
+1. 수치(cp, 평가 점수, 숫자)는 절대 사용하지 마세요. 대신 '중앙 장악', '기물 활동성', '왕의 안전', '폰 구조', '주도권', '공간적 우위' 같은 개념어를 사용하세요.
+2. 엔진 추천수와 실제 둔 수가 다르면, 두 수의 전략적 차이를 **계획** 항목에서 비교하세요.
+3. 이 수를 두지 않으면 상대에게 어떤 기회가 생기는지 반드시 **목표** 항목에 포함하세요.
+4. 전체 답변은 250~400자 내외로 작성하세요.
+5. 입문자도 이해할 수 있도록 쉽고 친근하게 설명하세요.
+
+EXAMPLE OUTPUT (follow this format exactly):
+**전략:** Nf3은 중앙의 통제를 강화하고 킹사이드 캐슬링을 준비하는 수입니다.
+**계획:** 이후 e3, Bd3 순서로 비숍을 활성화하고, O-O로 왕의 안전을 확보합니다. 상대가 d5를 밀면 cxd5로 교환하여 폰 구조를 단순화할 수 있습니다.
+**목표:** 중앙에서 안정적인 기물 활동성을 확보하는 것이 목표입니다. 이 수를 두지 않으면 상대가 e4를 선점하여 중앙 주도권을 가져갑니다.`;
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + coachApiKey,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 800,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user',   content: userContent }
+      ],
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const raw = data.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
+  return cleanKorean(raw);
+}
+
+// 응답 텍스트 포맷팅: **전략/계획/목표** 구조를 카드 형태로 렌더링
+function formatCoachResponse(text) {
+  const escaped = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // **전략:**, **계획:**, **목표:** 섹션 감지 → 카드 렌더링
+  const sectionRegex = /\*\*(전략|계획|목표|strategy|plan|goal)[:\s：]\*\*\s*/gi;
+  if (sectionRegex.test(escaped)) {
+    const ICONS = { '전략': '🎯', '계획': '📋', '목표': '🏆', 'strategy': '🎯', 'plan': '📋', 'goal': '🏆' };
+    const sections = escaped.split(/(?=\*\*(전략|계획|목표)[:\s：]\*\*)/i);
+    let html = '';
+    for (const sec of sections) {
+      const m = sec.match(/^\*\*(전략|계획|목표)[:\s：]\*\*\s*(.*)/is);
+      if (m) {
+        const label = m[1];
+        const body  = m[2].trim()
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\n/g, '<br>');
+        const icon  = ICONS[label] || '•';
+        html += `<div class="coach-section">
+          <div class="coach-section-label">${icon} ${label}</div>
+          <div class="coach-section-body">${body}</div>
+        </div>`;
+      } else if (sec.trim()) {
+        // 섹션 헤더 없는 일반 텍스트
+        html += `<p class="coach-plain">${sec.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')}</p>`;
+      }
+    }
+    return html || formatCoachPlain(escaped);
+  }
+  return formatCoachPlain(escaped);
+}
+
+function formatCoachPlain(escaped) {
+  return escaped
+    .replace(/\n\n/g, '</p><p style="margin-top:8px">')
+    .replace(/\n/g, '<br>')
+    .replace(/^/, '<p>').replace(/$/, '</p>');
 }
 
 document.addEventListener('DOMContentLoaded', init);
