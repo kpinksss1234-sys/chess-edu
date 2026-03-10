@@ -2160,11 +2160,11 @@ function renderTopMoves(msg) {
     const row = document.createElement('div');
 
     if (pv) {
-      // 점수 색상 결정
+      // 점수 색상 결정 — 항상 백 기준 cpFromWhite로 판단
       const cp = pv.cpFromWhite ?? 0;
       let scoreClass = 'equal';
-      if (cp > 20)  scoreClass = 'positive';
-      if (cp < -20) scoreClass = 'negative';
+      if (cp > 20)  scoreClass = 'positive';  // 백 유리 → 녹색
+      if (cp < -20) scoreClass = 'negative';  // 흑 유리 → 적색
 
       // 수 분리: 첫 번째 수 + 나머지
       const allMoves = pv.moves || [];
@@ -3911,9 +3911,10 @@ class ChessGame {
 
       // 현재 탐색 중인 라인 (서브라인일 수도 있음)
       const currentLine = existingLines.find(l => l.pvIdx === ep.pvIdx);
-      // 서브라인의 부모 루트라인 ID 구하기
+      // ★ 수정: 새 서브라인의 부모는 현재 탐색 중인 라인 자체
+      // (루트라인이든 서브라인이든 상관없이 currentLine.id를 부모로 사용)
       const parentId = currentLine
-        ? (currentLine.parentLineId ?? currentLine.id)
+        ? currentLine.id
         : existingLines[0].id;
 
       // 분기 지점: extra 탐색 중이면 extra 위치, 아니면 엔진라인 수 위치
@@ -3970,58 +3971,63 @@ class ChessGame {
 
   // ── 라인의 시작 보드 상태를 계산 (서브라인은 부모 분기점 이후) ──
   _getLineStartState(histIdx, line) {
-    // 루트 보드 상태 (histIdx 이후)
-    let b, t, c, ep, hm, fm;
-    if (histIdx >= 0 && this.history[histIdx]) {
-      const s = this.history[histIdx];
-      b = applyMoveToBoard(s.board.map(r=>[...r]), s.move, s.turn);
-      t = s.turn === 'w' ? 'b' : 'w';
-      c = {...s.castling};
-      if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
-        if (s.turn==='w') { c.wK=false; c.wQ=false; }
-        else { c.bK=false; c.bQ=false; }
+    // 기준 루트 상태 계산 헬퍼 (histIdx 이후 포지션)
+    const _getRootState = () => {
+      if (histIdx >= 0 && this.history[histIdx]) {
+        const s = this.history[histIdx];
+        const b = applyMoveToBoard(s.board.map(r=>[...r]), s.move, s.turn);
+        const t = s.turn === 'w' ? 'b' : 'w';
+        const c = {...s.castling};
+        if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
+          if (s.turn==='w') { c.wK=false; c.wQ=false; }
+          else { c.bK=false; c.bQ=false; }
+        }
+        if (s.move.from[0]===7&&s.move.from[1]===7) c.wK=false;
+        if (s.move.from[0]===7&&s.move.from[1]===0) c.wQ=false;
+        if (s.move.from[0]===0&&s.move.from[1]===7) c.bK=false;
+        if (s.move.from[0]===0&&s.move.from[1]===0) c.bQ=false;
+        const ep = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
+        return { b, t, c, ep, hm: s.halfMove + 1, fm: s.turn === 'b' ? s.fullMove + 1 : s.fullMove };
       }
-      if (s.move.from[0]===7&&s.move.from[1]===7) c.wK=false;
-      if (s.move.from[0]===7&&s.move.from[1]===0) c.wQ=false;
-      if (s.move.from[0]===0&&s.move.from[1]===7) c.bK=false;
-      if (s.move.from[0]===0&&s.move.from[1]===0) c.bQ=false;
-      ep = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
-      hm = s.halfMove + 1;
-      fm = s.turn === 'b' ? s.fullMove + 1 : s.fullMove;
-    } else {
-      b = INIT_BOARD.map(r=>[...r]);
-      t = 'w'; c = { wK:true, wQ:true, bK:true, bQ:true };
-      ep = null; hm = 0; fm = 1;
-    }
+      return { b: INIT_BOARD.map(r=>[...r]), t: 'w', c: { wK:true, wQ:true, bK:true, bQ:true }, ep: null, hm: 0, fm: 1 };
+    };
 
     // 서브라인이 아닌 루트라인이면 바로 반환
     if (!line.parentLineId || !line.branchAt || line.branchAt === -1) {
-      return { b, t, c, ep, hm, fm };
+      return _getRootState();
     }
 
     // 서브라인: 부모 라인을 찾아서 분기점까지 수들을 적용
+    // ★ 수정: 순수 함수로 리팩터링 — 클로저 변수 오염 제거
     const lines = this.enginePreviews[histIdx] || [];
+
     const _applyMovesUpTo = (parentLine, branchAt) => {
-      // 부모가 서브라인이면 재귀로 부모의 시작 상태부터
+      // 부모의 시작 상태: 부모가 서브라인이면 재귀, 아니면 루트 상태
+      let ctx;
       if (parentLine.parentLineId && parentLine.branchAt && parentLine.branchAt !== -1) {
         const grandParent = lines.find(l => l.id === parentLine.parentLineId);
-        if (grandParent) {
-          const ctx = _applyMovesUpTo(grandParent, parentLine.branchAt);
-          b = ctx.b; t = ctx.t; c = ctx.c; ep = ctx.ep; hm = ctx.hm; fm = ctx.fm;
-        }
+        ctx = grandParent ? _applyMovesUpTo(grandParent, parentLine.branchAt) : _getRootState();
+      } else {
+        ctx = _getRootState();
       }
-      // 부모 라인의 moves/uciMoves를 분기점까지 적용
+
+      // ctx를 로컬 변수로 복사 — 외부 스코프 오염 없음
+      let { b, t, c, ep, hm, fm } = ctx;
+      b = b.map(r=>[...r]);
+      c = {...c};
+
       const uciList2 = parentLine.uciMoves || [];
       const sanList2 = parentLine.moves || [];
       let limit = 0;
       let srcType = 'engine';
       if (branchAt && branchAt.startsWith('engine:')) {
-        limit = parseInt(branchAt.split(':')[1]) + 1; // inclusive
+        limit = parseInt(branchAt.split(':')[1]) + 1;
         srcType = 'engine';
       } else if (branchAt && branchAt.startsWith('extra:')) {
-        limit = sanList2.length; // 먼저 모든 엔진수 적용
+        limit = sanList2.length;
         srcType = 'extra';
       }
+
       const applyOne = (uci, san) => {
         const allLM = getAllLegalMoves(b, t, c, ep);
         let mv = null;
@@ -4043,6 +4049,7 @@ class ChessGame {
         b=nb; t=t==='w'?'b':'w'; c=nc;
         return true;
       };
+
       const maxI = Math.max(uciList2.length, sanList2.length);
       for (let i=0; i<Math.min(limit, maxI); i++) {
         if (!applyOne(uciList2[i], sanList2[i])) break;
@@ -4058,24 +4065,27 @@ class ChessGame {
     };
 
     const parentLine = lines.find(l => l.id === line.parentLineId);
-    if (parentLine) {
-      const ctx = _applyMovesUpTo(parentLine, line.branchAt);
-      b = ctx.b; t = ctx.t; c = ctx.c; ep = ctx.ep; hm = ctx.hm; fm = ctx.fm;
-    }
-    return { b, t, c, ep, hm, fm };
+    if (parentLine) return _applyMovesUpTo(parentLine, line.branchAt);
+    return _getRootState();
   }
 
   // 엔진라인 특정 수를 보드에 반영
   _applyEngineLine(histIdx, pvIdx, moveIdx) {
+    console.group(`[DEBUG] _applyEngineLine(histIdx=${histIdx}, pvIdx=${pvIdx}, moveIdx=${moveIdx})`);
     const lines = this.enginePreviews[histIdx];
-    if (!lines) return;
+    if (!lines) { console.warn('❌ enginePreviews[histIdx] 없음'); console.groupEnd(); return; }
     const line = lines.find(l => l.pvIdx === pvIdx);
-    if (!line) return;
+    if (!line) { console.warn('❌ pvIdx에 해당하는 라인 없음'); console.groupEnd(); return; }
+    console.log('line.moves:', line.moves);
+    console.log('line.uciMoves:', line.uciMoves);
 
     // 시작 보드 상태 — 서브라인이면 분기점까지 수를 적용한 상태
     const startState = this._getLineStartState(histIdx, line);
     let startBoard = startState.b, startTurn = startState.t, startCast = startState.c;
     let startEP = startState.ep, startHM = startState.hm, startFM = startState.fm;
+    console.log('startTurn:', startTurn, '| startFM:', startFM);
+    const startFen = boardToFen(startBoard, startTurn, startCast, startEP, startHM, startFM);
+    console.log('시작 FEN:', startFen);
 
     // 각 수의 보드 상태 계산 — UCI moves 우선, 없으면 SAN fallback
     const states = [];
@@ -4089,6 +4099,7 @@ class ChessGame {
     const uciList = line.uciMoves || [];
     const sanList = line.moves || [];
     const moveCount = Math.max(uciList.length, sanList.length);
+    console.log('총 수 개수:', moveCount, '| 요청 moveIdx:', moveIdx);
 
     for (let mi = 0; mi < moveCount; mi++) {
       const allLM = getAllLegalMoves(curBoard, curTurn, curCast, curEP);
@@ -4105,14 +4116,19 @@ class ChessGame {
           (!promo || m.promo)
         ) || null;
         if (matched && promo) matched.promoPiece = promo;
+        if (!matched) console.warn(`  mi=${mi}: UCI "${uci}" 매칭 실패 (fr=${fr},fc=${fc}→tr=${tr},tc=${tc}), SAN fallback 시도`);
       }
 
       // 2) SAN fallback
       if (!matched && sanList[mi]) {
         matched = sanToMove(sanList[mi], curBoard, curTurn, allLM);
+        if (!matched) console.error(`  mi=${mi}: SAN "${sanList[mi]}" 도 매칭 실패! states 중단`);
+        else console.log(`  mi=${mi}: SAN "${sanList[mi]}" fallback 성공`);
+      } else if (matched) {
+        console.log(`  mi=${mi}: UCI "${uci}" → SAN "${sanList[mi]}" 매칭 성공`);
       }
 
-      if (!matched) break;
+      if (!matched) { console.error(`❌ mi=${mi}에서 수 매칭 실패, states.length=${states.length}`); break; }
 
       const boardAfter = applyMoveToBoard(curBoard.map(r=>[...r]), matched, curTurn);
       const castAfter = {...curCast};
@@ -4138,6 +4154,16 @@ class ChessGame {
       curHM++;
       if (curTurn==='w') curFM++;
     }
+
+    console.log(`states 계산 완료: ${states.length}개 / 요청 moveIdx=${moveIdx}`);
+    if (moveIdx >= 0 && !states[moveIdx]) {
+      console.error(`❌ states[${moveIdx}] 없음! 기준 포지션으로 fallback됩니다`);
+    } else if (moveIdx >= 0 && states[moveIdx]) {
+      const st = states[moveIdx];
+      const fen = boardToFen(st.board, st.turn, st.castling, st.enPassant, st.halfMove, st.fullMove);
+      console.log(`✅ 적용할 FEN (moveIdx=${moveIdx}):`, fen);
+    }
+    console.groupEnd();
 
     // 기존 enginePreview의 extraMoveIdx는 엔진라인 수 클릭 시 초기화 (엔진라인 수 선택)
     this.enginePreview = { histIdx, pvIdx, activeIdx: moveIdx, moves: line.moves, states, extraMoveIdx: -1 };
