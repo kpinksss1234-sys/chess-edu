@@ -925,31 +925,24 @@ function togglePw(id, btn) {
   const isText = inp.type === 'text';
   inp.type = isText ? 'password' : 'text';
   btn.style.color = isText ? '' : 'var(--accent-green)';
+  // 비밀번호가 보일 때(text)만 블러 처리
+  const bg = document.getElementById('floating-pieces');
+  const logoIcon = document.querySelector('.logo-icon');
+  const anyVisible = _pwIds.some(pid => document.getElementById(pid)?.type === 'text');
+  if (anyVisible) {
+    bg.classList.add('blurred');
+    if (logoIcon) logoIcon.classList.add('peeking');
+  } else {
+    bg.classList.remove('blurred');
+    if (logoIcon) logoIcon.classList.remove('peeking');
+  }
+  inp.focus();
 }
 
 // ── 비밀번호 입력 포커스 → 배경/로고 흐림 ──
-(function() {
-  const pwInputs = document.querySelectorAll('input[type="password"]');
-  const bg = document.getElementById('floating-pieces');
-  const logoIcon = document.querySelector('.logo-icon');
+const _pwIds = ['login-password', 'signup-password', 'signup-confirm'];
 
-  pwInputs.forEach(inp => {
-    inp.addEventListener('focus', () => {
-      bg.classList.add('blurred');
-      if (logoIcon) logoIcon.classList.add('peeking');
-    });
-    inp.addEventListener('blur', () => {
-      // 다른 pw 필드로 이동 시 유지
-      setTimeout(() => {
-        const anyPwFocused = [...pwInputs].some(i => document.activeElement === i);
-        if (!anyPwFocused) {
-          bg.classList.remove('blurred');
-          if (logoIcon) logoIcon.classList.remove('peeking');
-        }
-      }, 50);
-    });
-  });
-})();
+
 
 // ── 에러 시 카드 흔들림 ──
 function shakeCard(form) {
