@@ -128,39 +128,16 @@ body {
 .sidebar-item.logout-btn:hover { background: rgba(192,64,64,0.12); }
 .sidebar-item.logout-btn:hover .sidebar-icon { color: #e07070; }
 .sidebar-item.logout-btn:hover .sidebar-label { color: #e07070; }
-
-/* 저장된 게임 목록 */
 .saved-game-item {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  cursor: pointer;
+  background: var(--bg-tertiary); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
   transition: border-color 0.15s, background 0.15s;
 }
-.saved-game-item:hover {
-  border-color: var(--accent-green-dark);
-  background: var(--bg-hover);
-}
-.saved-game-title {
-  font-size: 12px; font-weight: 600;
-  color: var(--text-primary); margin-bottom: 3px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.saved-game-meta {
-  font-size: 10px; color: var(--text-muted);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.saved-game-actions {
-  display: flex; gap: 4px; margin-top: 6px;
-}
-.saved-game-btn {
-  font-size: 10px; padding: 3px 8px;
-  border-radius: 5px; border: 1px solid var(--border-light);
-  background: none; color: var(--text-secondary); cursor: pointer;
-  transition: all 0.15s;
-}
+.saved-game-item:hover { border-color: var(--accent-green-dark); background: var(--bg-hover); }
+.saved-game-title { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.saved-game-meta { font-size: 10px; color: var(--text-muted); display: flex; justify-content: space-between; }
+.saved-game-actions { display: flex; gap: 4px; margin-top: 6px; }
+.saved-game-btn { font-size: 10px; padding: 3px 8px; border-radius: 5px; border: 1px solid var(--border-light); background: none; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
 .saved-game-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .saved-game-btn.del { border-color: rgba(192,64,64,0.4); color: #e07070; }
 .saved-game-btn.del:hover { background: rgba(192,64,64,0.1); }
@@ -1242,12 +1219,12 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 }
 </style>
 
-<!-- Firebase 인증 체크 -->
-<script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-  import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-
-  const firebaseConfig = {
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  firebase.initializeApp({
     apiKey: "AIzaSyDiBFoUf2QVG9QXO34Xny0bSslFYaiwozg",
     authDomain: "chess-education-464fc.firebaseapp.com",
     projectId: "chess-education-464fc",
@@ -1255,31 +1232,30 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
     messagingSenderId: "963998720041",
     appId: "1:963998720041:web:aa4037707214d3777c7c38",
     measurementId: "G-HBS1RQ4WYQ"
-  };
+  });
+  // 전역 변수 — var 사용으로 window 스코프에 등록
+  var _fbAuth = firebase.auth();
+  var _fbDb   = firebase.firestore();
+  var _currentUser = null;
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-
-  // 페이지 로드 시 인증 상태 확인
-  // 로그인 안 되어 있으면 auth.html로 이동
-  onAuthStateChanged(auth, (user) => {
+  _fbAuth.onAuthStateChanged(function(user) {
     if (!user) {
       window.location.href = '/auth.html';
     } else {
-      // 닉네임 & 아바타 표시
-      const name = user.displayName || user.email || '?';
-      const letter = name[0].toUpperCase();
-      const avatarEl = document.getElementById('sidebar-avatar-letter');
-      const nameEl   = document.getElementById('sidebar-username');
-      if (avatarEl) avatarEl.textContent = letter;
-      if (nameEl)   nameEl.textContent   = name.split('@')[0]; // 이메일이면 @ 앞만
+      _currentUser = user;
+      var name = user.displayName || user.email || '?';
+      var avatarEl = document.getElementById('sidebar-avatar-letter');
+      var nameEl   = document.getElementById('sidebar-username');
+      if (avatarEl) avatarEl.textContent = name[0].toUpperCase();
+      if (nameEl)   nameEl.textContent   = name.split('@')[0];
     }
   });
 
-  // 로그아웃
-  window.handleLogout = () => signOut(auth).then(() => {
-    window.location.href = '/auth.html';
-  });
+  function handleLogout() {
+    _fbAuth.signOut().then(function() {
+      window.location.href = '/auth.html';
+    });
+  }
 </script>
 </head>
 <body>
@@ -1494,19 +1470,16 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
           <button class="btn-primary" onclick="loadPGN()">불러오기</button>
           <button class="btn-secondary" onclick="exportPGN()">내보내기</button>
           <button class="btn-secondary" onclick="copyPGN()">복사</button>
-          <button class="btn-secondary" onclick="savePGN()" id="btn-save-pgn" style="background:var(--accent-green-dark);color:#fff;border-color:var(--accent-green);">저장</button>
+          <button class="btn-secondary" id="btn-save-pgn" onclick="savePGN()" style="background:var(--accent-green-dark);color:#fff;border-color:var(--accent-green);">저장</button>
         </div>
 
-        <!-- 저장된 게임 목록 -->
         <div class="pgn-divider"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <span class="pgn-label" style="margin-bottom:0;">저장된 게임</span>
-          <button onclick="loadSavedGames()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px;transition:color 0.2s;" onmouseover="this.style.color='var(--text-secondary)'" onmouseout="this.style.color='var(--text-muted)'">↻ 새로고침</button>
+          <button onclick="loadSavedGames()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:4px;" onmouseover="this.style.color='var(--text-secondary)'" onmouseout="this.style.color='var(--text-muted)'">↻ 새로고침</button>
         </div>
         <div id="saved-games-list">
-          <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px 0;">
-            로그인 후 저장된 게임이 표시됩니다
-          </div>
+          <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px 0;">로딩 중...</div>
         </div>
       </div>
     </div>
@@ -5417,8 +5390,7 @@ function switchTab(tab) {
   });
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
-  // PGN 탭 열릴 때 저장 목록 자동 로드
-  if (tab === 'pgn') setTimeout(loadSavedGames, 100);
+  if (tab === 'pgn') setTimeout(loadSavedGames, 150);
 }
 
 function loadPGN() {
@@ -5452,36 +5424,31 @@ function copyPGN() {
   navigator.clipboard.writeText(pgn).then(()=>showToast('클립보드에 복사됨'));
 }
 
-// ── PGN 저장 ──
+// ══ PGN 저장 / 목록 ══════════════════════════════
 async function savePGN() {
-  if (typeof _fbDb === 'undefined' || !_fbDb) { showToast('Firebase 연결 필요'); return; }
-  if (typeof _currentUser === 'undefined' || !_currentUser) { showToast('로그인이 필요합니다'); return; }
+  if (!window._fbDb)        { showToast('Firebase 연결 필요'); return; }
+  if (!window._currentUser) { showToast('로그인이 필요합니다'); return; }
 
-  // 현재 보드의 PGN 생성
   exportPGN();
   const pgn = document.getElementById('pgn-input').value.trim();
   if (!pgn) { showToast('저장할 게임이 없습니다'); return; }
 
-  // 게임 정보 수집
-  const white   = document.getElementById('info-white')?.textContent || '-';
-  const black   = document.getElementById('info-black')?.textContent || '-';
-  const date    = document.getElementById('info-date')?.textContent  || '-';
-  const result  = document.getElementById('info-result')?.textContent || '*';
-  const opening = document.getElementById('info-opening')?.textContent || '-';
+  const white    = document.getElementById('info-white')?.textContent   || '-';
+  const black    = document.getElementById('info-black')?.textContent   || '-';
+  const date     = document.getElementById('info-date')?.textContent    || '-';
+  const result   = document.getElementById('info-result')?.textContent  || '*';
+  const opening  = document.getElementById('info-opening')?.textContent || '-';
   const moveCount = game.history.length;
-  const title   = `${white} vs ${black}`;
 
   const btn = document.getElementById('btn-save-pgn');
   if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
 
   try {
-    await _fbDb.collection('saved_pgns').add({
-      uid:       _currentUser.uid,
-      title,
-      pgn,
-      white, black, date, result, opening,
-      moveCount,
-      savedAt:   firebase.firestore.FieldValue.serverTimestamp(),
+    await window._fbDb.collection('saved_pgns').add({
+      uid: window._currentUser.uid,
+      title: `${white} vs ${black}`,
+      pgn, white, black, date, result, opening, moveCount,
+      savedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     showToast('✓ 게임이 저장되었습니다');
     loadSavedGames();
@@ -5493,37 +5460,28 @@ async function savePGN() {
   }
 }
 
-// ── 저장된 게임 목록 불러오기 ──
 async function loadSavedGames() {
   const listEl = document.getElementById('saved-games-list');
   if (!listEl) return;
-  if (typeof _fbDb === 'undefined' || !_fbDb || typeof _currentUser === 'undefined' || !_currentUser) {
+  if (!window._fbDb || !window._currentUser) {
     listEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px 0;">로그인 후 이용 가능합니다</div>';
     return;
   }
-
   listEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:12px 0;">불러오는 중...</div>';
 
-  try {
-    const snap = await _fbDb.collection('saved_pgns')
-      .where('uid', '==', _currentUser.uid)
-      .orderBy('savedAt', 'desc')
-      .limit(30)
-      .get();
-
-    if (snap.empty) {
+  const render = (docs) => {
+    if (!docs.length) {
       listEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px 0;">저장된 게임이 없습니다</div>';
       return;
     }
-
     listEl.innerHTML = '';
-    snap.forEach(doc => {
+    docs.forEach(doc => {
       const d = doc.data();
       const dateStr = d.savedAt ? new Date(d.savedAt.seconds * 1000).toLocaleDateString('ko-KR') : '—';
       const item = document.createElement('div');
       item.className = 'saved-game-item';
       item.innerHTML = `
-        <div class="saved-game-title">${d.title || '—'}</div>
+        <div class="saved-game-title">${d.title || '제목 없음'}</div>
         <div class="saved-game-meta">
           <span>${d.result || '*'} · ${d.moveCount || 0}수</span>
           <span>${dateStr}</span>
@@ -5531,79 +5489,51 @@ async function loadSavedGames() {
         <div class="saved-game-actions">
           <button class="saved-game-btn" onclick="loadSavedPGN('${doc.id}')">불러오기</button>
           <button class="saved-game-btn del" onclick="deleteSavedPGN('${doc.id}', this)">삭제</button>
-        </div>
-      `;
+        </div>`;
       listEl.appendChild(item);
     });
+  };
+
+  try {
+    const snap = await window._fbDb.collection('saved_pgns')
+      .where('uid', '==', window._currentUser.uid)
+      .orderBy('savedAt', 'desc').limit(30).get();
+    const docs = []; snap.forEach(d => docs.push(d));
+    render(docs);
   } catch(e) {
-    // Firestore 인덱스 없을 시 orderBy 없이 재시도
     try {
-      const snap2 = await _fbDb.collection('saved_pgns')
-        .where('uid', '==', _currentUser.uid)
-        .limit(30)
-        .get();
-      if (snap2.empty) {
-        listEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px 0;">저장된 게임이 없습니다</div>';
-        return;
-      }
-      const docs = [];
-      snap2.forEach(doc => docs.push(doc));
-      docs.sort((a,b) => (b.data().savedAt?.seconds||0) - (a.data().savedAt?.seconds||0));
-      listEl.innerHTML = '';
-      docs.forEach(doc => {
-        const d = doc.data();
-        const dateStr = d.savedAt ? new Date(d.savedAt.seconds * 1000).toLocaleDateString('ko-KR') : '—';
-        const item = document.createElement('div');
-        item.className = 'saved-game-item';
-        item.innerHTML = `
-          <div class="saved-game-title">${d.title || '—'}</div>
-          <div class="saved-game-meta">
-            <span>${d.result || '*'} · ${d.moveCount || 0}수</span>
-            <span>${dateStr}</span>
-          </div>
-          <div class="saved-game-actions">
-            <button class="saved-game-btn" onclick="loadSavedPGN('${doc.id}')">불러오기</button>
-            <button class="saved-game-btn del" onclick="deleteSavedPGN('${doc.id}', this)">삭제</button>
-          </div>
-        `;
-        listEl.appendChild(item);
-      });
+      const snap2 = await window._fbDb.collection('saved_pgns')
+        .where('uid', '==', window._currentUser.uid).limit(30).get();
+      const docs2 = []; snap2.forEach(d => docs2.push(d));
+      docs2.sort((a,b) => (b.data().savedAt?.seconds||0) - (a.data().savedAt?.seconds||0));
+      render(docs2);
     } catch(e2) {
       listEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:12px 0;">불러오기 실패</div>';
     }
   }
 }
 
-// ── 저장된 PGN 불러오기 ──
 async function loadSavedPGN(docId) {
-  if (typeof _fbDb === 'undefined') return;
   try {
-    const doc = await _fbDb.collection('saved_pgns').doc(docId).get();
+    const doc = await window._fbDb.collection('saved_pgns').doc(docId).get();
     if (!doc.exists) { showToast('게임을 찾을 수 없습니다'); return; }
-    const pgn = doc.data().pgn;
-    document.getElementById('pgn-input').value = pgn;
+    document.getElementById('pgn-input').value = doc.data().pgn;
     loadPGN();
     showToast('게임을 불러왔습니다');
-  } catch(e) {
-    showToast('불러오기 실패');
-  }
+  } catch(e) { showToast('불러오기 실패'); }
 }
 
-// ── 저장된 PGN 삭제 ──
 async function deleteSavedPGN(docId, btn) {
   if (!confirm('이 게임을 삭제하시겠습니까?')) return;
   try {
-    await _fbDb.collection('saved_pgns').doc(docId).delete();
-    const item = btn.closest('.saved-game-item');
-    if (item) item.remove();
+    await window._fbDb.collection('saved_pgns').doc(docId).delete();
+    btn.closest('.saved-game-item')?.remove();
     showToast('삭제되었습니다');
-    const listEl = document.getElementById('saved-games-list');
-    if (listEl && !listEl.querySelector('.saved-game-item')) {
-      listEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px 0;">저장된 게임이 없습니다</div>';
+    if (!document.querySelector('.saved-game-item')) {
+      document.getElementById('saved-games-list').innerHTML =
+        '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px 0;">저장된 게임이 없습니다</div>';
     }
-  } catch(e) {
-    showToast('삭제 실패');
-  }
+  } catch(e) { showToast('삭제 실패'); }
 }
 
 function setTheme(name) {
