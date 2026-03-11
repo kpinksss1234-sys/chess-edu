@@ -256,8 +256,11 @@ body {
 
 .sq .piece { pointer-events: none; line-height: 1; }
 .sq .piece-img {
-  width: 88%; height: 88%; object-fit: contain;
+  width: 88%; height: 88%;
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
   position: relative; z-index: 1; pointer-events: none;
+  display: block;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
 }
 .sq .piece-img.black-piece {
@@ -557,8 +560,10 @@ function moveToSAN(board, move, color, allMoves) {
   if(move.promo&&move.promoPiece)san+='='+move.promoPiece;
   const nb=applyMoveToBoard(board.map(r=>[...r]),move,color);
   const enemy=enemyColor(color);
-  const enemyLegal=getAllLegal(nb,enemy,{wK:false,wQ:false,bK:false,bQ:false},null);
-  if(isInCheck(nb,enemy))san+=enemyLegal.length===0?'#':'+';
+  if(isInCheck(nb,enemy)){
+    const el=getAllLegal(nb,enemy,{wK:false,wQ:false,bK:false,bQ:false},null);
+    san+=el.length===0?'#':'+';
+  }
   return san;
 }
 
@@ -619,7 +624,7 @@ function pseudoMoves(board, r, c, castling, enPassant) {
       }
     });
   } else if(type==='N'){[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>push(r+dr,c+dc));}
-  else if(type==='B'){slide([-1,-1,-1,1,1,1],[-1,0,1,-1,0,1]);slide([-1,1],[-1,1]);slide([-1,-1,1,1],[-1,1,-1,1]);}
+  else if(type==='B'){slide([-1,-1,1,1],[-1,1,-1,1]);}
   else if(type==='R'){slide([-1,0,1,0],[0,-1,0,1]);}
   else if(type==='Q'){slide([-1,-1,-1,0,0,1,1,1],[-1,0,1,-1,1,-1,0,1]);}
   else if(type==='K'){[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>push(r+dr,c+dc));
@@ -942,25 +947,18 @@ async function startMatchmaking() {
     const el = document.getElementById('search-elapsed');
     if (el) el.textContent = elapsed + '초 경과';
   }, 1000);
-
   const myName = _user.displayName || _user.email.split('@')[0];
   const queue  = _rtDb.ref('matchmaking_queue');
-
-  // push()로 key 생성 → set()으로 실제 저장 보장 (await)
-  const myRef = queue.push();
+  const myRef  = queue.push();
   _queueRef = myRef;
   await myRef.set({ uid: _user.uid, displayName: myName, joinedAt: Date.now() });
-
-  // 내 항목 저장 완료 후 큐 스냅샷 읽기
   const snap = await queue.orderByChild('joinedAt').once('value');
   let matched = false;
-
   snap.forEach(child => {
     if (matched) return;
     if (child.key === myRef.key) return;
     const data = child.val();
     if (!data || data.uid === _user.uid || data.gameId) return;
-
     matched = true;
     const myColor  = Math.random() < 0.5 ? 'w' : 'b';
     const oppColor = myColor === 'w' ? 'b' : 'w';
@@ -975,16 +973,12 @@ async function startMatchmaking() {
       lastMoveAt: Date.now(), createdAt: Date.now(),
     };
     _rtDb.ref('games/' + gameId).set(gameData);
-    // ★ 상대 항목에 gameId/color 기록 (remove 절대 금지)
     child.ref.update({ gameId: gameId, color: oppColor });
-    // 내 항목 삭제
     myRef.remove();
     _queueRef = null;
     joinGame(gameId, myColor, gameData);
   });
-
   if (!matched) {
-    // 내 항목에 gameId가 쓰일 때까지 감시
     _queueRef.on('value', snap2 => {
       const d = snap2.val();
       if (!d || !d.gameId) return;
@@ -993,7 +987,7 @@ async function startMatchmaking() {
       _queueRef = null;
       _rtDb.ref('games/' + d.gameId).once('value').then(gs => {
         if (gs.val()) {
-          waitRef.remove();  // ★ 큐에서 내 항목 삭제
+          waitRef.remove();
           joinGame(d.gameId, d.color, gs.val());
         }
       });
@@ -1114,16 +1108,12 @@ function endGame(status) {
 }
 
 async function saveRecord(result) {
-  // Realtime DB 정리: 게임 + 큐 항목 삭제
-  if (_gameId) {
-    try { await _rtDb.ref('games/' + _gameId).remove(); } catch(e){}
-  }
-  // 큐에 남은 내 항목 정리 (대기자였을 때 gameId 업데이트 후 remove 안 된 경우)
+  // Realtime DB 정리
+  if (_gameId) { try { await _rtDb.ref('games/' + _gameId).remove(); } catch(e){} }
   try {
     const qSnap = await _rtDb.ref('matchmaking_queue').orderByChild('uid').equalTo(_user.uid).once('value');
     qSnap.forEach(child => { child.ref.remove(); });
   } catch(e){}
-
   if (!_fbDb || !_user) return;
   try {
     let pgn = '';
@@ -1139,8 +1129,8 @@ async function saveRecord(result) {
     if (result==='win_time')   resultStr = _myColor==='w'?'1-0':'0-1';
     if (result==='lose_time')  resultStr = _myColor==='w'?'0-1':'1-0';
     if (result==='stalemate'||result==='draw') resultStr = '1/2-1/2';
-    const myName   = _user.displayName || _user.email.split('@')[0];
-    const oppName  = document.getElementById('opp-name-el')?.textContent || '상대방';
+    const myName  = _user.displayName || _user.email.split('@')[0];
+    const oppName = document.getElementById('opp-name-el')?.textContent || '상대방';
     const whiteName = _myColor==='w' ? myName : oppName;
     const blackName = _myColor==='b' ? myName : oppName;
     const today = new Date().toISOString().slice(0,10);
