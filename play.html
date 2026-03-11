@@ -266,6 +266,17 @@ body {
     drop-shadow(0 0 1px rgba(150,150,150,0.7))
     drop-shadow(0 1px 2px rgba(0,0,0,0.5));
 }
+.sq .piece-img {
+  width: 88%; height: 88%; object-fit: contain;
+  position: relative; z-index: 1; pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+}
+.sq .piece-img.black-piece {
+  filter:
+    drop-shadow(0 0 1px rgba(180,180,180,0.9))
+    drop-shadow(0 0 1px rgba(150,150,150,0.7))
+    drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
 
 /* 좌표 표시 */
 .rank-label {
@@ -531,14 +542,9 @@ function handleLogout() {
 // ══════════════════════════════════════════
 // 체스 엔진 (독립형)
 // ══════════════════════════════════════════
-const PIECES = {
-  wP:'♙',wN:'♘',wB:'♗',wR:'♖',wQ:'♕',wK:'♔',
-  bP:'♟',bN:'♞',bB:'♝',bR:'♜',bQ:'♛',bK:'♚'
-};
 const PIECE_IMG_BASE = 'https://lichess1.org/assets/piece/cburnett/';
-function pieceImg(piece) {
-  return `${PIECE_IMG_BASE}${piece}.svg`;
-}
+function pieceImg(piece) { return `${PIECE_IMG_BASE}${piece}.svg`; }
+
 const INIT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 let _board = [], _turn = 'w', _castling = {wK:true,wQ:true,bK:true,bQ:true};
@@ -758,9 +764,8 @@ function showPromoModal(r, c) {
     div.onclick = () => {
       modal.style.display = 'none';
       if (_pendingPromo) {
-        const pieceType = p[1]; // 'Q','R','B','N'
-        _pendingPromo.promoPiece = pieceType;
-        doMove(_pendingPromo, pieceType);
+        _pendingPromo.promoPiece = p[1]; // 'Q','R','B','N'
+        doMove(_pendingPromo, p[1]);
         _pendingPromo = null;
       }
     };
@@ -913,6 +918,7 @@ let _queueRef = null, _searchInt = null;
 
 async function startMatchmaking() {
   if (!_user) return;
+  if (_gameActive) return;
   showScreen('searching');
   let elapsed = 0;
   _searchInt = setInterval(() => {
@@ -924,19 +930,19 @@ async function startMatchmaking() {
   const queue = _rtDb.ref('matchmaking_queue');
   const myName = _user.displayName || _user.email.split('@')[0];
 
-  // 먼저 큐에 내 항목을 등록
+  // 1단계: 먼저 내 항목을 큐에 등록
   _queueRef = await queue.push({ uid: _user.uid, displayName: myName, joinedAt: Date.now() });
   const myKey = _queueRef.key;
 
-  // 큐에서 상대방 찾기 (내 항목 제외)
+  // 2단계: 상대방(나보다 먼저 기다리는 사람) 탐색
   const snap = await queue.orderByChild('joinedAt').once('value');
   let matched = false;
 
   snap.forEach(child => {
     if (matched) return;
     const data = child.val();
-    // 내 항목이 아니고, 아직 매칭 안 된 상대 찾기
-    if (data && data.uid !== _user.uid && !data.gameId) {
+    // 내 항목이 아니고 아직 매칭 안 된 상대
+    if (data && data.uid !== _user.uid && child.key !== myKey && !data.gameId) {
       matched = true;
       const myColor  = Math.random() < 0.5 ? 'w' : 'b';
       const oppColor = myColor === 'w' ? 'b' : 'w';
@@ -950,37 +956,31 @@ async function startMatchmaking() {
         whiteTime: GAME_TIME, blackTime: GAME_TIME,
         lastMoveAt: Date.now(), createdAt: Date.now(),
       };
-
       // 게임 생성
       _rtDb.ref('games/'+gameId).set(gameData);
-
-      // 상대방 큐 항목에 gameId와 color 알려주기 (삭제하지 않음!)
-      child.ref.update({ gameId: gameId, color: oppColor, matchedAt: Date.now() });
-
-      // 내 큐 항목 제거
+      // 상대 큐 항목에 gameId/color 기록 (삭제 금지! 상대가 읽어야 함)
+      child.ref.update({ gameId: gameId, color: oppColor });
+      // 내 큐 항목 제거 후 입장
       _queueRef.remove();
       _queueRef = null;
-
       joinGame(gameId, myColor, gameData);
     }
   });
 
   if (!matched) {
-    // 상대 못 찾음 → 내 큐 항목을 감시하며 대기
+    // 상대 없음 → 내 큐 항목을 감시하며 대기
     _queueRef.on('value', snap2 => {
       const d = snap2.val();
-      if (!d) {
-        // 항목이 삭제됐다면 이미 매칭됐거나 취소된 것 → 무시
-        return;
-      }
+      // d === null 이면 항목이 삭제된 것 (취소 등) → 무시
+      if (!d) return;
       if (d.gameId) {
-        // 상대방이 gameId를 써줬다 → 게임 입장
+        // 상대방이 gameId를 써줬다 → 입장
         _queueRef.off();
-        const entryRef = _queueRef;
+        const myRef = _queueRef;
         _queueRef = null;
         _rtDb.ref('games/'+d.gameId).once('value').then(gs => {
           if (gs.val()) {
-            entryRef.remove(); // 내 큐 항목 정리
+            myRef.remove(); // 내 큐 항목 정리
             joinGame(d.gameId, d.color, gs.val());
           }
         });
