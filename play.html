@@ -722,8 +722,7 @@ function renderBoard() {
         const img = document.createElement('img');
         img.className = 'piece-img' + (piece.startsWith('b') ? ' black-piece' : '');
         img.src = pieceImg(piece);
-        img.alt = piece;
-        img.draggable = false;
+        img.alt = piece; img.draggable = false;
         sq.appendChild(img);
       }
 
@@ -781,11 +780,7 @@ function showPromoModal(r, c) {
     div.appendChild(img);
     div.onclick = () => {
       modal.style.display = 'none';
-      if (_pendingPromo) {
-        _pendingPromo.promoPiece = p[1];
-        doMove(_pendingPromo, p[1]);
-        _pendingPromo = null;
-      }
+      if (_pendingPromo) { _pendingPromo.promoPiece = p[1]; doMove(_pendingPromo, p[1]); _pendingPromo = null; }
     };
     modal.appendChild(div);
   });
@@ -830,10 +825,9 @@ function doMove(move, promoPiece) {
   // 사운드
   playMoveSound(move, boardBefore, prevTurn);
 
-  // SAN 기보 기록
-  const _allMovesForSan = getAllLegal(boardBefore, prevTurn, _castling, _enPassant);
-  const _san = moveToSAN(boardBefore, move, prevTurn, _allMovesForSan);
-  _sanMoves.push(_san);
+  // SAN 기록
+  const _allM=getAllLegal(boardBefore,prevTurn,_castling,_enPassant);
+  _sanMoves.push(moveToSAN(boardBefore,move,prevTurn,_allM));
 
   // Firebase에 수 전송
   sendMove(move);
@@ -952,21 +946,20 @@ async function startMatchmaking() {
   const myName = _user.displayName || _user.email.split('@')[0];
   const queue  = _rtDb.ref('matchmaking_queue');
 
-  // push()는 동기로 key만 생성 → set()으로 실제 저장 보장
+  // push()로 key 생성 → set()으로 실제 저장 보장 (await)
   const myRef = queue.push();
   _queueRef = myRef;
   await myRef.set({ uid: _user.uid, displayName: myName, joinedAt: Date.now() });
 
-  // 큐 스냅샷 읽기 (내 항목 저장 완료 후)
+  // 내 항목 저장 완료 후 큐 스냅샷 읽기
   const snap = await queue.orderByChild('joinedAt').once('value');
   let matched = false;
 
   snap.forEach(child => {
     if (matched) return;
-    if (child.key === myRef.key) return;          // 내 항목 제외
+    if (child.key === myRef.key) return;
     const data = child.val();
-    if (!data || data.uid === _user.uid) return;  // 같은 유저 제외
-    if (data.gameId) return;                      // 이미 매칭된 항목 제외
+    if (!data || data.uid === _user.uid || data.gameId) return;
 
     matched = true;
     const myColor  = Math.random() < 0.5 ? 'w' : 'b';
@@ -982,25 +975,25 @@ async function startMatchmaking() {
       lastMoveAt: Date.now(), createdAt: Date.now(),
     };
     _rtDb.ref('games/' + gameId).set(gameData);
-    // ★ 상대 항목에 gameId/color 기록 — remove() 절대 금지
+    // ★ 상대 항목에 gameId/color 기록 (remove 절대 금지)
     child.ref.update({ gameId: gameId, color: oppColor });
-    // 내 항목 삭제 후 입장
+    // 내 항목 삭제
     myRef.remove();
     _queueRef = null;
     joinGame(gameId, myColor, gameData);
   });
 
   if (!matched) {
-    // 상대 없음 → 내 항목 감시
+    // 내 항목에 gameId가 쓰일 때까지 감시
     _queueRef.on('value', snap2 => {
       const d = snap2.val();
-      if (!d || !d.gameId) return;   // null(삭제) 또는 미매칭 → 무시
+      if (!d || !d.gameId) return;
       _queueRef.off();
       const waitRef = _queueRef;
       _queueRef = null;
       _rtDb.ref('games/' + d.gameId).once('value').then(gs => {
         if (gs.val()) {
-          waitRef.remove();
+          waitRef.remove();  // ★ 큐에서 내 항목 삭제
           joinGame(d.gameId, d.color, gs.val());
         }
       });
@@ -1121,10 +1114,16 @@ function endGame(status) {
 }
 
 async function saveRecord(result) {
-  // Realtime DB 게임 데이터 삭제
+  // Realtime DB 정리: 게임 + 큐 항목 삭제
   if (_gameId) {
     try { await _rtDb.ref('games/' + _gameId).remove(); } catch(e){}
   }
+  // 큐에 남은 내 항목 정리 (대기자였을 때 gameId 업데이트 후 remove 안 된 경우)
+  try {
+    const qSnap = await _rtDb.ref('matchmaking_queue').orderByChild('uid').equalTo(_user.uid).once('value');
+    qSnap.forEach(child => { child.ref.remove(); });
+  } catch(e){}
+
   if (!_fbDb || !_user) return;
   try {
     let pgn = '';
@@ -1141,26 +1140,21 @@ async function saveRecord(result) {
     if (result==='lose_time')  resultStr = _myColor==='w'?'0-1':'1-0';
     if (result==='stalemate'||result==='draw') resultStr = '1/2-1/2';
     const myName   = _user.displayName || _user.email.split('@')[0];
-    const oppNameEl = document.getElementById('opp-name-el');
-    const oppName  = oppNameEl ? oppNameEl.textContent : '상대방';
+    const oppName  = document.getElementById('opp-name-el')?.textContent || '상대방';
     const whiteName = _myColor==='w' ? myName : oppName;
     const blackName = _myColor==='b' ? myName : oppName;
+    const today = new Date().toISOString().slice(0,10);
     const fullPgn = `[White "${whiteName}"]
 [Black "${blackName}"]
 [Result "${resultStr}"]
-[Date "${new Date().toISOString().slice(0,10)}"]
+[Date "${today}"]
 
 ${pgn} ${resultStr}`;
     await _fbDb.collection('game_records').add({
-      uid: _user.uid,
-      playerName: myName,
-      gameId: _gameId || '',
-      myColor: _myColor,
-      whiteName, blackName,
-      result: resultStr,
-      resultRaw: result,
-      moveCount: _sanMoves.length,
-      pgn: fullPgn,
+      uid: _user.uid, playerName: myName, gameId: _gameId || '',
+      myColor: _myColor, whiteName, blackName,
+      result: resultStr, resultRaw: result,
+      moveCount: _sanMoves.length, pgn: fullPgn,
       playedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   } catch(e) { console.warn('기보 저장 실패', e); }
