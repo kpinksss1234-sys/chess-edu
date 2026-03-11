@@ -178,6 +178,12 @@
     const el = document.getElementById(`${form}-error`);
     el.textContent = msg;
     el.classList.remove('hidden');
+    // 카드 흔들기
+    const card = document.getElementById(`card-${form}`);
+    card.classList.remove('shake-error');
+    void card.offsetWidth;
+    card.classList.add('shake-error');
+    card.addEventListener('animationend', () => card.classList.remove('shake-error'), { once: true });
     setTimeout(() => el.classList.add('hidden'), 4000);
   }
   function showSuccess(form, msg) {
@@ -622,6 +628,71 @@ body::after {
   z-index: 2;
 }
 .toggle-pw:hover { color: var(--text-secondary); }
+
+/* ── 비밀번호 포커스 시 배경 흐림 ── */
+.floating-pieces {
+  transition: filter 0.5s ease, opacity 0.5s ease;
+}
+.floating-pieces.blurred {
+  filter: blur(8px);
+  opacity: 0.15;
+}
+
+/* ── 로고 아이콘 비밀번호 포커스 시 반응 ── */
+.logo-icon {
+  transition: filter 0.4s ease, transform 0.4s ease;
+}
+.logo-icon.peeking {
+  filter: blur(3px);
+  transform: scale(0.9) rotate(-5deg);
+}
+
+/* ── 로그인 실패 흔들림 (체크메이트!) ── */
+@keyframes shake {
+  0%   { transform: translateX(0); }
+  15%  { transform: translateX(-7px) rotate(-0.5deg); }
+  30%  { transform: translateX(7px) rotate(0.5deg); }
+  45%  { transform: translateX(-5px); }
+  60%  { transform: translateX(5px); }
+  75%  { transform: translateX(-3px); }
+  90%  { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+.shake-error {
+  animation: shake 0.45s ease-in-out;
+}
+
+/* ── 버튼 체스 말 슬라이드 ── */
+.btn-chess-piece {
+  display: inline-block;
+  font-size: 1.05em;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+.btn-primary:hover:not(:disabled) .btn-chess-piece {
+  transform: translateX(5px);
+}
+.btn-primary:active:not(:disabled) .btn-chess-piece {
+  transform: translateX(14px) scale(1.25);
+}
+
+/* ── 탭 전환 3D Flip ── */
+.auth-card {
+  transition: opacity 0.2s ease, transform 0.3s ease;
+  transform-origin: center top;
+}
+.auth-card.flip-out {
+  opacity: 0;
+  transform: rotateX(-10deg) translateY(-6px) scale(0.97);
+  pointer-events: none;
+}
+@keyframes flipIn {
+  from { opacity: 0; transform: rotateX(10deg) translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: rotateX(0deg) translateY(0) scale(1); }
+}
+.auth-card.flip-in {
+  animation: flipIn 0.3s ease forwards;
+}
 </style>
 </head>
 <body>
@@ -679,7 +750,7 @@ body::after {
     </div>
 
     <button class="btn-primary" id="login-btn" onclick="handleLogin()">
-      <span class="btn-text">로그인</span>
+      <span class="btn-text">로그인 <span class="btn-chess-piece">♙</span></span>
       <div class="btn-spinner"></div>
     </button>
 
@@ -759,7 +830,7 @@ body::after {
     </div>
 
     <button class="btn-primary" id="signup-btn" onclick="handleSignup()">
-      <span class="btn-text">계정 만들기</span>
+      <span class="btn-text">계정 만들기 <span class="btn-chess-piece">♙</span></span>
       <div class="btn-spinner"></div>
     </button>
 
@@ -823,12 +894,29 @@ body::after {
 </div>
 
 <script>
-// ── 탭 전환 ──
+// ── 탭 전환 (3D Flip) ──
 function switchTab(tab) {
-  document.getElementById('card-login').classList.toggle('hidden',  tab !== 'login');
-  document.getElementById('card-signup').classList.toggle('hidden', tab !== 'signup');
-  document.getElementById('tab-login').classList.toggle('active',   tab === 'login');
-  document.getElementById('tab-signup').classList.toggle('active',  tab === 'signup');
+  const loginCard  = document.getElementById('card-login');
+  const signupCard = document.getElementById('card-signup');
+  const showCard   = tab === 'login' ? loginCard : signupCard;
+  const hideCard   = tab === 'login' ? signupCard : loginCard;
+
+  // 현재 카드 flip-out
+  hideCard.classList.remove('flip-in');
+  hideCard.classList.add('flip-out');
+  setTimeout(() => {
+    hideCard.classList.add('hidden');
+    hideCard.classList.remove('flip-out');
+  }, 200);
+
+  // 새 카드 flip-in
+  showCard.classList.remove('hidden');
+  showCard.classList.remove('flip-out');
+  showCard.classList.add('flip-in');
+  setTimeout(() => showCard.classList.remove('flip-in'), 350);
+
+  document.getElementById('tab-login').classList.toggle('active',  tab === 'login');
+  document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
 }
 
 // ── 비밀번호 표시/숨김 ──
@@ -838,6 +926,67 @@ function togglePw(id, btn) {
   inp.type = isText ? 'password' : 'text';
   btn.style.color = isText ? '' : 'var(--accent-green)';
 }
+
+// ── 비밀번호 입력 포커스 → 배경/로고 흐림 ──
+(function() {
+  const pwInputs = document.querySelectorAll('input[type="password"]');
+  const bg = document.getElementById('floating-pieces');
+  const logoIcon = document.querySelector('.logo-icon');
+
+  pwInputs.forEach(inp => {
+    inp.addEventListener('focus', () => {
+      bg.classList.add('blurred');
+      if (logoIcon) logoIcon.classList.add('peeking');
+    });
+    inp.addEventListener('blur', () => {
+      // 다른 pw 필드로 이동 시 유지
+      setTimeout(() => {
+        const anyPwFocused = [...pwInputs].some(i => document.activeElement === i);
+        if (!anyPwFocused) {
+          bg.classList.remove('blurred');
+          if (logoIcon) logoIcon.classList.remove('peeking');
+        }
+      }, 50);
+    });
+  });
+})();
+
+// ── 에러 시 카드 흔들림 ──
+function shakeCard(form) {
+  const card = document.getElementById(`card-${form}`);
+  card.classList.remove('shake-error');
+  void card.offsetWidth; // reflow
+  card.classList.add('shake-error');
+  card.addEventListener('animationend', () => card.classList.remove('shake-error'), { once: true });
+}
+
+// ── 버튼 클릭 시 폰 → 퀸 프로모션 효과 ──
+function promotePiece(form) {
+  const piece = document.querySelector(`#${form}-btn .btn-chess-piece`);
+  if (!piece) return;
+  piece.textContent = '♕';
+  piece.style.transform = 'translateX(14px) scale(1.3)';
+  setTimeout(() => {
+    piece.style.transform = '';
+    setTimeout(() => { piece.textContent = '♙'; }, 300);
+  }, 400);
+}
+
+// ── showError 오버라이드: 흔들림 포함 ──
+const _origShowError = window.showError;
+window.showError = function(form, msg) {
+  const el = document.getElementById(`${form}-error`);
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  shakeCard(form);
+  setTimeout(() => el.classList.add('hidden'), 4000);
+};
+
+// ── 버튼 핸들러에 프로모션 효과 연결 ──
+const loginBtn  = document.getElementById('login-btn');
+const signupBtn = document.getElementById('signup-btn');
+if (loginBtn)  loginBtn.addEventListener('mousedown',  () => promotePiece('login'));
+if (signupBtn) signupBtn.addEventListener('mousedown', () => promotePiece('signup'));
 
 // ── 떠다니는 체스 말 생성 ──
 (function () {
