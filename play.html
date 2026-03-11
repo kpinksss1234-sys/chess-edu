@@ -255,6 +255,17 @@ body {
 .sq.in-check  { background: rgba(220,50,50,0.55) !important; }
 
 .sq .piece { pointer-events: none; line-height: 1; }
+.sq .piece-img {
+  width: 88%; height: 88%; object-fit: contain;
+  position: relative; z-index: 1; pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+}
+.sq .piece-img.black-piece {
+  filter:
+    drop-shadow(0 0 1px rgba(180,180,180,0.9))
+    drop-shadow(0 0 1px rgba(150,150,150,0.7))
+    drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
 
 /* 좌표 표시 */
 .rank-label {
@@ -524,6 +535,10 @@ const PIECES = {
   wP:'♙',wN:'♘',wB:'♗',wR:'♖',wQ:'♕',wK:'♔',
   bP:'♟',bN:'♞',bB:'♝',bR:'♜',bQ:'♛',bK:'♚'
 };
+const PIECE_IMG_BASE = 'https://lichess1.org/assets/piece/cburnett/';
+function pieceImg(piece) {
+  return `${PIECE_IMG_BASE}${piece}.svg`;
+}
 const INIT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 let _board = [], _turn = 'w', _castling = {wK:true,wQ:true,bK:true,bQ:true};
@@ -680,10 +695,12 @@ function renderBoard() {
       // 기물
       const piece = _board[r][c];
       if (piece) {
-        const span = document.createElement('span');
-        span.className = 'piece';
-        span.textContent = PIECES[piece] || '';
-        sq.appendChild(span);
+        const img = document.createElement('img');
+        img.className = 'piece-img' + (piece.startsWith('b') ? ' black-piece' : '');
+        img.src = pieceImg(piece);
+        img.alt = piece;
+        img.draggable = false;
+        sq.appendChild(img);
       }
 
       sq.addEventListener('click', () => onSquareClick(r, c));
@@ -728,19 +745,22 @@ function onSquareClick(r, c) {
 
 function showPromoModal(r, c) {
   const modal = document.getElementById('promo-modal');
-  const pieces = _myColor === 'w' ? ['Q','R','B','N'] : ['q','r','b','n'];
-  const display = _myColor === 'w'
-    ? ['♕','♖','♗','♘'] : ['♛','♜','♝','♞'];
+  const pieces = _myColor === 'w' ? ['wQ','wR','wB','wN'] : ['bQ','bR','bB','bN'];
   modal.innerHTML = '';
-  pieces.forEach((p, i) => {
+  pieces.forEach((p) => {
     const div = document.createElement('div');
     div.className = 'promo-piece';
-    div.textContent = display[i];
+    const img = document.createElement('img');
+    img.src = pieceImg(p);
+    img.style.cssText = 'width:44px;height:44px;object-fit:contain;pointer-events:none;';
+    if (p.startsWith('b')) img.style.filter = 'drop-shadow(0 0 1px rgba(180,180,180,0.9))';
+    div.appendChild(img);
     div.onclick = () => {
       modal.style.display = 'none';
       if (_pendingPromo) {
-        _pendingPromo.promoPiece = p.toUpperCase();
-        doMove(_pendingPromo, p.toUpperCase());
+        const pieceType = p[1]; // 'Q','R','B','N'
+        _pendingPromo.promoPiece = pieceType;
+        doMove(_pendingPromo, pieceType);
         _pendingPromo = null;
       }
     };
@@ -902,17 +922,25 @@ async function startMatchmaking() {
   }, 1000);
 
   const queue = _rtDb.ref('matchmaking_queue');
-  const snap  = await queue.once('value');
+  const myName = _user.displayName || _user.email.split('@')[0];
+
+  // 먼저 큐에 내 항목을 등록
+  _queueRef = await queue.push({ uid: _user.uid, displayName: myName, joinedAt: Date.now() });
+  const myKey = _queueRef.key;
+
+  // 큐에서 상대방 찾기 (내 항목 제외)
+  const snap = await queue.orderByChild('joinedAt').once('value');
   let matched = false;
 
   snap.forEach(child => {
     if (matched) return;
     const data = child.val();
-    if (data && data.uid !== _user.uid) {
+    // 내 항목이 아니고, 아직 매칭 안 된 상대 찾기
+    if (data && data.uid !== _user.uid && !data.gameId) {
       matched = true;
       const myColor  = Math.random() < 0.5 ? 'w' : 'b';
+      const oppColor = myColor === 'w' ? 'b' : 'w';
       const gameId   = _rtDb.ref('games').push().key;
-      const myName   = _user.displayName || _user.email.split('@')[0];
       const gameData = {
         white: myColor==='w' ? _user.uid : data.uid,
         black: myColor==='b' ? _user.uid : data.uid,
@@ -922,54 +950,42 @@ async function startMatchmaking() {
         whiteTime: GAME_TIME, blackTime: GAME_TIME,
         lastMoveAt: Date.now(), createdAt: Date.now(),
       };
+
+      // 게임 생성
       _rtDb.ref('games/'+gameId).set(gameData);
-      child.ref.remove();
+
+      // 상대방 큐 항목에 gameId와 color 알려주기 (삭제하지 않음!)
+      child.ref.update({ gameId: gameId, color: oppColor, matchedAt: Date.now() });
+
+      // 내 큐 항목 제거
+      _queueRef.remove();
+      _queueRef = null;
+
       joinGame(gameId, myColor, gameData);
     }
   });
 
   if (!matched) {
-    const myName = _user.displayName || _user.email.split('@')[0];
-    _queueRef = queue.push({ uid: _user.uid, displayName: myName, joinedAt: Date.now() });
+    // 상대 못 찾음 → 내 큐 항목을 감시하며 대기
     _queueRef.on('value', snap2 => {
       const d = snap2.val();
-      if (d && d.gameId) {
-        _queueRef.off();
-        _rtDb.ref('games/'+d.gameId).once('value').then(gs => {
-          joinGame(d.gameId, d.color, gs.val());
-        });
+      if (!d) {
+        // 항목이 삭제됐다면 이미 매칭됐거나 취소된 것 → 무시
+        return;
       }
-    });
-    // 혹시 내가 들어온 직후 상대가 기다리고 있을 경우 재시도
-    setTimeout(async () => {
-      if (!_gameActive) {
-        const snap3 = await queue.once('value');
-        snap3.forEach(child => {
-          if (_gameActive) return;
-          const data = child.val();
-          if (data && data.uid !== _user.uid && child.key !== _queueRef?.key) {
-            _gameActive = true; // 중복 방지
-            const myColor2 = Math.random() < 0.5 ? 'w' : 'b';
-            const gameId2  = _rtDb.ref('games').push().key;
-            const myName2  = _user.displayName || _user.email.split('@')[0];
-            const gameData2 = {
-              white: myColor2==='w' ? _user.uid : data.uid,
-              black: myColor2==='b' ? _user.uid : data.uid,
-              whiteName: myColor2==='w' ? myName2 : data.displayName,
-              blackName: myColor2==='b' ? myName2 : data.displayName,
-              status: 'playing',
-              whiteTime: GAME_TIME, blackTime: GAME_TIME,
-              lastMoveAt: Date.now(), createdAt: Date.now(),
-            };
-            _gameActive = false;
-            _rtDb.ref('games/'+gameId2).set(gameData2);
-            child.ref.update({ gameId: gameId2, color: myColor2==='w'?'b':'w' });
-            if (_queueRef) _queueRef.remove();
-            joinGame(gameId2, myColor2, gameData2);
+      if (d.gameId) {
+        // 상대방이 gameId를 써줬다 → 게임 입장
+        _queueRef.off();
+        const entryRef = _queueRef;
+        _queueRef = null;
+        _rtDb.ref('games/'+d.gameId).once('value').then(gs => {
+          if (gs.val()) {
+            entryRef.remove(); // 내 큐 항목 정리
+            joinGame(d.gameId, d.color, gs.val());
           }
         });
       }
-    }, 600);
+    });
   }
 }
 
