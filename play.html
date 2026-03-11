@@ -261,10 +261,9 @@ body {
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
 }
 .sq .piece-img.black-piece {
-  filter:
-    drop-shadow(0 0 1px rgba(180,180,180,0.9))
-    drop-shadow(0 0 1px rgba(150,150,150,0.7))
-    drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+  filter: drop-shadow(0 0 1px rgba(180,180,180,0.9))
+          drop-shadow(0 0 1px rgba(150,150,150,0.7))
+          drop-shadow(0 1px 2px rgba(0,0,0,0.5));
 }
 
 /* 좌표 표시 */
@@ -391,7 +390,7 @@ body {
       <div class="sidebar-avatar" id="sidebar-avatar-letter">?</div>
       <div class="sidebar-username" id="sidebar-username">...</div>
     </div>
-    <a class="sidebar-item" href="/records.html" title="기록">
+    <a class="sidebar-item" href="/records.html" title="기록" style="text-decoration:none;">
       <div class="sidebar-icon">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM8 15V17H16V15H8ZM8 11V13H16V11H8Z"/></svg>
       </div>
@@ -540,40 +539,26 @@ function handleLogout() {
 const PIECE_IMG_BASE = 'https://lichess1.org/assets/piece/cburnett/';
 function pieceImg(p) { return PIECE_IMG_BASE + p + '.svg'; }
 
-
 const FILES = ['a','b','c','d','e','f','g','h'];
 
 function moveToSAN(board, move, color, allMoves) {
-  const [fr,fc]=move.from,[tr,tc]=move.to, p=board[fr][fc], type=p[1];
-  const captured = board[tr][tc] || (move.enPassant ? 'ep' : null);
-  let san = '';
-  if (move.castle==='K') return 'O-O';
-  if (move.castle==='Q') return 'O-O-O';
-  if (type !== 'P') {
-    san += type;
-    const ambig = allMoves.filter(m => m!==move && board[m.from[0]][m.from[1]]===p && m.to[0]===tr && m.to[1]===tc);
-    if (ambig.length) {
-      const sameFile=ambig.some(m=>m.from[1]===fc), sameRank=ambig.some(m=>m.from[0]===fr);
-      if (!sameFile) san+=FILES[fc]; else if (!sameRank) san+=(8-fr); else san+=FILES[fc]+(8-fr);
-    }
-  } else if (captured) { san += FILES[fc]; }
-  if (captured) san += 'x';
-  san += FILES[tc] + (8-tr);
-  if (move.promo && move.promoPiece) san += '=' + move.promoPiece;
-  const nb = applyMoveToBoard(board.map(r=>[...r]), move, color);
-  const enemy = enemyColor(color);
-  const nb2 = nb;
-  let inChk = false;
-  outer: for(let r=0;r<8;r++) for(let c2=0;c2<8;c2++) {
-    if(nb2[r][c2]&&nb2[r][c2][0]===color) {
-      const ms = pseudoMoves(nb2,r,c2,{wK:false,wQ:false,bK:false,bQ:false},null);
-      if(ms.some(m=>nb2[m.to[0]]&&nb2[m.to[0]][m.to[1]]===enemy+'K')){inChk=true;break outer;}
-    }
-  }
-  if (inChk) {
-    const enemyMoves = getAllLegal(nb2, enemy, {wK:false,wQ:false,bK:false,bQ:false}, null);
-    san += enemyMoves.length===0 ? '#' : '+';
-  }
+  const [fr,fc]=move.from,[tr,tc]=move.to,p=board[fr][fc],type=p[1];
+  const captured=board[tr][tc]||(move.enPassant?'ep':null);
+  let san='';
+  if(move.castle==='K')return'O-O';
+  if(move.castle==='Q')return'O-O-O';
+  if(type!=='P'){
+    san+=type;
+    const ambig=allMoves.filter(m=>m!==move&&board[m.from[0]][m.from[1]]===p&&m.to[0]===tr&&m.to[1]===tc);
+    if(ambig.length){const sf=ambig.some(m=>m.from[1]===fc),sr=ambig.some(m=>m.from[0]===fr);if(!sf)san+=FILES[fc];else if(!sr)san+=(8-fr);else san+=FILES[fc]+(8-fr);}
+  } else if(captured){san+=FILES[fc];}
+  if(captured)san+='x';
+  san+=FILES[tc]+(8-tr);
+  if(move.promo&&move.promoPiece)san+='='+move.promoPiece;
+  const nb=applyMoveToBoard(board.map(r=>[...r]),move,color);
+  const enemy=enemyColor(color);
+  const enemyLegal=getAllLegal(nb,enemy,{wK:false,wQ:false,bK:false,bQ:false},null);
+  if(isInCheck(nb,enemy))san+=enemyLegal.length===0?'#':'+';
   return san;
 }
 
@@ -582,7 +567,7 @@ const INIT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 let _board = [], _turn = 'w', _castling = {wK:true,wQ:true,bK:true,bQ:true};
 let _enPassant = null, _selected = null, _legalMoves = [], _lastMove = null;
 let _myColor = 'w', _gameId = null, _gameRef = null;
-let _sanMoves = []; // SAN 기보 배열
+let _sanMoves = [];
 let _wTime = 600, _bTime = 600, _timerInt = null;
 let _gameActive = false;
 
@@ -804,6 +789,7 @@ function showPromoModal(r, c) {
     };
     modal.appendChild(div);
   });
+
   // 위치 계산
   const boardEl = document.getElementById('play-board-wrap');
   const rect = boardEl.getBoundingClientRect();
@@ -845,9 +831,9 @@ function doMove(move, promoPiece) {
   playMoveSound(move, boardBefore, prevTurn);
 
   // SAN 기보 기록
-  const allM = getAllLegal(boardBefore, prevTurn, _castling, _enPassant);
-  const san = moveToSAN(boardBefore, move, prevTurn, allM);
-  _sanMoves.push(san);
+  const _allMovesForSan = getAllLegal(boardBefore, prevTurn, _castling, _enPassant);
+  const _san = moveToSAN(boardBefore, move, prevTurn, _allMovesForSan);
+  _sanMoves.push(_san);
 
   // Firebase에 수 전송
   sendMove(move);
@@ -966,20 +952,21 @@ async function startMatchmaking() {
   const myName = _user.displayName || _user.email.split('@')[0];
   const queue  = _rtDb.ref('matchmaking_queue');
 
-  // 1) 내 항목을 push().key로 만들고 set()으로 실제 저장 (await 보장)
+  // push()는 동기로 key만 생성 → set()으로 실제 저장 보장
   const myRef = queue.push();
   _queueRef = myRef;
   await myRef.set({ uid: _user.uid, displayName: myName, joinedAt: Date.now() });
 
-  // 2) 큐 스냅샷 읽기
+  // 큐 스냅샷 읽기 (내 항목 저장 완료 후)
   const snap = await queue.orderByChild('joinedAt').once('value');
   let matched = false;
 
   snap.forEach(child => {
     if (matched) return;
-    if (child.key === myRef.key) return;
+    if (child.key === myRef.key) return;          // 내 항목 제외
     const data = child.val();
-    if (!data || data.uid === _user.uid || data.gameId) return;
+    if (!data || data.uid === _user.uid) return;  // 같은 유저 제외
+    if (data.gameId) return;                      // 이미 매칭된 항목 제외
 
     matched = true;
     const myColor  = Math.random() < 0.5 ? 'w' : 'b';
@@ -995,17 +982,19 @@ async function startMatchmaking() {
       lastMoveAt: Date.now(), createdAt: Date.now(),
     };
     _rtDb.ref('games/' + gameId).set(gameData);
-    // ★ 상대 항목에 gameId/color 기록 (remove 금지)
-    child.ref.update({ gameId, color: oppColor });
+    // ★ 상대 항목에 gameId/color 기록 — remove() 절대 금지
+    child.ref.update({ gameId: gameId, color: oppColor });
+    // 내 항목 삭제 후 입장
     myRef.remove();
     _queueRef = null;
     joinGame(gameId, myColor, gameData);
   });
 
   if (!matched) {
+    // 상대 없음 → 내 항목 감시
     _queueRef.on('value', snap2 => {
       const d = snap2.val();
-      if (!d || !d.gameId) return;
+      if (!d || !d.gameId) return;   // null(삭제) 또는 미매칭 → 무시
       _queueRef.off();
       const waitRef = _queueRef;
       _queueRef = null;
@@ -1134,41 +1123,34 @@ function endGame(status) {
 async function saveRecord(result) {
   // Realtime DB 게임 데이터 삭제
   if (_gameId) {
-    _rtDb.ref('games/' + _gameId).remove().catch(()=>{});
+    try { await _rtDb.ref('games/' + _gameId).remove(); } catch(e){}
   }
-
   if (!_fbDb || !_user) return;
   try {
-    // PGN 문자열 생성
     let pgn = '';
     _sanMoves.forEach((san, i) => {
-      const moveNum = Math.floor(i / 2) + 1;
-      if (i % 2 === 0) pgn += moveNum + '. ';
+      if (i % 2 === 0) pgn += (Math.floor(i/2)+1) + '. ';
       pgn += san + ' ';
     });
     pgn = pgn.trim();
-
-    // 결과 문자열
     let resultStr = '*';
-    if (result === 'checkmate')  resultStr = _myColor === enemyColor(_turn) ? '1-0' : '0-1';
-    if (result === 'resign_w')   resultStr = '0-1';
-    if (result === 'resign_b')   resultStr = '1-0';
-    if (result === 'win_time')   resultStr = _myColor === 'w' ? '1-0' : '0-1';
-    if (result === 'lose_time')  resultStr = _myColor === 'w' ? '0-1' : '1-0';
-    if (result === 'stalemate' || result === 'draw') resultStr = '1/2-1/2';
-
-    const myName  = _user.displayName || _user.email.split('@')[0];
-    const oppName = document.getElementById('opp-name-el')?.textContent || '상대방';
-    const whiteName = _myColor === 'w' ? myName : oppName;
-    const blackName = _myColor === 'b' ? myName : oppName;
-
+    if (result==='checkmate')  resultStr = _myColor===enemyColor(_turn)?'1-0':'0-1';
+    if (result==='resign_w')   resultStr = '0-1';
+    if (result==='resign_b')   resultStr = '1-0';
+    if (result==='win_time')   resultStr = _myColor==='w'?'1-0':'0-1';
+    if (result==='lose_time')  resultStr = _myColor==='w'?'0-1':'1-0';
+    if (result==='stalemate'||result==='draw') resultStr = '1/2-1/2';
+    const myName   = _user.displayName || _user.email.split('@')[0];
+    const oppNameEl = document.getElementById('opp-name-el');
+    const oppName  = oppNameEl ? oppNameEl.textContent : '상대방';
+    const whiteName = _myColor==='w' ? myName : oppName;
+    const blackName = _myColor==='b' ? myName : oppName;
     const fullPgn = `[White "${whiteName}"]
 [Black "${blackName}"]
 [Result "${resultStr}"]
 [Date "${new Date().toISOString().slice(0,10)}"]
 
 ${pgn} ${resultStr}`;
-
     await _fbDb.collection('game_records').add({
       uid: _user.uid,
       playerName: myName,
