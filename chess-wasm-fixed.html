@@ -1993,8 +1993,16 @@ function isSacrifice(h) {
 // ── 핵심: 수 분류 함수 (Lichess 오픈소스 방식) ──────────────
 //
 // 출처: lichess-org/lila (오픈소스 MIT 라이선스)
-//   - WinPercent.scala: 승률 공식 (MULTIPLIER = -0.00368208)
-//   - Advice.scala: 분류 임계값
+//   - WinPercent.scala : cp → winningChances 변환 (MULTIPLIER -0.00368208)
+//   - Advice.scala     : winningChances 손실 기준 임계값
+//       .3 → Blunder   (winningChances 손실 30% = WinPercent 15%p)
+//       .2 → Mistake   (winningChances 손실 20% = WinPercent 10%p)
+//       .1 → Inaccuracy(winningChances 손실 10% = WinPercent  5%p)
+//
+// WinPercent = 50 + 50 * winningChances  →  WinPercent 기준:
+//   Inaccuracy :  5 ~ 10 %p
+//   Mistake    : 10 ~ 15 %p
+//   Blunder    : >  15 %p
 //
 // cpBefore : 이 수를 두기 전 포지션 평가 (백 기준 cp)
 // cpAfter  : 이 수를 두고 난 후 포지션 평가 (백 기준 cp)
@@ -2002,58 +2010,28 @@ function isSacrifice(h) {
 // topAlts  : { best1cp, best2cp, hasSacrifice, legalMoveCount,
 //              mateInBefore, mateInAfter }
 //
-// ── Lichess 분류 기준 ────────────────────────────────────────
-//
-//  forced     합법적인 수가 1개뿐인 강제 수
-//
-//  brilliant  탁월한 수 (!!)
-//             기물 희생이면서 최선수 (winPercent 손실 ≤ 2%p)
-//             또는 기물 희생 + 완전 역전 (불리→유리)
-//             또는 비희생 대역전 + 유일한 정답수
-//
-//  great      훌륭한 수 (!)
-//             best1 vs best2 승률 격차 ≥ 10%p + 내 수 손실 ≤ 5%p
-//
-//  best       최선의 수 — winPercent 손실 ≤ 2%p (Lichess: 엔진 1순위)
-//
-//  excellent  뛰어난 수 — winPercent 손실 2~5%p   [Lichess: inaccuracy 경계]
-//
-//  good       좋은 수   — winPercent 손실 5%p 미만이지만 best 아닌 경우
-//
-// ── Lichess Advice.scala 임계값 (winPercent 기반) ────────────
-//  inaccuracy : 손실  2 ~  5 %p
-//  mistake    : 손실  5 ~ 10 %p
-//  blunder    : 손실 > 10 %p
-//
-// ── Lichess 특이사항 ─────────────────────────────────────────
-//  · cp는 ±1000으로 ceiling (극단적 평가 완화)
-//  · 메이트 수순은 ±1000 cp로 처리
-//  · 양쪽 다 크게 우세한 상황(winPercent > ~90%)이면 분류 완화
-//  · miss: updateMoveAnnotations에서 별도 처리
-//
 function classifyMove(cpBefore, cpAfter, turn, topAlts) {
   // ── Lichess: cp를 ±1000으로 ceiling ─────────────────────
   const cpBeforeCeiled = Math.max(-1000, Math.min(1000, cpBefore));
   const cpAfterCeiled  = Math.max(-1000, Math.min(1000, cpAfter));
 
-  // ── 내 기준 cp 계산 ──────────────────────────────────────
+  // ── 내 기준 cp (원본, 메이트 판정용) ────────────────────
   const cpMe      = turn === 'w' ? cpBefore : -cpBefore;
   const cpMeAfter = turn === 'w' ? cpAfter  : -cpAfter;
-  const cpLoss    = cpMe - cpMeAfter; // 양수 = 내 평가 하락
+  const cpLoss    = cpMe - cpMeAfter;
 
-  // ── 메이트 수순 여부 (원본 cp 기준 — ceiling 전) ─────────
+  // ── 메이트 수순 여부 (ceiling 전 원본 cp 사용) ───────────
   const iMateWin    = cpMe      >=  9000;
   const iMateLose   = cpMe      <= -9000;
-  const afterMateWin  = cpMeAfter >=  9000;
   const afterMateLose = cpMeAfter <= -9000;
 
-  // ── Lichess WinPercent (ceiling된 cp 사용) ───────────────
-  // getWinProb 내부에서 lichessWinningChances(±1000 cap) 적용
+  // ── Lichess WinPercent — ceiling된 cp 사용 ──────────────
+  // getWinProb() 내부에서 lichessWinningChances(±1000 cap) 적용됨
   const wpBefore = getWinProb(cpBeforeCeiled, turn);
   const wpAfter  = getWinProb(cpAfterCeiled,  turn);
-  const wpDrop   = wpBefore - wpAfter; // 양수 = 내 승률 하락
+  const wpDrop   = wpBefore - wpAfter; // 양수 = 내 WinPercent 하락
 
-  // best1cp/best2cp도 ceiling 적용
+  // ── best1/2 cp → WinPercent (ceiling 적용) ──────────────
   const best1cp = topAlts?.best1cp ?? null;
   const best2cp = topAlts?.best2cp ?? null;
   const best1cpCeiled = best1cp != null ? Math.max(-1000, Math.min(1000, best1cp)) : null;
@@ -2062,33 +2040,28 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
   const wp1 = best1cpCeiled != null ? getWinProb(best1cpCeiled, turn) : null;
   const wp2 = best2cpCeiled != null ? getWinProb(best2cpCeiled, turn) : null;
 
-  // 엔진 최선수 대비 winPercent 손실
+  // 엔진 최선수 대비 WinPercent 손실
   let lossVsBest = wp1 != null ? (wp1 - wpAfter) : wpDrop;
-  // before가 메이트 수순이고 after도 유리하면 lossVsBest 보정
-  if (best1cpMe != null && best1cpMe >= 9000 && cpMeAfter >= 200) {
-    lossVsBest = 0;
-  }
+  // 메이트 수순 포지션이면서 after도 유리하면 lossVsBest 왜곡 방지
+  if (best1cpMe != null && best1cpMe >= 9000 && cpMeAfter >= 200) lossVsBest = 0;
 
-  // ── Forced: 강제 수 ──────────────────────────────────────
+  // ── Forced ───────────────────────────────────────────────
   if (topAlts?.legalMoveCount === 1) return 'forced';
 
-  // ── 메이트 허용 (가장 심각한 실수) ──────────────────────
+  // ── 메이트 허용 판정 ─────────────────────────────────────
   const hadMateWin  = topAlts?.mateInBefore != null && topAlts.mateInBefore > 0;
   const gaveMate    = topAlts?.mateInAfter  != null && topAlts.mateInAfter  > 0;
   const wasBadBefore = wpBefore <= 30;
 
   if (gaveMate) {
-    if (wasBadBefore) {
-      if (wpDrop >= 10) return 'mistake';
-      return 'inaccuracy';
-    }
+    if (wasBadBefore) return wpDrop >= 10 ? 'mistake' : 'inaccuracy';
     return 'blunder';
   }
 
   // ── 메이트 수순 진행 중 ──────────────────────────────────
   if ((hadMateWin || iMateWin) && !gaveMate) {
     if (afterMateLose) return 'blunder';
-    if (cpMeAfter >= -50)  return cpMeAfter >= 9000 ? 'best' : (cpMeAfter >= 200 ? 'best' : 'excellent');
+    if (cpMeAfter >= -50)  return cpMeAfter >= 200 ? 'best' : 'excellent';
     if (cpMeAfter >= -300) return 'mistake';
     return 'blunder';
   }
@@ -2100,91 +2073,93 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
       if (cpLoss <= 500) return 'good';
       return 'inaccuracy';
     }
-    if (cpMeAfter > -200) {
-      return (topAlts?.hasSacrifice ?? false) ? 'brilliant' : 'best';
-    }
+    if (cpMeAfter > -200) return (topAlts?.hasSacrifice ?? false) ? 'brilliant' : 'best';
     return 'inaccuracy';
   }
 
-  // ── Brilliant: 탁월한 수 (!!) ────────────────────────────
+  // ════════════════════════════════════════════════════════
+  // ── Brilliant / Great ───────────────────────────────────
+  // ════════════════════════════════════════════════════════
   const sacrifice = topAlts?.hasSacrifice ?? false;
 
   if (sacrifice) {
-    if (lossVsBest <= 2) return 'brilliant';
+    // 기물 희생 + 최선수 (손실 ≤ 5%p) → brilliant
+    if (lossVsBest <= 5) return 'brilliant';
+    // 기물 희생 + 완전 역전 → brilliant
     if (wpBefore <= 40 && wpAfter >= 55) return 'brilliant';
   }
-  // 비희생 대역전 + 유일수
+  // 비희생 대역전 + 유일수 (gap ≥ 20%p, 손실 ≤ 5%p)
   if (wpBefore <= 35 && wpAfter >= 58) {
     if (wp1 != null && wp2 != null && (wp1 - wp2) >= 20 && lossVsBest <= 5) return 'brilliant';
   }
 
-  // ── Great: 훌륭한 수 (!) ─────────────────────────────────
+  // Great: best1 vs best2 WinPercent 격차 ≥ 15%p + 손실 ≤ 5%p
   if (wp1 != null && wp2 != null) {
     const gap = wp1 - wp2;
-    if (gap >= 10 && lossVsBest <= 5) {
+    if (gap >= 15 && lossVsBest <= 5) {
       const lmCount = topAlts?.legalMoveCount ?? 99;
-      const tooObvious = (lmCount <= 3) && (wpAfter >= 80 || wpBefore <= 20);
-      if (!tooObvious) return 'great';
+      // "당연한 수" 필터: 선택지 ≤3 + 극단적 우열
+      if (!((lmCount <= 3) && (wpAfter >= 80 || wpBefore <= 20))) return 'great';
     }
   }
 
   // ════════════════════════════════════════════════════════
-  // ── Lichess Advice.scala 기반 분류 ─────────────────────
+  // ── Lichess Advice.scala 핵심 임계값 ────────────────────
   //
-  //  Best       lossVsBest ≤ 2%p  (엔진 최선수와 사실상 동일)
-  //  Good       lossVsBest ≤ 2%p 이지만 best1 아닌 경우 → best로 통합
-  //  Inaccuracy 2%p <  lossVsBest ≤  5%p   (?!)
-  //  Mistake    5%p <  lossVsBest ≤ 10%p   (?)
-  //  Blunder    lossVsBest > 10%p           (??)
+  //  winningChances 손실 ([-1,+1] 범위):
+  //    < 0.1  → Best / Good / Excellent
+  //    ≥ 0.1  → Inaccuracy  (WinPercent  5%p)
+  //    ≥ 0.2  → Mistake     (WinPercent 10%p)
+  //    ≥ 0.3  → Blunder     (WinPercent 15%p)
   //
-  //  Lichess 추가 조건:
-  //    · 양쪽 모두 winPercent > 90% (압도적 우위) → blunder/mistake 완화
-  //    · 이기던(>60%) → 지는(<40%): 무조건 blunder
-  //    · 이기던      → 비기는:     mistake
-  //    · 비기던      → 지는:       mistake
+  //  WinPercent = 50 + 50 * winningChances
+  //  따라서 WinPercent 기준:
+  //    손실 <  5%p → Best/Good/Excellent
+  //    손실  5~10%p → Inaccuracy
+  //    손실 10~15%p → Mistake
+  //    손실 > 15%p  → Blunder
+  //
+  //  ※ Lichess는 lossVsBest(최선수 대비)가 아닌
+  //    wpDrop(실제 WinPercent 변화)를 기준으로 판정.
+  //    단, 여기서는 최선수 대비 손실(lossVsBest)을 병행 사용.
   // ════════════════════════════════════════════════════════
 
-  // Best: 엔진 1순위와 사실상 동일
-  if (lossVsBest <= 2) return 'best';
+  // Best: 최선수와 사실상 동일 (손실 ≤ 5%p)
+  if (lossVsBest <= 5) return 'best';
 
-  // ── Lichess: 압도적 우위 상황 완화 ──────────────────────
-  // 양쪽 다 winPercent > 90% (≈ cp +600 이상 우위)이면
-  // 실제 결과에 영향 없는 수 → blunder/mistake 적용 안 함
+  // ── Lichess: 압도적 우위 완화 ────────────────────────────
+  // 양쪽 모두 WinPercent ≥ 90% (cp +500 이상) → 결과에 무관한 수
+  // Lichess도 이 경우 blunder/mistake를 붙이지 않음
   const bothDominating = wpBefore >= 90 && wpAfter >= 90;
-
-  // ── Lichess 분류 임계값 ──────────────────────────────────
-  if (lossVsBest <= 5)  return 'excellent'; // inaccuracy 경계 전
-
   if (bothDominating) {
-    // 압도적 우위에서 약간의 실수 → inaccuracy 최대
-    if (lossVsBest <= 20) return 'inaccuracy';
-    return 'mistake'; // 극단적인 경우만 mistake
-  }
-
-  // 국면 전환 판단 (Lichess Advice.scala 로직)
-  const winBefore  = wpBefore >= 60;
-  const drawBefore = wpBefore >= 40 && wpBefore < 60;
-  const winAfter   = wpAfter  >= 55;
-  const drawAfter  = wpAfter  >= 40 && wpAfter  < 55;
-  const loseAfter  = wpAfter  < 40;
-
-  if (lossVsBest <= 10) {
-    // Lichess: 5~10%p 손실 = Mistake
-    // 하지만 국면이 역전되지 않았으면 → inaccuracy
-    if (!((winBefore && (drawAfter || loseAfter)) || (drawBefore && loseAfter))) {
-      return 'inaccuracy';
-    }
+    if (lossVsBest <= 15) return 'inaccuracy';
     return 'mistake';
   }
 
-  // lossVsBest > 10%p = Blunder 영역
-  // 국면 전환 기반 세분화
-  if (winBefore && loseAfter) return 'blunder'; // 이기던 → 지는
-  if (wpDrop >= 20)           return 'blunder'; // Lichess: 20%p 이상 급락
-  if (winBefore && drawAfter) return 'mistake'; // 이기던 → 비기는
+  // 국면 상태
+  const winBefore  = wpBefore >= 60;
+  const drawBefore = wpBefore >= 40 && wpBefore < 60;
+  const drawAfter  = wpAfter  >= 40 && wpAfter  < 55;
+  const loseAfter  = wpAfter  < 40;
+
+  // ── Inaccuracy (5 ~ 10%p) ────────────────────────────────
+  if (lossVsBest <= 10) return 'inaccuracy';
+
+  // ── Mistake (10 ~ 15%p) ──────────────────────────────────
+  if (lossVsBest <= 15) {
+    // 15%p 이하라도 이기던→지는 역전은 blunder
+    if (winBefore && loseAfter) return 'blunder';
+    return 'mistake';
+  }
+
+  // ── Blunder (> 15%p) ─────────────────────────────────────
+  // 국면 전환 세분화: 아주 심하지 않은 역전은 mistake로
+  if (winBefore && loseAfter)  return 'blunder'; // 이기던 → 지는
+  if (wpDrop >= 30)            return 'blunder'; // 30%p 이상 급락
+  if (winBefore && drawAfter)  return 'mistake'; // 이기던 → 비기는
   if (drawBefore && loseAfter) return 'mistake'; // 비기던 → 지는
-  if (lossVsBest < 20)        return 'mistake';  // 10~20%p
-  return 'blunder'; // 20%p 초과
+  if (lossVsBest < 25)         return 'mistake'; // 15~25%p
+  return 'blunder';
 }
 
 // ── 배지 아이콘 ─────────────────────────────────────────────
@@ -2203,16 +2178,17 @@ const ANN_ICON = {
 };
 
 // ── 배지 툴팁 레이블 (Lichess 분류 기준) ───────────────────
+// Lichess Advice.scala: winningChances 0.1/0.2/0.3 → WinPercent 5/10/15%p
 const ANN_LABEL = {
   brilliant:  '탁월한 수 (!!)',
   great:      '훌륭한 수 (!)',
   best:       '최선의 수',
-  excellent:  '뛰어난 수',          // Lichess: inaccuracy 직전 (손실 ≤2%p)
+  excellent:  '뛰어난 수',
   good:       '좋은 수',
   book:       '이론',
-  inaccuracy: '부정확한 수 (?!)',    // Lichess: 손실 2~5%p
-  mistake:    '실수 (?)',            // Lichess: 손실 5~10%p
-  blunder:    '블런더 (??)',         // Lichess: 손실 >10%p
+  inaccuracy: '부정확한 수 (?!)',    // WinPercent 손실 5~10%p
+  mistake:    '실수 (?)',            // WinPercent 손실 10~15%p
+  blunder:    '블런더 (??)',         // WinPercent 손실 >15%p
   miss:       '놓친 수 (✗)',
   forced:     '강제 수',
 };
