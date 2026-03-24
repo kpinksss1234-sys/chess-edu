@@ -1,1 +1,5 @@
-{}
+{
+  "rewrites": [
+    { "source": "/", "destination": "/chess-wasm-fixed.html" }
+  ]
+}
