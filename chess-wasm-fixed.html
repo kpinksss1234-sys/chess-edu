@@ -2031,17 +2031,25 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
   const wAfter  = winProb(cpMeAfter);
 
   // ── 3) 최선수 승률 ───────────────────────────────────────
+  // best1cp: before 포지션의 엔진 1순위 PV cp (=cpBefore와 동일한 경우가 많음)
+  // best2cp: 2순위 PV cp
   const best1cp = topAlts?.best1cp ?? null;
   const best2cp = topAlts?.best2cp ?? null;
-  const wBest1  = best1cp != null ? winProb(turn === 'w' ? best1cp : -best1cp) : null;
+
+  // best1cp가 null이거나 cpBefore와 같으면 wBefore를 직접 사용
+  // (before.cp === before.topAlts.best1cp인 경우 deltaW = wBefore - wAfter)
+  const wBest1  = best1cp != null ? winProb(turn === 'w' ? best1cp : -best1cp) : wBefore;
   const wBest2  = best2cp != null ? winProb(turn === 'w' ? best2cp : -best2cp) : null;
 
-  // ΔW = W_best1 − W_move  (양수 = 최선수 대비 손실)
-  // best1cp 없으면 before→after 변화를 fallback으로 사용
-  const deltaW = wBest1 != null ? (wBest1 - wAfter) : (wBefore - wAfter);
+  // ΔW = W_best1 − W_move  (양수 = 최선수 대비 손실, 음수 = 최선수보다 나은 수)
+  const deltaW = wBest1 - wAfter;
 
   // ── 4) Forced (합법 수 1개) ──────────────────────────────
   if (topAlts?.legalMoveCount === 1) return 'forced';
+
+  // ── 4.5) 엔진 1순위 수와 완전 일치 → 즉시 Best ───────────
+  // UCI 수 비교로 확정 (deltaW 계산 오차 없이 정확하게 판정)
+  if (topAlts?.isEngineBest) return 'best';
 
   // ── 5) 메이트 판정 ───────────────────────────────────────
   const hadMateWin = topAlts?.mateInBefore != null && topAlts.mateInBefore > 0;
@@ -2102,24 +2110,39 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
   }
 
   // ── 8) Best ⭐ ───────────────────────────────────────────
-  if (deltaW <= 0) return 'best';
+  // deltaW ≤ 0 : 최선수와 동일하거나 더 나은 수
+  // deltaW ≤ 0.005 : 부동소수점 오차 허용 (사실상 동일)
+  if (deltaW <= 0.005) return 'best';
 
-  // ── 9) 균형 포지션 완화 ─────────────────────────────────
-  // 오프닝/미들게임 균형 상태(wBefore 40~60%)에서 엔진 멀티PV 평가가
-  // 불안정할 때 과도한 inaccuracy/mistake 방지.
-  // 양쪽 모두 균형권(wBefore, wAfter 모두 0.40~0.65)이면 한 단계 완화.
-  const balanced = wBefore >= 0.40 && wBefore <= 0.65
-                && wAfter  >= 0.35 && wAfter  <= 0.70;
+  // ── 9) 포지션 유형별 ΔW 임계값 ──────────────────────────
+  // 체스닷컴은 포지션의 "복잡도(complexity)"에 따라 기준을 다르게 적용.
+  // wBefore가 균형(0.35~0.65)일수록 수 선택의 폭이 넓어 임계값을 완화.
+  // wBefore가 한쪽으로 치우칠수록(이기거나 지는 상황) 임계값을 엄격히 적용.
+
+  // 균형 포지션 (wBefore 35%~65%): 오프닝·복잡한 미들게임
+  const balanced = wBefore >= 0.35 && wBefore <= 0.65;
+  // 우세 포지션 (wBefore 65%~85%): 유리하지만 아직 결정나지 않은 상황
+  const winning  = wBefore > 0.65 && wBefore <= 0.85;
 
   if (balanced) {
-    if (deltaW <= 0.04) return 'excellent';   // 0.02 → 0.04
-    if (deltaW <= 0.08) return 'good';        // 0.05 → 0.08
-    if (deltaW <= 0.14) return 'inaccuracy';  // 0.10 → 0.14
-    if (deltaW <= 0.22) return 'mistake';     // 0.20 → 0.22
+    // 균형 상태에서는 임계값을 넓게 — 체스닷컴도 이 구간에서 관대
+    if (deltaW <= 0.04) return 'excellent';
+    if (deltaW <= 0.08) return 'good';
+    if (deltaW <= 0.14) return 'inaccuracy';
+    if (deltaW <= 0.24) return 'mistake';
     return 'blunder';
   }
 
-  // ── 10) 일반 ΔW 기준 분류 ───────────────────────────────
+  if (winning) {
+    // 우세 상태: 중간 수준 적용
+    if (deltaW <= 0.03) return 'excellent';
+    if (deltaW <= 0.06) return 'good';
+    if (deltaW <= 0.12) return 'inaccuracy';
+    if (deltaW <= 0.22) return 'mistake';
+    return 'blunder';
+  }
+
+  // 압도적 우세(>85%) 또는 열세(<35%): 표준 임계값
   if (deltaW <= 0.02) return 'excellent';
   if (deltaW <= 0.05) return 'good';
   if (deltaW <= 0.10) return 'inaccuracy';
@@ -2180,6 +2203,18 @@ function updateMoveAnnotations() {
     const MIN_DEPTH = 18;
     if ((before.depth ?? 0) < MIN_DEPTH || (after.depth ?? 0) < MIN_DEPTH) continue;
 
+    // best1uci: 엔진 1순위 수의 UCI 표기 (e.g. "e2e4") — 실제 둔 수와 비교용
+    const best1uci = before.pvs?.[1]?.pv?.[0] ?? null;
+    // 실제 둔 수를 UCI로 변환
+    const FILES = ['a','b','c','d','e','f','g','h'];
+    let playedUci = null;
+    if (h.move) {
+      const fr = 8 - h.move.from[0], ff = FILES[h.move.from[1]];
+      const tr = 8 - h.move.to[0],   tf = FILES[h.move.to[1]];
+      const promo = h.move.promotion ? h.move.promotion.toLowerCase() : '';
+      playedUci = ff + fr + tf + tr + promo;
+    }
+
     const topAlts = {
       best1cp:        before.topAlts?.best1cp  ?? null,
       best2cp:        before.topAlts?.best2cp  ?? null,
@@ -2187,6 +2222,7 @@ function updateMoveAnnotations() {
       legalMoveCount: before.legalMoveCount    ?? null,
       mateInBefore:   (before.mateIn != null && before.mateIn > 0) ? before.mateIn : null,
       mateInAfter:    (after.mateIn  != null && after.mateIn  > 0) ? after.mateIn  : null,
+      isEngineBest:   best1uci != null && playedUci != null && best1uci === playedUci,
     };
 
     let cls = classifyMove(before.cp, after.cp, h.turn, topAlts);
