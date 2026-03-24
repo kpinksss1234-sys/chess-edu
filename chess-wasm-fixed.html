@@ -2812,7 +2812,12 @@ function flushCycleToDisplay() {
         // 기존 라인 찾아서 moves/eval/depth만 업데이트 (extraMoves 보존)
         const existingLine = existingLines.find(l => l.pvIdx === activePvIdx) || existingLines[0];
         if (existingLine) {
-          existingLine.moves = [...updatedPv.moves];
+          // ★ 수정: 클릭으로 스냅샷이 고정된 라인은 엔진 업데이트로 덮어쓰지 않음
+          //   (사용자가 클릭한 시점의 수순이 기보에 고정되어야 하므로)
+          if (!existingLine._snapshot) {
+            existingLine.moves = [...updatedPv.moves];
+            existingLine.uciMoves = [...(updatedPv.pv || updatedPv.uciMoves || [])];
+          }
           existingLine.eval = updatedPv.eval;
           existingLine.depth = updatedPv.depth;
           game.renderMoveList();
@@ -4365,22 +4370,39 @@ class ChessGame {
   // ── 라인의 시작 보드 상태를 계산 (서브라인은 부모 분기점 이후) ──
   _getLineStartState(histIdx, line) {
     // 기준 루트 상태 계산 헬퍼 (histIdx 이후 포지션)
+    // ★ 수정: s.board가 없으므로 fenAfter로 복원
     const _getRootState = () => {
       if (histIdx >= 0 && this.history[histIdx]) {
         const s = this.history[histIdx];
-        const b = applyMoveToBoard(s.board.map(r=>[...r]), s.move, s.turn);
-        const t = s.turn === 'w' ? 'b' : 'w';
-        const c = {...s.castling};
-        if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
-          if (s.turn==='w') { c.wK=false; c.wQ=false; }
-          else { c.bK=false; c.bQ=false; }
+        // fenAfter: 해당 수가 착수된 이후 포지션 (board 필드는 메모리 절감으로 제거됨)
+        const fen = s.fenAfter || null;
+        if (fen) {
+          const fp = fen.split(' ');
+          const b = parseFenBoard(fp[0]);
+          const t = fp[1] || (s.turn === 'w' ? 'b' : 'w');
+          const c = parseFenCastling(fp[2] || '-');
+          const ep = parseFenEP(fp[3] || '-');
+          const hm = parseInt(fp[4]) || (s.halfMove + 1);
+          const fm = parseInt(fp[5]) || (s.turn === 'b' ? s.fullMove + 1 : s.fullMove);
+          return { b, t, c, ep, hm, fm };
         }
-        if (s.move.from[0]===7&&s.move.from[1]===7) c.wK=false;
-        if (s.move.from[0]===7&&s.move.from[1]===0) c.wQ=false;
-        if (s.move.from[0]===0&&s.move.from[1]===7) c.bK=false;
-        if (s.move.from[0]===0&&s.move.from[1]===0) c.bQ=false;
-        const ep = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
-        return { b, t, c, ep, hm: s.halfMove + 1, fm: s.turn === 'b' ? s.fullMove + 1 : s.fullMove };
+        // fenAfter 없으면 수동 계산 (legacy board 필드 있을 경우 fallback)
+        const board = s.board ? s.board.map(r=>[...r]) : null;
+        if (board) {
+          const b = applyMoveToBoard(board, s.move, s.turn);
+          const t = s.turn === 'w' ? 'b' : 'w';
+          const c = {...s.castling};
+          if (board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
+            if (s.turn==='w') { c.wK=false; c.wQ=false; }
+            else { c.bK=false; c.bQ=false; }
+          }
+          if (s.move.from[0]===7&&s.move.from[1]===7) c.wK=false;
+          if (s.move.from[0]===7&&s.move.from[1]===0) c.wQ=false;
+          if (s.move.from[0]===0&&s.move.from[1]===7) c.bK=false;
+          if (s.move.from[0]===0&&s.move.from[1]===0) c.bQ=false;
+          const ep = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
+          return { b, t, c, ep, hm: s.halfMove + 1, fm: s.turn === 'b' ? s.fullMove + 1 : s.fullMove };
+        }
       }
       return { b: INIT_BOARD.map(r=>[...r]), t: 'w', c: { wK:true, wQ:true, bK:true, bQ:true }, ep: null, hm: 0, fm: 1 };
     };
@@ -4409,8 +4431,9 @@ class ChessGame {
       b = b.map(r=>[...r]);
       c = {...c};
 
-      const uciList2 = parentLine.uciMoves || [];
-      const sanList2 = parentLine.moves || [];
+      // ★ 수정: _snapshot이 있으면 스냅샷 데이터 사용 (엔진 깊이 업데이트로 라인이 변해도 분기점 계산 불변)
+      const uciList2 = (parentLine._snapshot || parentLine).uciMoves || [];
+      const sanList2 = (parentLine._snapshot || parentLine).moves || [];
       let limit = 0;
       let srcType = 'engine';
       if (branchAt && branchAt.startsWith('engine:')) {
@@ -4469,8 +4492,23 @@ class ChessGame {
     if (!lines) { console.warn('❌ enginePreviews[histIdx] 없음'); console.groupEnd(); return; }
     const line = lines.find(l => l.pvIdx === pvIdx);
     if (!line) { console.warn('❌ pvIdx에 해당하는 라인 없음'); console.groupEnd(); return; }
-    console.log('line.moves:', line.moves);
-    console.log('line.uciMoves:', line.uciMoves);
+
+    // ★ 클릭 시점 스냅샷 고정: 엔진이 나중에 같은 pvIdx 라인을 덮어써도
+    //   클릭된 라인의 moves/uciMoves는 frozen 스냅샷에서 읽어 불변 유지
+    if (!line._snapshot) {
+      line._snapshot = {
+        moves:    [...(line.moves    || [])],
+        uciMoves: [...(line.uciMoves || [])],
+        eval:     line.eval,
+        depth:    line.depth,
+      };
+    }
+    // 스냅샷에서 읽음 (엔진 업데이트에 의한 변경 무시)
+    const frozenMoves    = line._snapshot.moves;
+    const frozenUciMoves = line._snapshot.uciMoves;
+
+    console.log('line.moves:', frozenMoves);
+    console.log('line.uciMoves:', frozenUciMoves);
 
     // 시작 보드 상태 — 서브라인이면 분기점까지 수를 적용한 상태
     const startState = this._getLineStartState(histIdx, line);
@@ -4489,8 +4527,8 @@ class ChessGame {
     let curHM = startHM;
     let curFM = startFM;
 
-    const uciList = line.uciMoves || [];
-    const sanList = line.moves || [];
+    const uciList = frozenUciMoves;
+    const sanList = frozenMoves;
     const moveCount = Math.max(uciList.length, sanList.length);
     console.log('총 수 개수:', moveCount, '| 요청 moveIdx:', moveIdx);
 
@@ -4559,7 +4597,7 @@ class ChessGame {
     console.groupEnd();
 
     // 기존 enginePreview의 extraMoveIdx는 엔진라인 수 클릭 시 초기화 (엔진라인 수 선택)
-    this.enginePreview = { histIdx, pvIdx, activeIdx: moveIdx, moves: line.moves, states, extraMoveIdx: -1 };
+    this.enginePreview = { histIdx, pvIdx, activeIdx: moveIdx, moves: frozenMoves, states, extraMoveIdx: -1 };
     this.historyIndex = histIdx; // 기준 포지션으로 히스토리 복원
 
     // 보드 상태 적용
