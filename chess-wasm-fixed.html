@@ -2163,6 +2163,9 @@ function updateMoveAnnotations() {
   for (let i = 0; i < game.history.length; i++) {
     const h = game.history[i];
 
+    // ── 이미 확정된 수는 절대 재분류하지 않음 (1회 고정) ──
+    if (h.annotation !== null && h.annotation !== undefined) continue;
+
     const fenBefore = h.fenBefore;
     const fenAfter  = h.fenAfter || (game.history[i+1] && game.history[i+1].fenBefore);
     if (!fenBefore || !fenAfter) continue;
@@ -2176,57 +2179,37 @@ function updateMoveAnnotations() {
       best2cp:        before.topAlts?.best2cp  ?? null,
       hasSacrifice:   isSacrifice(h),
       legalMoveCount: before.legalMoveCount    ?? null,
-      // 메이트 정보:
-      // mateInBefore: 이 수 두기 전, 현재 두는 플레이어가 메이트 수순 보유했는가
-      //   (before는 이 수를 두기 전 포지션, 현재 플레이어가 h.turn)
-      //   before.mateIn > 0 → 현재 플레이어(h.turn)가 N수 메이트 가능
-      mateInBefore:   (before.mateIn != null && before.mateIn > 0)
-                        ? before.mateIn : null,
-      // mateInAfter: 이 수 후 상대에게 메이트 수순이 생겼는가
-      //   after는 이 수 후 포지션, 상대 차례.
-      //   after.mateIn > 0 → 상대가 N수 메이트 가능 (= 내가 메이트를 허용)
-      mateInAfter:    (after.mateIn != null && after.mateIn > 0)
-                        ? after.mateIn : null,
+      mateInBefore:   (before.mateIn != null && before.mateIn > 0) ? before.mateIn : null,
+      mateInAfter:    (after.mateIn  != null && after.mateIn  > 0) ? after.mateIn  : null,
     };
 
     let cls = classifyMove(before.cp, after.cp, h.turn, topAlts);
 
-    // ── Miss 판정 ──────────────────────────────────────────
-    // 상대가 직전에 실수/블런더를 했는데 내가 응징하지 못한 경우.
-    // brilliant / great / best / forced / blunder / mistake 는 miss로 격하 안 함
+    // ── Miss 판정 ─────────────────────────────────────────
     const missExempt = new Set(['brilliant','great','best','forced','blunder','mistake']);
-    if (!missExempt.has(cls)) {
-      if (i > 0) {
-        const prevH         = game.history[i - 1];
-        const prevFenBefore = prevH.fenBefore;
-        const prevFenAfter  = prevH.fenAfter || h.fenBefore;
-        if (prevFenBefore && prevFenAfter) {
-          const prevBefore = evalCache[normFen(prevFenBefore)];
-          const prevAfter  = evalCache[normFen(prevFenAfter)];
-          if (prevBefore && prevAfter) {
-            const oppTurn   = prevH.turn;
-            // ceiling된 cp로 승률 계산 (Lichess 방식)
-            const oppWpDrop = getWinProb(Math.max(-1000,Math.min(1000,prevBefore.cp)), oppTurn)
-                            - getWinProb(Math.max(-1000,Math.min(1000,prevAfter.cp)),  oppTurn);
-
-            // 상대가 15%p 이상 승률 손실(= Lichess blunder 수준)인 경우만 miss 고려
-            if (oppWpDrop >= 15) {
-              const myWpBefore = getWinProb(Math.max(-1000,Math.min(1000,before.cp)), h.turn);
-              const myWpAfter  = getWinProb(Math.max(-1000,Math.min(1000,after.cp)),  h.turn);
-              const myWpDrop   = myWpBefore - myWpAfter;
-
-              // 내 승률이 10%p 이상 하락해야 miss (단순 inaccuracy 수준은 miss 아님)
-              if (myWpDrop >= 10) cls = 'miss';
-            }
+    if (!missExempt.has(cls) && i > 0) {
+      const prevH         = game.history[i - 1];
+      const prevFenBefore = prevH.fenBefore;
+      const prevFenAfter  = prevH.fenAfter || h.fenBefore;
+      if (prevFenBefore && prevFenAfter) {
+        const prevBefore = evalCache[normFen(prevFenBefore)];
+        const prevAfter  = evalCache[normFen(prevFenAfter)];
+        if (prevBefore && prevAfter) {
+          const oppTurn   = prevH.turn;
+          const oppWpDrop = getWinProb(Math.max(-1000,Math.min(1000,prevBefore.cp)), oppTurn)
+                          - getWinProb(Math.max(-1000,Math.min(1000,prevAfter.cp)),  oppTurn);
+          if (oppWpDrop >= 15) {
+            const myWpDrop = getWinProb(Math.max(-1000,Math.min(1000,before.cp)), h.turn)
+                           - getWinProb(Math.max(-1000,Math.min(1000,after.cp)),  h.turn);
+            if (myWpDrop >= 10) cls = 'miss';
           }
         }
       }
     }
 
-    if (h.annotation !== cls) {
-      h.annotation = cls;
-      changed = true;
-    }
+    // ── 최초 1회 확정 저장 (이후 변경 불가) ─────────────
+    h.annotation = cls;
+    changed = true;
   }
 
   if (changed) game.renderMoveList();
