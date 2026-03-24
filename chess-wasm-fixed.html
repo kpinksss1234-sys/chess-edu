@@ -3260,8 +3260,8 @@ async function startBgAnalysis() {
     return;
   }
 
-  const bgDepth    = Math.min(analysisDepth, 26); // 백그라운드 depth 26
-  const bgMovetime = 8000;                         // 포지션당 최대 8초
+  const bgDepth    = Math.min(analysisDepth, 20); // 백그라운드 depth 20 (분류에 충분, 속도 향상)
+  const bgMovetime = 3000;                         // 포지션당 최대 3초 (8초→3초, 3~4배 빠름)
   const bgMultipv  = 3;
 
   showToast(`📊 전체 분석 시작 (${toAnalyze.length}개 · ${bgWorkers.length}개 병렬)`);
