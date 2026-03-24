@@ -1574,11 +1574,13 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
             <div class="settings-row-label">최대 분석 시간</div>
             <select class="select-input" id="time-select" onchange="setAnalysisTime(this.value)">
               
-              <option value="2000">2초</option>
               <option value="3000">3초</option>
-              <option value="5000" selected>5초</option>
+              <option value="5000">5초</option>
               <option value="10000">10초</option>
+              <option value="15000" selected>15초 (권장)</option>
               <option value="20000">20초</option>
+              <option value="30000">30초</option>
+              <option value="60000">60초</option>
             </select>
           </div>
           <div class="settings-row">
@@ -2625,8 +2627,8 @@ async function getStockfishBlobUrl() {
 }
 
 let multiPV        = 3;
-let analysisDepth  = 16;   // 시작 depth — 항상 16부터 movetime까지 무제한 상승
-let analysisTime   = 5000; // ms — 최대 분석 시간
+let analysisDepth  = 20;    // 시작 depth — 항상 20부터 movetime까지 무제한 상승
+let analysisTime   = 15000; // ms — 최대 분석 시간 (기본 15초)
 let autoAnalyze    = true;
 let analysisTimeout = null;
 let lastAnalyzedFen = '';
@@ -2672,6 +2674,9 @@ function createStockfishWorker(threads = 1, hashMb = 64) {
           worker.postMessage('setoption name Hash value ' + hashMb);
           worker.postMessage('setoption name UCI_AnalyseMode value true');
           worker.postMessage('setoption name Move Overhead value 0');
+          worker.postMessage('setoption name Contempt value 0');
+          worker.postMessage('setoption name Analysis Contempt value Off');
+          worker.postMessage('setoption name Skill Level value 20');
           worker.postMessage('isready');
         } else if (line.includes('readyok') && !ready) {
           ready = true;
@@ -2716,15 +2721,15 @@ async function initEngine() {
     // CPU 코어 수에 따라 설정
     const cores     = navigator.hardwareConcurrency || 2;
     const bgCount   = Math.max(1, Math.min(Math.floor(cores / 2), 4));
-    const mainThr   = Math.max(1, Math.floor(cores / 4));
+    const mainThr   = Math.max(2, Math.floor(cores / 2)); // 코어 절반을 메인에 할당
     const bgThr     = 1;
 
     console.log(`[Engine] 코어: ${cores} | 메인: ${mainThr}스레드 | 백그라운드: ${bgCount}개`);
 
     // 메인 Worker + 백그라운드 Worker 병렬 생성
     const workerPromises = [
-      createStockfishWorker(mainThr, 256),
-      ...Array.from({ length: bgCount }, () => createStockfishWorker(bgThr, 64))
+      createStockfishWorker(mainThr, 512),
+      ...Array.from({ length: bgCount }, () => createStockfishWorker(bgThr, 128))
     ];
 
     document.getElementById('loading-text').textContent =
@@ -2883,8 +2888,10 @@ function _sendGoCommand(fen, myId, mpv, movetime) {
   mainWorker.postMessage(`setoption name MultiPV value ${mpv}`);
   console.log('[CMD] → position fen', fen.slice(0,30));
   mainWorker.postMessage(`position fen ${fen}`);
-  console.log('[CMD] → go movetime', movetime);
-  mainWorker.postMessage(`go movetime ${movetime}`);
+  // depth와 movetime 동시 지정 — 둘 중 먼저 도달하는 조건에서 종료
+  const targetDepth = Math.max(analysisDepth, 25);
+  console.log('[CMD] → go depth', targetDepth, 'movetime', movetime);
+  mainWorker.postMessage(`go depth ${targetDepth} movetime ${movetime}`);
   console.log('[CMD] → go sent ✓');
 }
 
@@ -3306,8 +3313,8 @@ async function startBgAnalysis() {
     return;
   }
 
-  const bgDepth    = Math.min(analysisDepth, 22); // 백그라운드 depth 22 (메이트 탐색 정확도 향상)
-  const bgMovetime = 3000;                         // 포지션당 최대 3초
+  const bgDepth    = Math.min(analysisDepth, 26); // 백그라운드 depth 26
+  const bgMovetime = 8000;                         // 포지션당 최대 8초
   const bgMultipv  = 3;
 
   showToast(`📊 전체 분석 시작 (${toAnalyze.length}개 · ${bgWorkers.length}개 병렬)`);
