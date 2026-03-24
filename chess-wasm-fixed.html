@@ -2211,11 +2211,25 @@ function updateMoveAnnotations() {
       playedUci = ff + fr + tf + tr + promo;
     }
 
+    // legalMoveCount: 캐시에 없으면 lazy 계산 (forced 판정용, 드문 케이스)
+    let legalMoveCount = before.legalMoveCount ?? null;
+    if (legalMoveCount === null && h.fenBefore) {
+      try {
+        const fp = h.fenBefore.split(' ');
+        const tb = parseFenBoard(fp[0]);
+        const tc = parseFenCastling(fp[2] || '-');
+        const te = parseFenEP(fp[3] || '-');
+        if (tb) {
+          legalMoveCount = getAllLegalMoves(tb, fp[1], tc, te).length;
+          before.legalMoveCount = legalMoveCount; // 캐시에 저장해 다음 호출 시 재계산 방지
+        }
+      } catch(e) {}
+    }
     const topAlts = {
       best1cp:        before.topAlts?.best1cp  ?? null,
       best2cp:        before.topAlts?.best2cp  ?? null,
       hasSacrifice:   isSacrifice(h),
-      legalMoveCount: before.legalMoveCount    ?? null,
+      legalMoveCount,
       mateInBefore:   (before.mateIn != null && before.mateIn > 0) ? before.mateIn : null,
       mateInAfter:    (after.mateIn  != null && after.mateIn  > 0) ? after.mateIn  : null,
       isEngineBest:   best1uci != null && playedUci != null && best1uci === playedUci,
@@ -3200,32 +3214,49 @@ function analyzeWithWorker(workerObj, fen, depth, movetime, multipv) {
     workerObj.busy = true;
 
     const pvs = {};
+    let bestDepth = 0;       // 현재까지 수신한 최고 depth
+    let completeCycle = {};  // 최고 depth에서 multipv개 모두 모인 사이클
     const turn = fen.split(' ')[1] || 'w';
 
     worker.onmessage = (e) => {
       const line = e.data;
-      if (!line) return;
-      if (line.includes('currmove')) return;
+      if (!line || line.includes('currmove')) return;
 
       if (line.startsWith('info') && line.includes('depth') && line.includes('score')) {
         const parsed = parseInfoLine(line);
-        if (parsed) pvs[parsed.multipv || 1] = parsed;
+        if (!parsed) return;
+        const mpv = parsed.multipv || 1;
+        const d   = parsed.depth;
+
+        // 새 depth 사이클 시작
+        if (d > bestDepth) {
+          bestDepth = d;
+          completeCycle = {};
+        }
+        // 같은 depth 사이클에서 각 multipv 슬롯 저장 (가장 높은 depth만 유지)
+        if (d === bestDepth) {
+          completeCycle[mpv] = parsed;
+          // multipv개 모두 도착하면 pvs에 확정
+          if (Object.keys(completeCycle).length >= multipv) {
+            for (const [k, v] of Object.entries(completeCycle)) pvs[k] = v;
+          }
+        }
 
       } else if (line.startsWith('bestmove')) {
         workerObj.busy = false;
 
-        // processPvData로 변환 (UCI pv도 보존)
+        // 미완성 사이클도 반영 (movetime 초과로 중간 종료된 경우)
+        for (const [k, v] of Object.entries(completeCycle)) {
+          if (!pvs[k] || v.depth >= pvs[k].depth) pvs[k] = v;
+        }
+
         const processed = {};
         for (const [k, pv] of Object.entries(pvs)) {
           const cpFromWhite = computeCp(pv, turn);
           processed[parseInt(k)] = {
-            depth:       pv.depth,
-            cpFromWhite,
-            score_type:  pv.score_type,
-            score_val:   pv.score_val,
-            nps:         pv.nps,
-            time_ms:     pv.time_ms,
-            pv:          pv.pv || [],   // UCI 수 목록 보존
+            depth: pv.depth, cpFromWhite,
+            score_type: pv.score_type, score_val: pv.score_val,
+            pv: (pv.pv || []).slice(0, 6),
           };
         }
         resolve({ fen: normFen(fen) + ' 0 1', turn, pvs: processed });
@@ -3249,13 +3280,18 @@ async function startBgAnalysis() {
     return;
   }
 
-  // 모든 포지션 FEN 수집 (fenBefore + fenAfter 모두)
+  // FEN 수집: fenBefore만 수집 (fenAfter[i] === fenBefore[i+1] 이므로 중복 없음 → 분석량 절반)
   const fenSet = new Set();
   fenSet.add('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -');
   for (const h of game.history) {
     if (h.fenBefore) fenSet.add(normFen(h.fenBefore) + ' 0 1');
-    if (h.fenAfter)  fenSet.add(normFen(h.fenAfter)  + ' 0 1');
+    // fenAfter는 다음 수의 fenBefore와 동일하므로 별도 수집 불필요
+    // 마지막 수의 fenAfter만 추가 (다음 fenBefore가 없음)
   }
+  // 마지막 수의 fenAfter는 별도로 추가
+  const lastH = game.history[game.history.length - 1];
+  if (lastH?.fenAfter) fenSet.add(normFen(lastH.fenAfter) + ' 0 1');
+
   const allFens = [...fenSet];
 
   // 캐시에 없는 것만
@@ -3266,9 +3302,9 @@ async function startBgAnalysis() {
     return;
   }
 
-  const bgDepth    = Math.min(analysisDepth, 20); // 백그라운드 depth 20 (분류에 충분, 속도 향상)
-  const bgMovetime = 3000;                         // 포지션당 최대 3초 (8초→3초, 3~4배 빠름)
-  const bgMultipv  = 3;
+  const bgDepth    = Math.min(analysisDepth, 18); // depth 18 = MIN_DEPTH와 동일, 이 이상이면 분류 확정
+  const bgMovetime = 1500;                         // 포지션당 최대 1.5초 (3초→1.5초)
+  const bgMultipv  = 2;                            // best1/best2만 필요 (best3는 분류에 미사용)
 
   showToast(`📊 전체 분석 시작 (${toAnalyze.length}개 · ${bgWorkers.length}개 병렬)`);
 
@@ -3294,8 +3330,9 @@ async function startBgAnalysis() {
       }
 
       done++;
-      if (done % 10 === 0 || done === total) {
-        showToast(`📊 분석 중... ${done}/${total}`);
+      if (done % 20 === 0 || done === total) {
+        const pct = Math.round(done / total * 100);
+        showToast(`📊 분석 중... ${done}/${total} (${pct}%)`);
       }
     }
   }
@@ -3330,16 +3367,8 @@ function handleBgResult({ fen, turn, pvs }) {
       : (turn === 'w' ? -99 : 99);
   }
 
-  let legalMoveCount = null;
-  try {
-    const fp = fen.split(' ');
-    if (fp.length >= 2) {
-      const tb = parseFenBoard(fp[0]);
-      const tc = parseFenCastling(fp[2] || '-');
-      const te = parseFenEP(fp[3] || '-');
-      if (tb) legalMoveCount = getAllLegalMoves(tb, fp[1], tc, te).length;
-    }
-  } catch(e) {}
+  // legalMoveCount: forced 판정 시에만 lazy 계산 (매 포지션 getAllLegalMoves 호출 제거 → CPU 절감)
+  const legalMoveCount = null;
 
   // pvs 슬림화: nps/time_ms 제거, pv 수열 6수로 제한 (메모리 절감)
   const slimPvsBg = {};
