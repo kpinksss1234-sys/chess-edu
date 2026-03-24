@@ -1936,13 +1936,13 @@ function getWinProb(cpFromWhite, turn) {
 const PIECE_VALUE = { P:100, N:320, B:330, R:500, Q:900, K:0 };
 
 // ── 희생 수 판정 ─────────────────────────────────────────────
-// 진짜 희생 = 내 기물이 상대에게 즉시 되잡힐 수 있는 상황에서 두는 수.
-// Be7xb4처럼 비숍으로 폰을 잡아도 상대가 즉시 되잡을 수 없으면 희생이 아님.
+// 진짜 희생 = 즉시 되잡히는 손해 교환이지만 전략적 이유가 있는 수.
 //
 // 조건:
-//   1) 잡는 수
-//   2) 내 기물 가치 > 잡은 기물 가치 + 50 (손해 교환)
-//   3) 수를 둔 후 상대가 착지 칸을 공격하는 합법적 수가 있어야 함
+//   1) 잡는 수이고 내 기물 가치 > 잡은 기물 가치 + 150 (상당한 손해)
+//      ※ +50이 아닌 +150: 나이트(320)가 폰(100)을 잡는 것은 희생이 아님
+//         (Nxd4처럼 폰을 먹는 나이트 = 정상적인 교환/이득)
+//   2) 수를 둔 후 상대가 착지 칸을 즉시 되잡을 수 있어야 함
 function isSacrifice(h) {
   if (!h || !h.move || !h.board) return false;
   if (!h.captured) return false;
@@ -1952,10 +1952,14 @@ function isSacrifice(h) {
   const myVal       = PIECE_VALUE[movingPiece[1]] || 0;
   const capturedVal = PIECE_VALUE[h.captured[1]]  || 0;
 
-  if (myVal < 300) return false; // 폰·킹 이동은 제외
+  // 최소 룩(500) 이상의 기물이어야 희생으로 취급
+  // 나이트/비숍(320~330)이 폰/나이트/비숍을 잡는 건 희생이 아님
+  if (myVal < 450) return false;
 
-  // 손해 교환이어야 함 (동등 교환 or 이득 교환은 희생 아님)
-  if (myVal <= capturedVal + 50) return false;
+  // 손해가 상당해야 함: 내 기물 가치 > 잡은 기물 + 150
+  // 예) 룩(500)으로 폰(100) 잡기 = 400 손해 → 희생 가능
+  //     나이트(320)로 폰(100) 잡기 = 220 손해지만 myVal<450 이므로 이미 제외됨
+  if (myVal <= capturedVal + 150) return false;
 
   // 수를 둔 후 상대가 즉시 되잡을 수 있는지 확인
   try {
@@ -1980,11 +1984,9 @@ function isSacrifice(h) {
     const enemyMoves = getAllLegalMoves(boardAfter, enemy, castAfter, epAfter);
     const canRecapture = enemyMoves.some(m => m.to[0] === toR && m.to[1] === toC);
 
-    // 상대가 즉시 되잡을 수 없으면 희생이 아님 (그냥 공짜 기물 획득)
     if (!canRecapture) return false;
   } catch(e) {
-    // 계산 실패 시 단순 비교로 fallback: 큰 가치 차이일 때만 희생
-    return myVal > capturedVal + 250;
+    return myVal > capturedVal + 300;
   }
 
   return true;
@@ -2083,22 +2085,22 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
   const sacrifice = topAlts?.hasSacrifice ?? false;
 
   if (sacrifice) {
-    // 기물 희생 + 최선수 (손실 ≤ 5%p) → brilliant
-    if (lossVsBest <= 5) return 'brilliant';
-    // 기물 희생 + 완전 역전 → brilliant
-    if (wpBefore <= 40 && wpAfter >= 55) return 'brilliant';
+    // 기물 희생 + 최선수(손실 ≤ 5%p) + 최소한 균형 이상 유지 → brilliant
+    if (lossVsBest <= 5 && wpAfter >= 45) return 'brilliant';
+    // 기물 희생 + 완전 역전 (불리→유리, 최소 15%p 이상 반등) → brilliant
+    if (wpBefore <= 40 && wpAfter >= 55 && (wpAfter - wpBefore) >= 15) return 'brilliant';
   }
-  // 비희생 대역전 + 유일수 (gap ≥ 20%p, 손실 ≤ 5%p)
-  if (wpBefore <= 35 && wpAfter >= 58) {
+  // 비희생 대역전 + 유일수 (gap ≥ 20%p, 손실 ≤ 5%p, 대폭 반등)
+  if (wpBefore <= 35 && wpAfter >= 60) {
     if (wp1 != null && wp2 != null && (wp1 - wp2) >= 20 && lossVsBest <= 5) return 'brilliant';
   }
 
-  // Great: best1 vs best2 WinPercent 격차 ≥ 15%p + 손실 ≤ 5%p
+  // Great: best1 vs best2 WinPercent 격차 ≥ 15%p + 내 손실 ≤ 5%p
+  // + 평범하게 이기는 수준이 아닌 경우 (균형 이상 포지션에서 유일한 승리 수)
   if (wp1 != null && wp2 != null) {
     const gap = wp1 - wp2;
-    if (gap >= 15 && lossVsBest <= 5) {
+    if (gap >= 15 && lossVsBest <= 5 && wpAfter >= 50) {
       const lmCount = topAlts?.legalMoveCount ?? 99;
-      // "당연한 수" 필터: 선택지 ≤3 + 극단적 우열
       if (!((lmCount <= 3) && (wpAfter >= 80 || wpBefore <= 20))) return 'great';
     }
   }
@@ -2232,12 +2234,7 @@ function updateMoveAnnotations() {
 
     // ── Miss 판정 ──────────────────────────────────────────
     // 상대가 직전에 실수/블런더를 했는데 내가 응징하지 못한 경우.
-    // 스펙트럼이 넓음:
-    //   - 경미: 상대 실수로 생긴 유리함을 살리지 못한 경우 (→ miss)
-    //   - 심각: 이긴 게임을 비기거나 진 게임으로 바꾼 경우 (→ 기존 blunder/mistake 유지)
-    //
-    // brilliant / great / best / forced 는 miss로 격하하지 않음
-    // 이미 blunder/mistake인 경우도 miss로 격하하지 않음 (더 심한 실수 유지)
+    // brilliant / great / best / forced / blunder / mistake 는 miss로 격하 안 함
     const missExempt = new Set(['brilliant','great','best','forced','blunder','mistake']);
     if (!missExempt.has(cls)) {
       if (i > 0) {
@@ -2248,21 +2245,19 @@ function updateMoveAnnotations() {
           const prevBefore = evalCache[normFen(prevFenBefore)];
           const prevAfter  = evalCache[normFen(prevFenAfter)];
           if (prevBefore && prevAfter) {
-            // 상대 입장에서의 승률 하락 = 내게 생긴 기회
             const oppTurn   = prevH.turn;
-            const oppWpDrop = getWinProb(prevBefore.cp, oppTurn)
-                            - getWinProb(prevAfter.cp,  oppTurn);
+            // ceiling된 cp로 승률 계산 (Lichess 방식)
+            const oppWpDrop = getWinProb(Math.max(-1000,Math.min(1000,prevBefore.cp)), oppTurn)
+                            - getWinProb(Math.max(-1000,Math.min(1000,prevAfter.cp)),  oppTurn);
 
-            // 상대가 10%p 이상 승률 손실 → 내게 기회 발생
-            if (oppWpDrop >= 10) {
-              const myWpBefore = getWinProb(before.cp, h.turn);
-              const myWpAfter  = getWinProb(after.cp,  h.turn);
+            // 상대가 15%p 이상 승률 손실(= Lichess blunder 수준)인 경우만 miss 고려
+            if (oppWpDrop >= 15) {
+              const myWpBefore = getWinProb(Math.max(-1000,Math.min(1000,before.cp)), h.turn);
+              const myWpAfter  = getWinProb(Math.max(-1000,Math.min(1000,after.cp)),  h.turn);
               const myWpDrop   = myWpBefore - myWpAfter;
 
-              // 기회를 살리지 못함:
-              // - 내 승률이 유지되지 않거나 (5%p 이상 하락)
-              // - 또는 myWpBefore는 여전히 유리한데 살리지 못한 경우
-              if (myWpDrop >= 5) cls = 'miss';
+              // 내 승률이 10%p 이상 하락해야 miss (단순 inaccuracy 수준은 miss 아님)
+              if (myWpDrop >= 10) cls = 'miss';
             }
           }
         }
