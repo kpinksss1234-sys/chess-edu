@@ -2027,16 +2027,16 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
   const cpMeAfter = turn === 'w' ? cpAfter  : -cpAfter;
 
   // ── 2) 체스닷컴 승률 W (0~1) — 내 관점 ─────────────────
-  const wBefore = winProb(cpMe);       // 이 수 두기 전 내 승률
-  const wAfter  = winProb(cpMeAfter);  // 이 수 두고 난 후 내 승률
+  const wBefore = winProb(cpMe);
+  const wAfter  = winProb(cpMeAfter);
 
   // ── 3) 최선수 승률 ───────────────────────────────────────
   const best1cp = topAlts?.best1cp ?? null;
   const best2cp = topAlts?.best2cp ?? null;
-  const wBest1  = best1cp != null ? winProb(turn === 'w' ?  best1cp : -best1cp) : null;
-  const wBest2  = best2cp != null ? winProb(turn === 'w' ?  best2cp : -best2cp) : null;
+  const wBest1  = best1cp != null ? winProb(turn === 'w' ? best1cp : -best1cp) : null;
+  const wBest2  = best2cp != null ? winProb(turn === 'w' ? best2cp : -best2cp) : null;
 
-  // ΔW = W_best − W_move  (양수 = 최선수 대비 손실)
+  // ΔW = W_best1 − W_move  (양수 = 최선수 대비 손실)
   // best1cp 없으면 before→after 변화를 fallback으로 사용
   const deltaW = wBest1 != null ? (wBest1 - wAfter) : (wBefore - wAfter);
 
@@ -2050,10 +2050,8 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
   const iMateLose  = cpMe      <= -9000;
   const afterMateMe= cpMeAfter <= -9000;
 
-  // 메이트를 허용 → Blunder
   if (gaveMate) return 'blunder';
 
-  // 메이트 수순이 있었는데 놓친 경우
   if ((hadMateWin || iMateWin) && !gaveMate) {
     if (afterMateMe)       return 'blunder';
     if (cpMeAfter >= 200)  return 'best';
@@ -2062,7 +2060,6 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
     return 'blunder';
   }
 
-  // 이미 메이트를 당하고 있는 포지션
   if (iMateLose) {
     if (afterMateMe) {
       if (deltaW <= 0)    return 'best';
@@ -2075,31 +2072,54 @@ function classifyMove(cpBefore, cpAfter, turn, topAlts) {
   }
 
   // ── 6) Brilliant !! ─────────────────────────────────────
-  // 조건: 기물 희생 + ΔW ≈ 0 (최선수 수준) + W_move > 0.5 (균형 이상 유지)
+  // 기물 희생 + 최선수 수준(ΔW ≤ 0.02) + 균형 이상(wAfter > 0.5)
   if ((topAlts?.hasSacrifice ?? false) && deltaW <= 0.02 && wAfter > 0.5) {
     return 'brilliant';
   }
 
-  // ── 7) Great ! ──────────────────────────────────────────
-  // 조건1: 유일한 수 — top1과 top2의 승률 차이가 0.1 이상
-  if (wBest1 != null && wBest2 != null && (wBest1 - wBest2) >= 0.1 && deltaW <= 0.02) {
+  // ── 7) Great ! ───────────────────────────────────────────
+  // 반드시 두 조건을 동시에 만족해야 함:
+  //   A) 실질적 포지션 개선: wAfter > wBefore (두고 나서 실제로 더 유리해짐)
+  //      — 단순 교환/되잡기는 wAfter ≈ wBefore이므로 이 조건에서 탈락
+  //   B-1) 유일수: top1-top2 승률 격차 ≥ 0.15 (0.1은 너무 관대)
+  //        + 절대 개선 폭이 유의미해야 함 (wAfter - wBefore ≥ 0.05)
+  //   B-2) 역전: 두기 전 열세(wBefore < 0.45)에서 두고 난 후 유리(wAfter > 0.60)
+  //        + 최선수 수준이어야 함 (ΔW ≤ 0.02)
+  const actualGain = wAfter - wBefore;  // 실제 승률 개선 폭
+
+  // 유일수 Great: 격차가 크고 + 실제 승률도 올라야 함
+  if (
+    wBest1 != null && wBest2 != null &&
+    (wBest1 - wBest2) >= 0.15 &&
+    deltaW <= 0.02 &&
+    actualGain >= 0.05          // 단순 교환처럼 제자리인 수 제거
+  ) {
     return 'great';
   }
-  // 조건2: 역전 — 두기 전 열세(< 0.5)에서 두고 난 후 유리(> 0.6)
-  if (wBefore < 0.5 && wAfter > 0.6 && deltaW <= 0.02) {
+  // 역전 Great: 열세 → 유리 + 최선수
+  if (wBefore < 0.45 && wAfter > 0.60 && deltaW <= 0.02) {
     return 'great';
   }
 
   // ── 8) Best ⭐ ───────────────────────────────────────────
-  // 엔진 1순위와 완전히 일치 (ΔW = 0, 즉 둔 수 = best1)
   if (deltaW <= 0) return 'best';
 
-  // ── 9) 체스닷컴 ΔW 기준 분류 ────────────────────────────
-  //   ΔW ≤ 0.02  → Excellent
-  //   ΔW ≤ 0.05  → Good
-  //   ΔW ≤ 0.10  → Inaccuracy
-  //   ΔW ≤ 0.20  → Mistake
-  //   ΔW >  0.20 → Blunder
+  // ── 9) 균형 포지션 완화 ─────────────────────────────────
+  // 오프닝/미들게임 균형 상태(wBefore 40~60%)에서 엔진 멀티PV 평가가
+  // 불안정할 때 과도한 inaccuracy/mistake 방지.
+  // 양쪽 모두 균형권(wBefore, wAfter 모두 0.40~0.65)이면 한 단계 완화.
+  const balanced = wBefore >= 0.40 && wBefore <= 0.65
+                && wAfter  >= 0.35 && wAfter  <= 0.70;
+
+  if (balanced) {
+    if (deltaW <= 0.04) return 'excellent';   // 0.02 → 0.04
+    if (deltaW <= 0.08) return 'good';        // 0.05 → 0.08
+    if (deltaW <= 0.14) return 'inaccuracy';  // 0.10 → 0.14
+    if (deltaW <= 0.22) return 'mistake';     // 0.20 → 0.22
+    return 'blunder';
+  }
+
+  // ── 10) 일반 ΔW 기준 분류 ───────────────────────────────
   if (deltaW <= 0.02) return 'excellent';
   if (deltaW <= 0.05) return 'good';
   if (deltaW <= 0.10) return 'inaccuracy';
@@ -2155,6 +2175,10 @@ function updateMoveAnnotations() {
     const before = evalCache[normFen(fenBefore)];
     const after  = evalCache[normFen(fenAfter)];
     if (!before || !after) continue;
+
+    // ── 최소 depth 18 미만이면 분류 보류 (불안정한 평가로 오분류 방지) ──
+    const MIN_DEPTH = 18;
+    if ((before.depth ?? 0) < MIN_DEPTH || (after.depth ?? 0) < MIN_DEPTH) continue;
 
     const topAlts = {
       best1cp:        before.topAlts?.best1cp  ?? null,
