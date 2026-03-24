@@ -1949,26 +1949,22 @@ const PIECE_VALUE = { P:100, N:320, B:330, R:500, Q:900, K:0 };
 //         (Nxd4처럼 폰을 먹는 나이트 = 정상적인 교환/이득)
 //   2) 수를 둔 후 상대가 착지 칸을 즉시 되잡을 수 있어야 함
 function isSacrifice(h) {
-  if (!h || !h.move || !h.board) return false;
-  if (!h.captured) return false;
+  if (!h || !h.move || !h.captured) return false;
 
-  const movingPiece = h.board[h.move.from[0]][h.move.from[1]];
+  // board가 없으면 fenBefore로 복원 (메모리 최적화: history에서 board 제거 대비)
+  const board = h.board || (h.fenBefore ? parseFenBoard(h.fenBefore.split(' ')[0]) : null);
+  if (!board) return false;
+
+  const movingPiece = board[h.move.from[0]][h.move.from[1]];
   if (!movingPiece) return false;
   const myVal       = PIECE_VALUE[movingPiece[1]] || 0;
   const capturedVal = PIECE_VALUE[h.captured[1]]  || 0;
 
-  // 최소 룩(500) 이상의 기물이어야 희생으로 취급
-  // 나이트/비숍(320~330)이 폰/나이트/비숍을 잡는 건 희생이 아님
   if (myVal < 450) return false;
-
-  // 손해가 상당해야 함: 내 기물 가치 > 잡은 기물 + 150
-  // 예) 룩(500)으로 폰(100) 잡기 = 400 손해 → 희생 가능
-  //     나이트(320)로 폰(100) 잡기 = 220 손해지만 myVal<450 이므로 이미 제외됨
   if (myVal <= capturedVal + 150) return false;
 
-  // 수를 둔 후 상대가 즉시 되잡을 수 있는지 확인
   try {
-    const boardAfter = applyMoveToBoard(h.board.map(r=>[...r]), h.move, h.turn);
+    const boardAfter = applyMoveToBoard(board.map(r=>[...r]), h.move, h.turn);
     const enemy = h.turn === 'w' ? 'b' : 'w';
     const toR = h.move.to[0];
     const toC = h.move.to[1];
@@ -2589,7 +2585,23 @@ let currentAnalysisId = 0;
 // 엔진라인 수 클릭 시 분석 중인 FEN (null이면 기보 기준 분석)
 let _engineLineAnalysisFen = null;
 
-const evalCache = {};
+// evalCache: LRU 방식 최대 500 포지션 유지 (장시간 사용 시 메모리 누수 방지)
+const evalCache = (() => {
+  const MAX = 500;
+  const map = new Map();
+  return new Proxy({}, {
+    get(_, key) { const v = map.get(key); if (v !== undefined) { map.delete(key); map.set(key, v); } return v; },
+    set(_, key, value) {
+      if (map.has(key)) map.delete(key);
+      else if (map.size >= MAX) map.delete(map.keys().next().value);
+      map.set(key, value); return true;
+    },
+    has(_, key) { return map.has(key); },
+    deleteProperty(_, key) { return map.delete(key); },
+    ownKeys() { return [...map.keys()]; },
+    getOwnPropertyDescriptor(_, key) { return map.has(key) ? { configurable: true, enumerable: true, writable: true, value: map.get(key) } : undefined; },
+  });
+})();
 
 // ── Worker 풀 ────────────────────────────────────────────────
 // mainWorker  : 화면 포지션 분석 전용
@@ -2667,7 +2679,7 @@ async function initEngine() {
   try {
     // CPU 코어 수에 따라 설정
     const cores     = navigator.hardwareConcurrency || 2;
-    const bgCount   = Math.max(1, Math.min(Math.floor(cores / 2), 4));
+    const bgCount   = Math.max(1, Math.min(Math.floor(cores / 2), 2)); // 최대 2개로 제한 (메모리 절감)
     const mainThr   = Math.max(2, Math.floor(cores / 2)); // 코어 절반을 메인에 할당
     const bgThr     = 1;
 
@@ -2675,8 +2687,8 @@ async function initEngine() {
 
     // 메인 Worker + 백그라운드 Worker 병렬 생성
     const workerPromises = [
-      createStockfishWorker(mainThr, 512),
-      ...Array.from({ length: bgCount }, () => createStockfishWorker(bgThr, 128))
+      createStockfishWorker(mainThr, 128),  // 512→128MB: 분석 품질 유지하면서 메모리 절감
+      ...Array.from({ length: bgCount }, () => createStockfishWorker(bgThr, 32))
     ];
 
     document.getElementById('loading-text').textContent =
@@ -2799,25 +2811,13 @@ function flushCycleToDisplay() {
 // 특정 histIdx의 기준 포지션 FEN 계산 헬퍼
 function _getHistFen(histIdx) {
   if (!game) return null;
-  try {
-    if (histIdx < 0) {
-      return boardToFen(INIT_BOARD, 'w', { wK: true, wQ: true, bK: true, bQ: true }, null, 0, 1);
-    }
-    const s = game.history[histIdx];
-    if (!s) return null;
-    const b = applyMoveToBoard(s.board.map(r=>[...r]), s.move, s.turn);
-    const t = s.turn === 'w' ? 'b' : 'w';
-    const c = {...s.castling};
-    if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
-      if (s.turn==='w') { c.wK=false; c.wQ=false; } else { c.bK=false; c.bQ=false; }
-    }
-    if (s.move.from[0]===7&&s.move.from[1]===7) c.wK=false;
-    if (s.move.from[0]===7&&s.move.from[1]===0) c.wQ=false;
-    if (s.move.from[0]===0&&s.move.from[1]===7) c.bK=false;
-    if (s.move.from[0]===0&&s.move.from[1]===0) c.bQ=false;
-    const ep = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
-    return boardToFen(b, t, c, ep, s.halfMove+1, s.turn==='b'?s.fullMove+1:s.fullMove);
-  } catch(e) { return null; }
+  if (histIdx < 0) {
+    return boardToFen(INIT_BOARD, 'w', { wK: true, wQ: true, bK: true, bQ: true }, null, 0, 1);
+  }
+  const s = game.history[histIdx];
+  if (!s) return null;
+  // fenAfter가 이미 저장돼 있으므로 board 재계산 불필요
+  return s.fenAfter || null;
 }
 
 // 엔진 정지 상태에서만 호출 — go 명령 전송
@@ -2950,11 +2950,17 @@ function handleMainWorkerMessage(e) {
           if (tb) legalMoveCount = getAllLegalMoves(tb, tt, tc, te).length;
         }
       } catch(e) {}
+      // pvs 슬림화: nps/time_ms 제거, pv 수열 6수로 제한 (메모리 절감)
+      const slimPvs = {};
+      for (const [k, v] of Object.entries(rawPvStore)) {
+        slimPvs[k] = {
+          depth: v.depth, score_type: v.score_type, score_val: v.score_val,
+          pv: (v.pv || []).slice(0, 6), multipv: v.multipv,
+        };
+      }
       evalCache[normFen(savedFen)] = {
         cp: b.cpFromWhite, depth: b.depth, topAlts, legalMoveCount,
-        mateIn,
-        pvs: rawPvStore,
-        turn: pendingTurn,
+        mateIn, pvs: slimPvs, turn: pendingTurn,
       };
       updateMoveAnnotations();
     }
@@ -2990,7 +2996,7 @@ function parseInfoLine(line) {
     multipv:    multipvM ? parseInt(multipvM[1]) : 1,
     score_type: scoreM[1],
     score_val:  parseInt(scoreM[2]),
-    pv:         pvM ? pvM[1].trim().split(' ').slice(0, 10) : [],
+    pv:         pvM ? pvM[1].trim().split(' ').slice(0, 6) : [],  // 6수면 top-moves 표시에 충분
     nps:        npsM  ? parseInt(npsM[1])  : 0,
     time_ms:    timeM ? parseInt(timeM[1]) : 0,
     // _id는 handleMainWorkerMessage에서 수신 즉시 캡처 (타이밍 버그 방지)
@@ -3335,13 +3341,22 @@ function handleBgResult({ fen, turn, pvs }) {
     }
   } catch(e) {}
 
+  // pvs 슬림화: nps/time_ms 제거, pv 수열 6수로 제한 (메모리 절감)
+  const slimPvsBg = {};
+  for (const [k, v] of Object.entries(pvs)) {
+    slimPvsBg[k] = {
+      depth: v.depth, score_type: v.score_type, score_val: v.score_val,
+      pv: (v.pv || []).slice(0, 6), multipv: v.multipv,
+      cpFromWhite: v.cpFromWhite,
+    };
+  }
   evalCache[normFen(fen)] = {
     cp:    pv1.cpFromWhite,
     depth: pv1.depth,
     topAlts,
     legalMoveCount,
     mateIn,
-    pvs,   // 라인 전체 저장 (기보 탐색 시 top-moves 복원용)
+    pvs: slimPvsBg,
     turn,
   };
 
@@ -3476,7 +3491,7 @@ class ChessGame {
     const fenAfter = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, hmAfter, fmAfter);
 
     const state = {
-      board: this.cloneBoard(this.board),
+      // board 클론 제거 — fenBefore/fenAfter로 완전 복원 가능 (메모리 절감)
       turn: this.turn,
       castling: {...this.castling},
       enPassant: this.enPassant,
@@ -3510,8 +3525,8 @@ class ChessGame {
     this.selectedSq = null;
     this.possibleMoves = [];
 
-    // 착수음 재생 (state.board = 착수 전 보드, state.turn = 착수 전 턴)
-    playMoveSound(move, state.board, state.turn);
+    // 착수음 재생 — fenBefore로 board 복원 (state.board 제거 후)
+    playMoveSound(move, parseFenBoard((state.fenBefore||'').split(' ')[0]) || null, state.turn);
 
     this.renderBoard();
     this.renderMoveList();
@@ -3574,7 +3589,7 @@ class ChessGame {
       if (moveIdx < line.length - 1) {
         this.currentVariation.moveIdx++;
         const s = line[this.currentVariation.moveIdx];
-        playMoveSound(s.move, s.board, s.turn);
+        playMoveSound(s.move, s.board || null, s.turn);
         this._restoreVariationState(); return;
       }
       return;
@@ -3582,7 +3597,7 @@ class ChessGame {
     if (this.historyIndex < this.history.length - 1) {
       this.historyIndex++;
       const s = this.history[this.historyIndex];
-      if (s) playMoveSound(s.move, s.board, s.turn);
+      if (s) playMoveSound(s.move, s.board || null, s.turn);
       this._restoreMainState();
     }
   }
@@ -3612,21 +3627,32 @@ class ChessGame {
       this.lastMove = null;
     } else {
       const s = this.history[this.historyIndex];
-      this.board = applyMoveToBoard(this.cloneBoard(s.board), s.move, s.turn);
-      this.turn = s.turn === 'w' ? 'b' : 'w';
-      this.castling = {...s.castling};
-      this.enPassant = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
-      // Update castling from move
-      if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
-        if (s.turn==='w') { this.castling.wK=false; this.castling.wQ=false; }
-        else { this.castling.bK=false; this.castling.bQ=false; }
+      // fenAfter로 포지션 복원 — s.board 클론 불필요 (메모리 절감)
+      const fp = s.fenAfter ? s.fenAfter.split(' ') : null;
+      if (fp) {
+        this.board    = parseFenBoard(fp[0]) || INIT_BOARD.map(r=>[...r]);
+        this.turn     = fp[1] || 'w';
+        this.castling = parseFenCastling(fp[2] || '-');
+        this.enPassant = parseFenEP(fp[3] || '-');
+        this.halfMove  = parseInt(fp[4] || '0');
+        this.fullMove  = parseInt(fp[5] || '1');
+      } else {
+        // fallback: 구버전 저장 데이터 호환
+        this.board = applyMoveToBoard(this.cloneBoard(s.board), s.move, s.turn);
+        this.turn = s.turn === 'w' ? 'b' : 'w';
+        this.castling = {...s.castling};
+        this.enPassant = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
+        if (s.board && s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
+          if (s.turn==='w') { this.castling.wK=false; this.castling.wQ=false; }
+          else { this.castling.bK=false; this.castling.bQ=false; }
+        }
+        if (s.move.from[0]===7&&s.move.from[1]===7) this.castling.wK=false;
+        if (s.move.from[0]===7&&s.move.from[1]===0) this.castling.wQ=false;
+        if (s.move.from[0]===0&&s.move.from[1]===7) this.castling.bK=false;
+        if (s.move.from[0]===0&&s.move.from[1]===0) this.castling.bQ=false;
+        this.halfMove = s.halfMove;
+        this.fullMove = s.fullMove;
       }
-      if (s.move.from[0]===7&&s.move.from[1]===7) this.castling.wK=false;
-      if (s.move.from[0]===7&&s.move.from[1]===0) this.castling.wQ=false;
-      if (s.move.from[0]===0&&s.move.from[1]===7) this.castling.bK=false;
-      if (s.move.from[0]===0&&s.move.from[1]===0) this.castling.bQ=false;
-      this.halfMove = s.halfMove;
-      this.fullMove = s.fullMove;
       this.lastMove = s.move;
     }
     this.selectedSq = null;
@@ -4013,7 +4039,7 @@ class ChessGame {
     const fenAfter = boardToFen(boardAfter, turn==='w'?'b':'w', castAfter, epAfter, halfMove, fullMove);
 
     const varState = {
-      board: this.cloneBoard(board),
+      // board 제거 — fenBefore/fenAfter로 복원 가능 (메모리 절감)
       turn, castling: {...castling}, enPassant, halfMove: halfMove-1, fullMove,
       san, move,
       captured: board[move.to[0]][move.to[1]],
@@ -4039,7 +4065,7 @@ class ChessGame {
     this.selectedSq = null;
     this.possibleMoves = [];
 
-    playMoveSound(move, varState.board, varState.turn);
+    playMoveSound(move, varState.board || null, varState.turn);
     this.renderBoard();
     this.renderMoveList();
     this.updateStatus();
@@ -4078,7 +4104,8 @@ class ChessGame {
     const fenAfter = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, this.halfMove+1, fmAfter);
 
     const varState = {
-      board: this.cloneBoard(this.board), turn: this.turn,
+      // board 제거 — fenBefore/fenAfter로 복원 가능 (메모리 절감)
+      turn: this.turn,
       castling: {...this.castling}, enPassant: this.enPassant,
       halfMove: this.halfMove, fullMove: this.fullMove,
       san, move,
@@ -4101,7 +4128,7 @@ class ChessGame {
     this.selectedSq = null;
     this.possibleMoves = [];
 
-    playMoveSound(move, varState.board, varState.turn);
+    playMoveSound(move, varState.board || null, varState.turn);
     this.renderBoard();
     this.renderMoveList();
     this.updateStatus();
@@ -4139,12 +4166,14 @@ class ChessGame {
     const epAfter = move.doublePush ? [move.to[0]-(this.turn==='w'?-1:1), move.to[1]] : null;
     const fmAfter = this.turn==='b' ? this.fullMove+1 : this.fullMove;
 
+    // board/boardAfter 대신 FEN 저장 (메모리 절감: 8×8 배열 2개 → 문자열 2개)
+    const emFenBefore = boardToFen(this.board, this.turn, this.castling, this.enPassant, this.halfMove, this.fullMove);
+    const emFenAfter  = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, this.halfMove+1, fmAfter);
     lineData.extraMoves.push({
       san, move, turn: this.turn,
-      board: this.cloneBoard(this.board),
-      castling: {...this.castling}, enPassant: this.enPassant,
+      fenBefore: emFenBefore, fenAfter: emFenAfter,
+      castAfter, epAfter, fmAfter,
       halfMove: this.halfMove, fullMove: this.fullMove,
-      boardAfter, castAfter, epAfter, fmAfter
     });
 
     ep.extraMoveIdx = lineData.extraMoves.length - 1;
@@ -4162,7 +4191,7 @@ class ChessGame {
 
     // 방금 push한 extraMove에서 착수 전 board/turn 가져오기
     const em = lineData.extraMoves[lineData.extraMoves.length - 1];
-    playMoveSound(move, em.board, em.turn);
+    playMoveSound(move, em.board || null, em.turn);
     this.renderBoard();
     this.renderMoveList();
     this.updateStatus();
@@ -4179,18 +4208,28 @@ class ChessGame {
     const { varIdx, lineIdx, moveIdx } = this.currentVariation;
     const line = this.variations[varIdx].lines[lineIdx];
     const s = line[moveIdx];
-    this.board = applyMoveToBoard(this.cloneBoard(s.board), s.move, s.turn);
-    this.turn = s.turn === 'w' ? 'b' : 'w';
-    this.castling = {...s.castling};
-    const castAfter = {...s.castling};
-    if (s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
-      if (s.turn==='w') { castAfter.wK=false; castAfter.wQ=false; }
-      else              { castAfter.bK=false; castAfter.bQ=false; }
+    // fenAfter로 복원 — s.board 클론 불필요 (메모리 절감)
+    const fp = s.fenAfter ? s.fenAfter.split(' ') : null;
+    if (fp) {
+      this.board     = parseFenBoard(fp[0]) || INIT_BOARD.map(r=>[...r]);
+      this.turn      = fp[1] || 'w';
+      this.castling  = parseFenCastling(fp[2] || '-');
+      this.enPassant = parseFenEP(fp[3] || '-');
+      this.halfMove  = parseInt(fp[4] || '0');
+      this.fullMove  = parseInt(fp[5] || '1');
+    } else {
+      this.board = applyMoveToBoard(this.cloneBoard(s.board), s.move, s.turn);
+      this.turn = s.turn === 'w' ? 'b' : 'w';
+      const castAfter = {...s.castling};
+      if (s.board && s.board[s.move.from[0]][s.move.from[1]] === `${s.turn}K`) {
+        if (s.turn==='w') { castAfter.wK=false; castAfter.wQ=false; }
+        else              { castAfter.bK=false; castAfter.bQ=false; }
+      }
+      this.castling  = castAfter;
+      this.enPassant = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
+      this.halfMove  = s.halfMove;
+      this.fullMove  = s.fullMove;
     }
-    this.castling = castAfter;
-    this.enPassant = s.move.doublePush ? [s.move.to[0]-(s.turn==='w'?-1:1), s.move.to[1]] : null;
-    this.halfMove = s.halfMove;
-    this.fullMove = s.fullMove;
     this.lastMove = s.move;
     this.selectedSq = null;
     this.possibleMoves = [];
@@ -4553,12 +4592,23 @@ class ChessGame {
     };
     this.historyIndex = histIdx;
 
-    this.board = em.boardAfter.map(r=>[...r]);
-    this.turn = em.turn === 'w' ? 'b' : 'w';
-    this.castling = {...em.castAfter};
-    this.enPassant = em.epAfter;
-    this.halfMove = em.halfMove + 1;
-    this.fullMove = em.fmAfter;
+    // fenAfter로 보드 복원 (boardAfter 제거 후)
+    const emFp = em.fenAfter ? em.fenAfter.split(' ') : null;
+    if (emFp) {
+      this.board     = parseFenBoard(emFp[0]) || INIT_BOARD.map(r=>[...r]);
+      this.turn      = emFp[1] || 'w';
+      this.castling  = parseFenCastling(emFp[2] || '-');
+      this.enPassant = parseFenEP(emFp[3] || '-');
+      this.halfMove  = parseInt(emFp[4] || '0');
+      this.fullMove  = parseInt(emFp[5] || '1');
+    } else {
+      this.board = em.boardAfter ? em.boardAfter.map(r=>[...r]) : INIT_BOARD.map(r=>[...r]);
+      this.turn = em.turn === 'w' ? 'b' : 'w';
+      this.castling = {...em.castAfter};
+      this.enPassant = em.epAfter;
+      this.halfMove = em.halfMove + 1;
+      this.fullMove = em.fmAfter;
+    }
     this.lastMove = em.move;
     this.selectedSq = null;
     this.possibleMoves = [];
@@ -5590,8 +5640,7 @@ function toggleColorMode() {
 // 착수 사운드 시스템 — mp3 파일 기반
 // ═══════════════════════════════════════════════════════════
 
-// mp3 사운드 캐시 (미리 로드)
-const _soundCache = {};
+// 사운드: AudioContext + AudioBuffer 방식 (cloneNode 누수 방지)
 const _soundFiles = {
   move:       'sound/chess_move.mp3',
   capture:    'sound/chess_capture.mp3',
@@ -5600,29 +5649,31 @@ const _soundFiles = {
   checkmate:  'sound/chess_checkmate.mp3',
   stalemate:  'sound/chess_stalemate.mp3',
 };
-
-// 페이지 로드 시 미리 캐싱
-(function preloadSounds() {
-  for (const [key, src] of Object.entries(_soundFiles)) {
-    const audio = new Audio(src);
-    audio.preload = 'auto';
-    _soundCache[key] = audio;
-  }
-})();
-
 const _audioCtx = (() => {
   try { return new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; }
+})();
+const _soundBuffers = {};  // AudioBuffer 캐시 (decode once, play many times)
+
+// 페이지 로드 시 AudioBuffer로 미리 디코딩
+(function preloadSounds() {
+  if (!_audioCtx) return;
+  for (const [key, src] of Object.entries(_soundFiles)) {
+    fetch(src)
+      .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(buf => _audioCtx.decodeAudioData(buf))
+      .then(decoded => { _soundBuffers[key] = decoded; })
+      .catch(() => {});
+  }
 })();
 
 function _playSound(type) {
   if (_soundMuted) return;
+  const ctx = _audioCtx;
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const now = ctx.currentTime;
 
-  // nav(탐색)는 mp3 없으니 Web Audio로 짧은 클릭음 처리
   if (type === 'nav') {
-    const ctx = _audioCtx;
-    if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume();
-    const now = ctx.currentTime;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.07, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
@@ -5633,16 +5684,20 @@ function _playSound(type) {
     return;
   }
 
-  const audio = _soundCache[type];
-  if (!audio) return;
-  const clone = audio.cloneNode();
-  clone.volume = 1.0;
-  clone.play().catch(() => {});
+  const buf = _soundBuffers[type];
+  if (!buf) return;
+  // BufferSource는 일회용이지만 AudioBuffer 자체는 재사용 — cloneNode 불필요
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(ctx.destination);
+  src.start(now);
 }
 
 // move 객체와 착수 전 보드/턴을 받아 적절한 사운드 재생
 function playMoveSound(move, boardBefore, turn) {
   if (_soundMuted || !move) return;
+  // boardBefore가 null일 수 있음 (history.board 제거 후) — 안전하게 처리
+  if (!boardBefore) { _playSound(move.castle ? 'castle' : move.enPassant ? 'capture' : 'move'); return; }
   const boardAfter = applyMoveToBoard(boardBefore.map(r=>[...r]), move, turn);
   const enemy = turn === 'w' ? 'b' : 'w';
   const inCheck = isInCheck(boardAfter, enemy);
