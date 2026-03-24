@@ -379,6 +379,42 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ══════════ 모바일 대국 화면 최적화 ══════════ */
+@media (max-width: 768px) {
+  /* 대국 중일 때 사이드바 완전 숨김 */
+  body.playing #sidebar {
+    display: none !important;
+  }
+
+  /* 보드 최대한 크게 */
+  #screen-playing {
+    padding: 8px 6px;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  #play-board-wrap {
+    max-width: calc(100vw - 12px) !important;
+    width: calc(100vw - 12px) !important;
+  }
+
+  .player-bar {
+    max-width: calc(100vw - 12px) !important;
+    width: calc(100vw - 12px) !important;
+    padding: 8px 12px;
+  }
+
+  .play-actions {
+    max-width: calc(100vw - 12px) !important;
+    width: calc(100vw - 12px) !important;
+  }
+
+  /* 기물 크기도 크게 */
+  .sq {
+    font-size: clamp(20px, 11vw, 52px);
+  }
+}
+
 /* ── 토스트 ── */
 #toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -1222,6 +1258,12 @@ function showScreen(name) {
     const el = document.getElementById('screen-'+s);
     if (el) el.style.display = s===name ? 'flex' : 'none';
   });
+  // 모바일: 대국 중일 때 사이드바 숨김
+  if (name === 'playing') {
+    document.body.classList.add('playing');
+  } else {
+    document.body.classList.remove('playing');
+  }
 }
 
 // ── 토스트 ──
