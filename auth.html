@@ -69,7 +69,7 @@
   onAuthStateChanged(auth, (user) => {
     if (user) {
       // 로그인 성공 → 체스 분석 보드로 자동 이동
-      window.location.href = 'https://chess-education-464fc.web.app/';
+      window.location.href = 'https://chess-education.vercel.app/chess-wasm-fixed.html';
     } else {
       showAuthForms();
     }
@@ -875,7 +875,7 @@ body::after {
       </div>
     </div>
 
-    <a href="chess-wasm-fixed.html" class="go-to-chess">
+    <a href="https://chess-education.vercel.app/chess-wasm-fixed.html" class="go-to-chess">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <path d="M5 12h14M12 5l7 7-7 7"/>
       </svg>
