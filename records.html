@@ -298,6 +298,134 @@ body {
 /* 애니메이션 */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
+/* ═══════════════════════════════════
+   통계 패널
+═══════════════════════════════════ */
+#stats-panel {
+  display: none;
+  flex: 1; overflow-y: auto;
+  padding: 28px;
+  background: var(--bg-primary);
+}
+#stats-panel::-webkit-scrollbar { width: 4px; }
+#stats-panel::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+.stats-header {
+  margin-bottom: 28px;
+}
+.stats-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem; font-weight: 900;
+  color: var(--text-primary); margin-bottom: 4px;
+}
+.stats-sub { font-size: 12px; color: var(--text-muted); }
+
+.stats-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; height: 200px; color: var(--text-muted);
+}
+.stats-spinner {
+  width: 36px; height: 36px; border: 3px solid var(--border);
+  border-top-color: var(--accent-green); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 승패 요약 */
+.wdl-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;
+}
+.wdl-card {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px;
+  padding: 16px; text-align: center;
+}
+.wdl-card.win  { border-color: rgba(127,166,80,0.45); }
+.wdl-card.lose { border-color: rgba(192,64,64,0.35); }
+.wdl-num {
+  font-family: var(--font-display);
+  font-size: 2.2rem; font-weight: 900; line-height: 1;
+}
+.wdl-card.win  .wdl-num { color: var(--accent-green-bright); }
+.wdl-card.lose .wdl-num { color: #e07070; }
+.wdl-card.draw .wdl-num { color: var(--text-secondary); }
+.wdl-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+/* 승률 바 */
+.winrate-bar-wrap {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px;
+  padding: 16px; margin-bottom: 24px;
+}
+.winrate-bar-label {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.winrate-bar-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.winrate-bar-pct { font-size: 14px; font-weight: 700; color: var(--accent-green-bright); }
+.winrate-bar {
+  height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden;
+}
+.winrate-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent-green-dark), var(--accent-green-bright));
+  border-radius: 4px; transition: width 0.6s ease;
+}
+
+/* 통계 섹션 제목 */
+.stats-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted); margin-bottom: 10px; margin-top: 24px;
+}
+
+/* 전술 그리드 */
+.tactic-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 8px;
+}
+.tactic-card {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px;
+  padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+}
+.tactic-icon { font-size: 24px; flex-shrink: 0; }
+.tactic-body { flex: 1; min-width: 0; }
+.tactic-name { font-size: 12px; color: var(--text-secondary); }
+.tactic-num {
+  font-family: var(--font-display);
+  font-size: 1.6rem; font-weight: 900; line-height: 1.1;
+  color: var(--text-primary);
+}
+.tactic-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+/* 색상별 통계 */
+.color-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 8px;
+}
+.color-card {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px;
+  padding: 14px 16px;
+}
+.color-card-title { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.color-stat-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.color-stat-row span:last-child { font-weight: 700; color: var(--text-primary); }
+
+/* 평균 수 */
+.avg-moves-card {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 14px;
+  padding: 16px; display: flex; align-items: center; gap: 16px; margin-bottom: 8px;
+}
+.avg-moves-num {
+  font-family: var(--font-display);
+  font-size: 2.6rem; font-weight: 900; color: var(--accent-green-bright); flex-shrink: 0;
+}
+.avg-moves-desc { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+/* 결말 방식 */
+.end-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.end-item { display: flex; align-items: center; gap: 10px; }
+.end-label { font-size: 12px; color: var(--text-secondary); flex: 1; }
+.end-bar-wrap { width: 100px; height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; }
+.end-bar-fill { height: 100%; background: var(--accent-green-dark); border-radius: 3px; }
+.end-count { font-size: 12px; font-weight: 700; color: var(--text-primary); min-width: 28px; text-align: right; }
+
+.stats-note { font-size: 10px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+
 /* 토스트 */
 #toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -327,11 +455,18 @@ body {
       </div>
       <span class="sidebar-label">대국</span>
     </a>
-    <a class="sidebar-item active" href="/records.html" title="기록">
+
+    <a class="sidebar-item active" id="tab-records-btn" href="#" title="기록" onclick="switchTab('records');return false;">
       <div class="sidebar-icon">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM8 15V17H16V15H8ZM8 11V13H16V11H8Z"/></svg>
       </div>
       <span class="sidebar-label">기록</span>
+    </a>
+    <a class="sidebar-item" id="tab-stats-btn" href="#" title="통계" onclick="switchTab('stats');return false;">
+      <div class="sidebar-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg>
+      </div>
+      <span class="sidebar-label">통계</span>
     </a>
   </div>
   <div class="sidebar-footer">
@@ -365,6 +500,20 @@ body {
       <div class="empty-state">
         <div class="empty-icon">♟</div>
         <div>기록을 불러오는 중입니다...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 통계 패널 -->
+  <div id="stats-panel">
+    <div class="stats-header">
+      <div class="stats-title">게임 통계</div>
+      <div class="stats-sub" id="stats-sub">분석 중...</div>
+    </div>
+    <div id="stats-content">
+      <div class="stats-loading">
+        <div class="stats-spinner"></div>
+        <div>기보를 분석하는 중...</div>
       </div>
     </div>
   </div>
@@ -951,6 +1100,338 @@ function showToast(msg, duration=2500) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ══════════════════════════════════════════
+// 탭 전환
+// ══════════════════════════════════════════
+function switchTab(tab) {
+  const recordsBtn = document.getElementById('tab-records-btn');
+  const statsBtn   = document.getElementById('tab-stats-btn');
+  const listPanel  = document.getElementById('list-panel');
+  const viewerPanel= document.getElementById('viewer-panel');
+  const statsPanel = document.getElementById('stats-panel');
+
+  if (tab === 'records') {
+    recordsBtn.classList.add('active');
+    statsBtn.classList.remove('active');
+    listPanel.style.display  = '';
+    viewerPanel.style.display= '';
+    statsPanel.style.display = 'none';
+  } else {
+    statsBtn.classList.add('active');
+    recordsBtn.classList.remove('active');
+    listPanel.style.display  = 'none';
+    viewerPanel.style.display= 'none';
+    statsPanel.style.display = 'block';
+    renderStats();
+  }
+}
+
+// ══════════════════════════════════════════
+// 통계 분석
+// ══════════════════════════════════════════
+let _statsCache = null;
+
+function analyzePgn(pgn) {
+  const result = {
+    checks: 0, checkmates: 0,
+    captures: 0, castles: 0, enPassants: 0, promotions: 0,
+    forks: 0,
+    totalMoves: 0
+  };
+  if (!pgn) return result;
+
+  const states = parsePgnToStates(pgn);
+  result.totalMoves = states.length - 1;
+
+  for (let i = 1; i < states.length; i++) {
+    const state = states[i];
+    const prevState = states[i - 1];
+    const move = state.move;
+    if (!move) continue;
+    const color = prevState.turn;
+
+    // 체크 / 체크메이트
+    const nextTurn = state.turn;
+    if (isInCheck(state.board, nextTurn)) {
+      const legal = getAllLegal(state.board, nextTurn, state.castling, state.enPassant);
+      if (legal.length === 0) result.checkmates++;
+      else result.checks++;
+    }
+
+    // 기물 잡기
+    const prevBoard = prevState.board;
+    if (prevBoard[move.to[0]][move.to[1]] || move.enPassant) {
+      result.captures++;
+    }
+    if (move.enPassant) result.enPassants++;
+    if (move.castle) result.castles++;
+    if (move.promo || move.promoPiece) result.promotions++;
+
+    // 포크 감지: 이동 후 내 기물이 상대 기물 2개 이상 공격하는지
+    const forkCount = detectFork(state.board, color, move.to);
+    if (forkCount >= 2) result.forks++;
+  }
+  return result;
+}
+
+// 포크 감지: piece at [r,c]가 상대 기물을 몇 개 공격하는지
+function detectFork(board, color, pos) {
+  const [r, c] = pos;
+  const piece = board[r][c];
+  if (!piece) return 0;
+  const enemy = enemyColor(color);
+  // 해당 기물의 이동 가능한 칸 중 상대 기물이 있는 칸 수
+  const pseudos = pseudoMoves(board, r, c,
+    {wK:false,wQ:false,bK:false,bQ:false}, null);
+  let attacked = 0;
+  for (const m of pseudos) {
+    const t = board[m.to[0]][m.to[1]];
+    // 상대 킹은 항상 공격 중이므로 제외 (단순 체크와 구분), 다른 기물 카운트
+    if (t && t[0] === enemy && t[1] !== 'K') attacked++;
+  }
+  return attacked;
+}
+
+async function renderStats() {
+  const contentEl = document.getElementById('stats-content');
+  const subEl = document.getElementById('stats-sub');
+
+  if (_statsCache) {
+    renderStatsHTML(_statsCache);
+    return;
+  }
+
+  contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div>기보를 분석하는 중...</div></div>`;
+
+  try {
+    let snap;
+    try {
+      snap = await _fbDb.collection('game_records')
+        .where('uid','==',_user.uid)
+        .orderBy('playedAt','desc')
+        .limit(50)
+        .get();
+    } catch(e) {
+      snap = await _fbDb.collection('game_records')
+        .where('uid','==',_user.uid)
+        .limit(50)
+        .get();
+    }
+
+    const docs = [];
+    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+
+    if (!docs.length) {
+      contentEl.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><div>분석할 기록이 없습니다</div></div>`;
+      return;
+    }
+
+    // 통계 집계
+    let wins=0, losses=0, draws=0;
+    let winsW=0,lossesW=0,drawsW=0, winsB=0,lossesB=0,drawsB=0;
+    let totalChecks=0, totalCheckmates=0, totalCaptures=0;
+    let totalCastles=0, totalForks=0, totalEnPassants=0, totalPromos=0;
+    let totalMovesSum=0;
+    let endCheckmate=0, endResign=0, endDraw=0, endTimeout=0;
+    const myColor_counts = {w:0, b:0};
+
+    for (const doc of docs) {
+      const myColor = doc.myColor || 'w';
+      const result  = doc.result || '*';
+      myColor_counts[myColor]++;
+
+      const myWin  = (result==='1-0'&&myColor==='w') || (result==='0-1'&&myColor==='b');
+      const myLose = (result==='0-1'&&myColor==='w') || (result==='1-0'&&myColor==='b');
+      if (myWin) { wins++; if(myColor==='w') winsW++; else winsB++; }
+      else if (myLose) { losses++; if(myColor==='w') lossesW++; else lossesB++; }
+      else { draws++; if(myColor==='w') drawsW++; else drawsB++; }
+
+      // 종료 방식 추정
+      const termination = (doc.termination || '').toLowerCase();
+      if (termination.includes('checkmate') || termination.includes('체크메이트')) endCheckmate++;
+      else if (termination.includes('resign') || termination.includes('기권')) endResign++;
+      else if (termination.includes('time') || termination.includes('시간')) endTimeout++;
+      else endDraw++;
+
+      // PGN 분석
+      if (doc.pgn) {
+        const a = analyzePgn(doc.pgn);
+        totalChecks     += a.checks;
+        totalCheckmates += a.checkmates;
+        totalCaptures   += a.captures;
+        totalCastles    += a.castles;
+        totalForks      += a.forks;
+        totalEnPassants += a.enPassants;
+        totalPromos     += a.promotions;
+        totalMovesSum   += a.totalMoves;
+      } else if (doc.moveCount) {
+        totalMovesSum += doc.moveCount;
+      }
+    }
+
+    const total = docs.length;
+    const avgMoves = total > 0 ? Math.round(totalMovesSum / total) : 0;
+    const winRate = total > 0 ? Math.round(wins / total * 100) : 0;
+
+    _statsCache = {
+      total, wins, losses, draws,
+      winsW, lossesW, drawsW, winsB, lossesB, drawsB,
+      totalChecks, totalCheckmates, totalCaptures,
+      totalCastles, totalForks, totalEnPassants, totalPromos,
+      avgMoves, winRate,
+      endCheckmate, endResign, endDraw, endTimeout,
+      myColor_counts
+    };
+
+    subEl.textContent = `총 ${total}게임 분석 완료`;
+    renderStatsHTML(_statsCache);
+
+  } catch(e) {
+    contentEl.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div>분석 실패: ${e.message}</div></div>`;
+  }
+}
+
+function renderStatsHTML(s) {
+  const contentEl = document.getElementById('stats-content');
+  const endMax = Math.max(s.endCheckmate, s.endResign, s.endDraw, s.endTimeout, 1);
+
+  contentEl.innerHTML = `
+    <!-- 승/무/패 -->
+    <div class="wdl-row">
+      <div class="wdl-card win">
+        <div class="wdl-num">${s.wins}</div>
+        <div class="wdl-label">승리</div>
+      </div>
+      <div class="wdl-card draw">
+        <div class="wdl-num">${s.draws}</div>
+        <div class="wdl-label">무승부</div>
+      </div>
+      <div class="wdl-card lose">
+        <div class="wdl-num">${s.losses}</div>
+        <div class="wdl-label">패배</div>
+      </div>
+    </div>
+
+    <!-- 승률 바 -->
+    <div class="winrate-bar-wrap">
+      <div class="winrate-bar-label">
+        <span class="winrate-bar-title">승률</span>
+        <span class="winrate-bar-pct">${s.winRate}%</span>
+      </div>
+      <div class="winrate-bar">
+        <div class="winrate-bar-fill" style="width:${s.winRate}%"></div>
+      </div>
+    </div>
+
+    <!-- 색상별 통계 -->
+    <div class="stats-section-title">⬜⬛ 색상별 성적</div>
+    <div class="color-grid">
+      <div class="color-card">
+        <div class="color-card-title">⬜ 백으로 플레이</div>
+        <div class="color-stat-row"><span>승</span><span>${s.winsW}</span></div>
+        <div class="color-stat-row"><span>무</span><span>${s.drawsW}</span></div>
+        <div class="color-stat-row"><span>패</span><span>${s.lossesW}</span></div>
+        <div class="color-stat-row"><span>게임 수</span><span>${s.myColor_counts.w}</span></div>
+      </div>
+      <div class="color-card">
+        <div class="color-card-title">⬛ 흑으로 플레이</div>
+        <div class="color-stat-row"><span>승</span><span>${s.winsB}</span></div>
+        <div class="color-stat-row"><span>무</span><span>${s.drawsB}</span></div>
+        <div class="color-stat-row"><span>패</span><span>${s.lossesB}</span></div>
+        <div class="color-stat-row"><span>게임 수</span><span>${s.myColor_counts.b}</span></div>
+      </div>
+    </div>
+
+    <!-- 전술 통계 -->
+    <div class="stats-section-title">⚔️ 전술 통계 (내 수 기준)</div>
+    <div class="tactic-grid">
+      <div class="tactic-card">
+        <div class="tactic-icon">♞</div>
+        <div class="tactic-body">
+          <div class="tactic-name">포크</div>
+          <div class="tactic-num">${s.totalForks}</div>
+          <div class="tactic-sub">2개 이상 동시 위협</div>
+        </div>
+      </div>
+      <div class="tactic-card">
+        <div class="tactic-icon">♚</div>
+        <div class="tactic-body">
+          <div class="tactic-name">체크</div>
+          <div class="tactic-num">${s.totalChecks}</div>
+          <div class="tactic-sub">왕에게 위협</div>
+        </div>
+      </div>
+      <div class="tactic-card">
+        <div class="tactic-icon">👑</div>
+        <div class="tactic-body">
+          <div class="tactic-name">체크메이트</div>
+          <div class="tactic-num">${s.totalCheckmates}</div>
+          <div class="tactic-sub">게임 종료 체크</div>
+        </div>
+      </div>
+      <div class="tactic-card">
+        <div class="tactic-icon">💥</div>
+        <div class="tactic-body">
+          <div class="tactic-name">기물 잡기</div>
+          <div class="tactic-num">${s.totalCaptures}</div>
+          <div class="tactic-sub">상대 기물 제거</div>
+        </div>
+      </div>
+      <div class="tactic-card">
+        <div class="tactic-icon">🏰</div>
+        <div class="tactic-body">
+          <div class="tactic-name">캐슬링</div>
+          <div class="tactic-num">${s.totalCastles}</div>
+          <div class="tactic-sub">킹 안전 이동</div>
+        </div>
+      </div>
+      <div class="tactic-card">
+        <div class="tactic-icon">♛</div>
+        <div class="tactic-body">
+          <div class="tactic-name">프로모션</div>
+          <div class="tactic-num">${s.totalPromos}</div>
+          <div class="tactic-sub">폰 승진</div>
+        </div>
+      </div>
+    </div>
+    ${s.totalEnPassants > 0 ? `<div class="stats-note">앙파상: ${s.totalEnPassants}회</div>` : ''}
+    <div class="stats-note">※ 포크는 이동 후 상대 기물 2개 이상을 동시에 위협한 수를 카운트합니다. 전술 통계는 내가 둔 수만 집계합니다.</div>
+
+    <!-- 평균 게임 길이 -->
+    <div class="stats-section-title">📏 게임 길이</div>
+    <div class="avg-moves-card">
+      <div class="avg-moves-num">${s.avgMoves}</div>
+      <div class="avg-moves-desc">평균 수<br><span style="color:var(--text-muted)">총 ${s.total}게임 기준</span></div>
+    </div>
+
+    <!-- 종료 방식 -->
+    <div class="stats-section-title">🏁 종료 방식 (추정)</div>
+    <div class="end-list">
+      <div class="end-item">
+        <span class="end-label">체크메이트</span>
+        <div class="end-bar-wrap"><div class="end-bar-fill" style="width:${Math.round(s.endCheckmate/endMax*100)}%"></div></div>
+        <span class="end-count">${s.endCheckmate}</span>
+      </div>
+      <div class="end-item">
+        <span class="end-label">기권/기타</span>
+        <div class="end-bar-wrap"><div class="end-bar-fill" style="width:${Math.round(s.endResign/endMax*100)}%"></div></div>
+        <span class="end-count">${s.endResign}</span>
+      </div>
+      <div class="end-item">
+        <span class="end-label">시간 초과</span>
+        <div class="end-bar-wrap"><div class="end-bar-fill" style="width:${Math.round(s.endTimeout/endMax*100)}%"></div></div>
+        <span class="end-count">${s.endTimeout}</span>
+      </div>
+      <div class="end-item">
+        <span class="end-label">무승부</span>
+        <div class="end-bar-wrap"><div class="end-bar-fill" style="width:${Math.round(s.endDraw/endMax*100)}%"></div></div>
+        <span class="end-count">${s.endDraw}</span>
+      </div>
+    </div>
+    <div class="stats-note">※ 종료 방식은 Firebase termination 필드 기반 추정치입니다.</div>
+  `;
 }
 </script>
 </body>
