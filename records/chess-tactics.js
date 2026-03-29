@@ -35,6 +35,13 @@
  *   적 기물이 새로 핀되는 경우.
  *   단, 이동 후 체크 상태이면 제외.
  *
+ * ── 수정 이력 ──────────────────────────────────────────────────────────────
+ * [버그 수정] 경로 B(발견 핀) 오탐 수정
+ *   기존: prevBoard에서 출발지만 비운 boardWithout으로 핀 검사
+ *         → 이동 기물의 목적지 반영 안 됨 → 오탐 발생
+ *   수정: 실제 이동이 완료된 nextBoard로 핀 검사
+ *         → 이동 전(prevBoard) vs 이동 후(nextBoard) 정확히 비교
+ *
  * 의존성: chess-engine.js (전역 함수들 사용)
  *
  * 외부에 노출하는 주요 함수:
@@ -232,8 +239,10 @@ function _isPinningFromSquare(board, r, c, color) {
  *   이동한 기물이 B/R/Q이고 이동 후 핀을 만들면서,
  *   이동 전 출발지에서는 같은 핀이 없었던 경우.
  *
- * [경로 B - 발견 핀]
+ * [경로 B - 발견 핀]  ← 버그 수정
  *   이동한 기물이 자리를 비워 뒤의 아군 B/R/Q가 새로 핀을 만드는 경우.
+ *   수정: boardWithout(출발지만 제거한 가상 보드) 대신
+ *         nextBoard(실제 이동 완료 보드)로 핀 검사하여 오탐 제거.
  *
  * 공통 제외: 이동 후 적 킹이 체크 상태이면 false (체크가 주목적인 수)
  *
@@ -263,17 +272,17 @@ function detectPinCreated(prevBoard, nextBoard, move, color) {
   }
 
   // ── 경로 B: 발견 핀 ──────────────────────────────────────────────────────
-  // fromPos를 비웠을 때 아군 슬라이딩 기물이 새로 핀을 만드는지 확인
-  const boardWithout = prevBoard.map(row => [...row]);
-  boardWithout[fr][fc] = null;
-
+  // [수정] boardWithout(출발지만 비운 가상 보드) → nextBoard(실제 이동 완료 보드) 사용
+  // 이유: boardWithout은 이동 기물의 목적지가 반영되지 않아 오탐 발생
+  //       nextBoard는 이동 전후를 정확히 반영하므로 발견 핀을 올바르게 판정
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-    if (r === fr && c === fc) continue; // 이미 비운 자리
-    const p = boardWithout[r][c];
+    // 이동한 기물 자신(목적지)은 경로 A에서 이미 처리했으므로 제외
+    if (r === tr && c === tc) continue;
+    const p = nextBoard[r][c];
     if (!p || p[0] !== color || !['B','R','Q'].includes(p[1])) continue;
-    // 이전 보드에서는 핀 없고, fromPos를 비운 후에는 핀 있으면 발견 핀
+    // 이전 보드에서는 핀 없고, 이동 후 보드에서는 핀 있으면 발견 핀
     if (!_isPinningFromSquare(prevBoard, r, c, color) &&
-         _isPinningFromSquare(boardWithout, r, c, color)) {
+         _isPinningFromSquare(nextBoard, r, c, color)) {
       return true;
     }
   }
