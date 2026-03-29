@@ -63,6 +63,16 @@
  *          예) bBe4 → wRc2(500) → wRb1(500): 동가치지만 실질 핀 → 탐지됨
  *          오탐 방지: shield < pinned (피핀>shield, 이동이 오히려 이득) → 여전히 제외
  *
+ * [수정 7] 상대 핀 오탐 수정: 공격자-피핀 동일 기물 타입 제외 조건 추가
+ *          기존: bB→wB→wQ 케이스가 핀으로 카운팅됨 (오탐)
+ *          원인: 공격자(bB)가 피핀(wB)을 잡으면 교환(동가치)이 일어나고
+ *                공격자도 사라지므로 shield(wQ)에 대한 압박이 소멸함.
+ *                즉 "교환 후 위협 지속"이 없으므로 실질적 핀이 아님.
+ *          수정: pt === firstPiece.piece[1] 이면 핀 인정 안 함
+ *          예) bB→wB→wQ (B→B 동종): 오탐 제거 ✓
+ *              bB→wN→wQ (B→N 이종): 정상 탐지 유지 ✓
+ *              bQ→wN→wQ (Q→N 이종): 정상 탐지 유지 ✓
+ *
  * 의존성: chess-engine.js (전역 함수들 사용)
  *
  * 외부에 노출하는 주요 함수:
@@ -309,8 +319,14 @@ function _isRelativePinFromSquare(board, r, c, color) {
           // shield가 최소 기준(룩 이상) 미만이면 무시
           if (shieldVal < RELATIVE_PIN_SHIELD_MIN) break;
 
+          // [추가 조건] 공격자와 피핀이 동일 기물 타입이면 상대 핀으로 인정하지 않음.
+          // 예) bB→wB→wQ: 비숍끼리 교환 후 우연히 뒤에 퀸이 있는 상황.
+          //     이 경우 공격자가 피핀을 잡으면 교환(동가치)이 일어나고
+          //     공격자도 사라지므로 shield에 대한 압박이 없어짐 → 핀 아님.
+          // 예) bB→wN→wQ: 다른 타입 → 핀 인정.
+          if (pt === firstPiece.piece[1]) break;
+
           // 핵심 조건: shield 가치 >= 피핀 가치
-          // 피핀이 이동하면 shield가 공격자에게 노출되어 손해가 되는 경우만 핀으로 인정
           if (shieldVal >= pinnedVal) return true;
 
           break;
