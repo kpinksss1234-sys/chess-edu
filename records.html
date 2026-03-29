@@ -523,7 +523,7 @@ async function renderStats(){
   const myColor_counts={w:0,b:0};let totalMovesSum=0;
   let sumMyBlunders=0,sumMyMistakes=0,sumMyInaccuracies=0;
   let sumOppBlunders=0,sumOppMistakes=0,sumOppBF=0,sumOppBM=0;
-  let sumCheckmates=0,sumPinFound=0,sumPinMissed=0;
+  let sumCheckmates=0,sumAbsPinFound=0,sumAbsPinMissed=0,sumRelPinFound=0,sumRelPinMissed=0;
   let sumForkFound={P:0,N:0,B:0,R:0,Q:0,K:0},sumForkMissed={P:0,N:0,B:0,R:0,Q:0,K:0},sumOppForkCreated={P:0,N:0,B:0,R:0,Q:0,K:0};
   let sumCp=0,sumMoves=0;
   const total=docs.length;
@@ -562,7 +562,9 @@ async function renderStats(){
         sumMyBlunders+=a.myBlunders;sumMyMistakes+=a.myMistakes;sumMyInaccuracies+=a.myInaccuracies;
         sumOppBlunders+=a.oppBlunders;sumOppMistakes+=a.oppMistakes;
         sumOppBF+=a.oppBlunderFound;sumOppBM+=a.oppBlunderMissed;
-        sumCheckmates+=a.checkmates;sumPinFound+=a.pinFound;sumPinMissed+=a.pinMissed;
+        sumCheckmates+=a.checkmates;
+        sumAbsPinFound+=(a.absPinFound||0);sumAbsPinMissed+=(a.absPinMissed||0);
+        sumRelPinFound+=(a.relPinFound||0);sumRelPinMissed+=(a.relPinMissed||0);
         sumCp+=a.myCpSum;sumMoves+=a.myMoveCount;totalMovesSum+=a.totalMoves;
         for(const k of['P','N','B','R','Q','K']){sumForkFound[k]+=(a.forkFound[k]||0);sumForkMissed[k]+=(a.forkMissed[k]||0);sumOppForkCreated[k]+=(a.oppForkCreated?.[k]||0);}
         // 게임별 전술 상세 저장
@@ -581,7 +583,11 @@ async function renderStats(){
     oppBlunderFound:sumOppBF,oppBlunderMissed:sumOppBM,
     checkmates:sumCheckmates,
     forkFound:sumForkFound,forkMissed:sumForkMissed,oppForkCreated:sumOppForkCreated,
-    pinFound:sumPinFound,pinMissed:sumPinMissed,
+    absPinFound:sumAbsPinFound,absPinMissed:sumAbsPinMissed,
+    relPinFound:sumRelPinFound,relPinMissed:sumRelPinMissed,
+    // 하위 호환: 합산 필드도 유지
+    pinFound:sumAbsPinFound+sumRelPinFound,
+    pinMissed:sumAbsPinMissed+sumRelPinMissed,
     avgCpLoss:sumMoves>0?Math.round(sumCp/sumMoves):0
   };
   subEl.textContent=`총 ${total}게임 · Stockfish 깊이 ${SF_DEPTH} 분석 완료`;
@@ -596,7 +602,7 @@ function openTacticModal(tacticType,tacticPiece,icon,name,subtypeFilter){
   const titleEl=document.getElementById('tmodal-title');
   const bodyEl=document.getElementById('tmodal-body');
 
-  const typeLabel={fork:'포크',oppFork:'상대 포크',pin:'절대 핀',oppBlunder:'상대 블런더 포착'}[tacticType]||tacticType;
+  const typeLabel={fork:'포크',oppFork:'상대 포크',absPin:'절대 핀',relPin:'상대 핀',pin:'핀',oppBlunder:'상대 블런더 포착'}[tacticType]||tacticType;
   const subtypeLabel=subtypeFilter==='found'?'찾음':subtypeFilter==='missed'?'놓침':'';
   titleEl.innerHTML=`<span>${icon}</span> ${name} — ${typeLabel}${subtypeLabel?' ('+subtypeLabel+')':''} 게임 목록`;
 
@@ -693,19 +699,29 @@ function renderStatsHTML(s){
     </div>`;
   }).join('');
   const pinHtml=(()=>{
-    const found=s.pinFound,missed=s.pinMissed,tot=found+missed;
+    const absFound=s.absPinFound||0, absMissed=s.absPinMissed||0;
+    const relFound=s.relPinFound||0, relMissed=s.relPinMissed||0;
+    const tot=(absFound+absMissed+relFound+relMissed);
     if(tot===0)return'';
-    const fp=Math.round(found/tot*100),mp=100-fp;
-    const rows=[
-      found>0?`<div class="fvm-row clickable" onclick="openTacticModal('pin','','📌','찾은 핀','found')">
-        <div class="fvm-piece-col"><div class="fvm-piece-icon">📌</div><div class="fvm-piece-name">찾은 핀</div><div class="fvm-piece-total">${found}회</div></div>
-        <div class="fvm-bars-col"><div class="fvm-bar-row"><span class="fvm-pct found">✔ 찾음</span><div class="fvm-track"><div class="fvm-fill found" style="width:100%"></div></div><span class="fvm-count">${found}</span></div></div>
-      </div>`:'',
-      missed>0?`<div class="fvm-row clickable" onclick="openTacticModal('pin','','📌','놓친 핀','missed')">
-        <div class="fvm-piece-col"><div class="fvm-piece-icon">📌</div><div class="fvm-piece-name">놓친 핀</div><div class="fvm-piece-total">${missed}회</div></div>
-        <div class="fvm-bars-col"><div class="fvm-bar-row"><span class="fvm-pct missed">✘ 놓침</span><div class="fvm-track"><div class="fvm-fill missed" style="width:100%"></div></div><span class="fvm-count">${missed}</span></div></div>
-      </div>`:''
-    ];
+    const rows=[];
+    // 절대 핀
+    if(absFound>0)rows.push(`<div class="fvm-row clickable" onclick="openTacticModal('absPin','','📌','찾은 절대 핀','found')">
+        <div class="fvm-piece-col"><div class="fvm-piece-icon">📌</div><div class="fvm-piece-name">찾은 절대 핀</div><div class="fvm-piece-total">${absFound}회</div></div>
+        <div class="fvm-bars-col"><div class="fvm-bar-row"><span class="fvm-pct found">✔ 찾음</span><div class="fvm-track"><div class="fvm-fill found" style="width:100%"></div></div><span class="fvm-count">${absFound}</span></div></div>
+      </div>`);
+    if(absMissed>0)rows.push(`<div class="fvm-row clickable" onclick="openTacticModal('absPin','','📌','놓친 절대 핀','missed')">
+        <div class="fvm-piece-col"><div class="fvm-piece-icon">📌</div><div class="fvm-piece-name">놓친 절대 핀</div><div class="fvm-piece-total">${absMissed}회</div></div>
+        <div class="fvm-bars-col"><div class="fvm-bar-row"><span class="fvm-pct missed">✘ 놓침</span><div class="fvm-track"><div class="fvm-fill missed" style="width:100%"></div></div><span class="fvm-count">${absMissed}</span></div></div>
+      </div>`);
+    // 상대 핀
+    if(relFound>0)rows.push(`<div class="fvm-row clickable" onclick="openTacticModal('relPin','','🔗','찾은 상대 핀','found')">
+        <div class="fvm-piece-col"><div class="fvm-piece-icon">🔗</div><div class="fvm-piece-name">찾은 상대 핀</div><div class="fvm-piece-total">${relFound}회</div></div>
+        <div class="fvm-bars-col"><div class="fvm-bar-row"><span class="fvm-pct found">✔ 찾음</span><div class="fvm-track"><div class="fvm-fill found" style="width:100%"></div></div><span class="fvm-count">${relFound}</span></div></div>
+      </div>`);
+    if(relMissed>0)rows.push(`<div class="fvm-row clickable" onclick="openTacticModal('relPin','','🔗','놓친 상대 핀','missed')">
+        <div class="fvm-piece-col"><div class="fvm-piece-icon">🔗</div><div class="fvm-piece-name">놓친 상대 핀</div><div class="fvm-piece-total">${relMissed}회</div></div>
+        <div class="fvm-bars-col"><div class="fvm-bar-row"><span class="fvm-pct missed">✘ 놓침</span><div class="fvm-track"><div class="fvm-fill missed" style="width:100%"></div></div><span class="fvm-count">${relMissed}</span></div></div>
+      </div>`);
     return rows.join('');
   })();
   const obHtml=fvmRow('🎯','상대 실수','',s.oppBlunderFound,s.oppBlunderMissed,'oppBlunder','');
