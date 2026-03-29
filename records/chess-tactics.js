@@ -30,6 +30,9 @@
  *      핀 카운트 증가분을 신뢰하지 않고 직접 원인 검증:
  *      → 이동한 기물의 공격 라인이 실제로 핀을 만들고 있는지 확인
  *   3. 핀 유효성 검증: 핀된 기물 제거 시 킹이 체크 상태이어야 핀 인정
+ *   4. [추가] doesBestMoveCreatePin: SF 최선수가 체크를 거는 수이면
+ *      핀 생성 수로 판정하지 않음 — 체크가 주목적인 수에서 발생하는
+ *      핀 카운트 증가(발견 핀 포함)는 오탐의 원인이 됨
  *
  * 의존성: chess-engine.js (전역 함수들 사용)
  *
@@ -38,6 +41,7 @@
  *   isValidFork(board, color, toPos, ...)   → boolean
  *   detectPinCreated(prevBoard, nextBoard, move, color) → boolean
  *   countAbsolutePins(board, color)         → number
+ *   doesBestMoveCreatePin(prevBoard, sfBestUci, color, prevState) → boolean
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -221,6 +225,9 @@ function countAbsolutePins(board, color) {
  *      - 이동한 기물이 슬라이딩 기물(B/R/Q)이면 직접 핀 라인 생성 가능
  *      - 이동으로 X-ray 핀이 열렸는지 확인 (discovered pin)
  *   3. 체크를 동반한 수에서 핀 증가 → 이동 기물이 핀을 만든 경우만 인정
+ *   4. [추가] 발견 핀 분기: 이동 후 보드가 체크 상태이면 false 반환
+ *      체크 수에서 발생하는 발견 핀 카운트 증가는 오탐의 원인이 됨
+ *      (예: exd5+ 같이 체크가 주목적인 수에서 발견 핀이 우연히 집계되는 경우)
  *
  * @param {Array}  prevBoard  - 이동 전 보드
  * @param {Array}  nextBoard  - 이동 후 보드
@@ -274,6 +281,11 @@ function detectPinCreated(prevBoard, nextBoard, move, color) {
   }
 
   // 슬라이딩 기물이 아닌 경우: 발견 핀(discovered pin) 가능성
+  // ── [수정] 이동 후 상대 킹이 체크 상태이면 발견 핀으로 인정하지 않음 ──
+  // 이유: exd5+ 처럼 체크가 주목적인 수에서 폰이 e6를 비울 때
+  //       우연히 핀 카운트가 증가해 오탐이 발생하는 것을 방지
+  if (isInCheck(nextBoard, enemy)) return false;
+
   // 이동하기 전 위치가 핀 라인을 막고 있었는지 확인
   const [fr, fc] = move.from;
   // 이동 전 보드에서 이전 위치를 제거하면 핀이 생기는지
@@ -286,6 +298,15 @@ function detectPinCreated(prevBoard, nextBoard, move, color) {
 
 /**
  * Stockfish 베스트무브가 핀을 만드는지 확인
+ *
+ * ── [수정] SF 최선수가 체크를 거는 수이면 핀 생성 수로 보지 않음 ──
+ * 이유: exd5+ 같이 체크가 주목적인 수는 핀 놓침이 아님에도
+ *       doesBestMoveCreatePin → detectPinCreated 경로에서
+ *       핀 카운트 증가(특히 발견 핀 분기)가 오탐을 유발할 수 있음.
+ *       detectPinCreated 내부의 발견 핀 분기에도 체크 가드를 추가했으나,
+ *       슬라이딩 기물 분기의 오탐 가능성까지 원천 차단하기 위해
+ *       이 함수 레벨에서도 체크 수를 조기 반환한다.
+ *
  * @param {Array}  prevBoard
  * @param {string} sfBestUci
  * @param {string} color
@@ -295,6 +316,12 @@ function detectPinCreated(prevBoard, nextBoard, move, color) {
 function doesBestMoveCreatePin(prevBoard, sfBestUci, color, prevState) {
   const sfMov = uciToMoveObj(sfBestUci, prevState.board, prevState.turn, prevState.castling, prevState.enPassant);
   if (!sfMov) return false;
+
   const sfBoard = applyMoveToBoard(prevState.board, sfMov, color);
+
+  // ── [수정] SF 최선수가 체크를 거는 수라면 핀 생성 수로 판정하지 않음 ──
+  // 체크 수에서 핀 카운트 증가는 핀이 주목적이 아닌 부산물이므로 제외
+  if (isInCheck(sfBoard, enemyColor(color))) return false;
+
   return detectPinCreated(prevState.board, sfBoard, sfMov, color);
 }
