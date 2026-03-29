@@ -168,10 +168,12 @@ function isValidFork(board, color, toPos, prevBoard) {
   const hasRealThreat = threatened.some(t => {
     if (t.piece[1] === 'K') return true; // 킹은 항상 위협
     if (PIECE_VALUE[t.piece[1]] > movedValue) return true; // 가치 높은 기물
-    // 무방비 기물 (되받아칠 수 없는)
-    const defenders = getAttackers(board, t.r, t.c, color); // 방어자 수 (이동 기물 포함)
-    const attackersOfTarget = getAttackers(board, t.r, t.c, enemy); // 상대 방어자
-    return attackersOfTarget.length === 0; // 방어자 없으면 무방비
+    // 무방비 기물: 위협받는 기물(상대편)을 지켜주는 상대편 기물이 없는 경우
+    // defenders = 상대편(enemy) 기물이 t 칸을 지키는 수 (이동한 나이트 제외)
+    const defenders = getAttackers(board, t.r, t.c, enemy).filter(
+      a => !(a.r === r && a.c === c) // 이동한 기물 자신은 방어자가 아님
+    );
+    return defenders.length === 0; // 방어자 없으면 무방비
   });
 
   return hasRealThreat;
