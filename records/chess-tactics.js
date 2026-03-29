@@ -155,14 +155,10 @@ function isValidFork(board, color, toPos, prevBoard) {
   // 2. 체크포크 판정 (킹이 공격 대상에 포함)
   const isCheckFork = threatened.some(t => t.piece[1] === 'K');
 
-  // 3. 이동 기물이 즉시 잡히는지 확인 (SEE)
+  // 3. 이동 기물이 즉시 잡힐 수 있으면 포크 불인정 (체크포크는 예외)
+  // 잡힐 수 있다는 건 상대가 이동 기물을 제거하여 포크 위협을 무력화할 수 있다는 의미
   const isSafeSquare = !isSquareAttackedBy(board, r, c, enemy);
-  // 잡히더라도 이득이면 포크로 인정
-  const seeGain = isSafeSquare ? Infinity :
-    Math.min(...threatened.map(t => PIECE_VALUE[t.piece[1]])) - movedValue;
-
-  // 체크포크는 즉시 잡혀도 유효 (체크 해소가 우선이므로)
-  if (!isCheckFork && !isSafeSquare && seeGain < 0) return false;
+  if (!isCheckFork && !isSafeSquare) return false;
 
   // 4. 위협받는 기물 중 하나라도 "실질적 위협"인지 확인
   const hasRealThreat = threatened.some(t => {

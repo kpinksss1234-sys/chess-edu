@@ -148,7 +148,10 @@ async function analyzeGame(pgn, myColor, onProgress) {
     // ── 상대 수: 포크 생성 감지 (상대가 포크를 뒀는지) ───────────────────────
     if (!isMe) {
       const movedPT_opp = prev.board[move.from[0]][move.from[1]]?.[1] || 'P';
-      if (isValidFork(state.board, mover, move.to, prev.board)) {
+      // oppFork도 Stockfish 기준으로 실질적 이득이 있는 포크만 인정
+      // loss = 이 수를 둔 후 mover(상대) 입장에서의 cp 이득
+      // 상대가 FORK_CP_GAIN 이상 이득을 봤고 포크 조건도 충족할 때만 카운트
+      if (loss >= FORK_CP_GAIN && isValidFork(state.board, mover, move.to, prev.board)) {
         result.oppForkCreated[movedPT_opp] = (result.oppForkCreated[movedPT_opp] || 0) + 1;
         result.tacticEvents.push(_makeTacticEvent('oppFork', 'found', movedPT_opp, i, states, mover));
       }
