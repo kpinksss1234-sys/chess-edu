@@ -1,7 +1,7 @@
 /**
  * chess-tactics.js
  * ─────────────────────────────────────────────────────────────────────────────
- * 전술 감지 모듈 (포크 / 절대 핀)
+ * 전술 감지 모듈 (포크 / 절대 핀 / 상대 핀)
  *
  * ── 설계 원칙 ──────────────────────────────────────────────────────────────
  *
@@ -22,26 +22,31 @@
  *      → 기존 포크 유지가 아닌, 이 수로 새로 생긴 포크만 인정
  *
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * [핀 정의]
- *   공격자(슬라이딩 기물 B/R/Q)의 공격 라인 위에 적 기물이 정확히 1개 있고,
- *   그 기물을 제거하면 적 킹이 공격에 노출되는 상태.
+ * [핀 종류]
  *
- * [핀 감지 추가 조건]
- *   피핀 기물이 나이트(N) 이상 가치의 기물이어야 함.
- *   → 피핀 기물이 폰(P)인 경우 제외.
- *      "슬라이딩 기물이 킹 방향으로 이동 시 킹 앞 폰 공격"은
- *      매우 흔한 상황으로 전술적 핀으로 인정하지 않음.
+ * [절대 핀 Absolute Pin]
+ *   공격자(B/R/Q) → 피핀 기물(N↑) → 적 킹 이 일직선인 경우.
+ *   피핀 기물을 움직이면 규칙상 킹이 체크에 노출 → 이동 불법.
+ *
+ * [상대 핀 Relative Pin]
+ *   공격자(B/R/Q) → 피핀 기물(N↑) → 적 고가치 기물(Q/R) 이 일직선인 경우.
+ *   Shield 기물 가치 > 피핀 기물 가치 + RELATIVE_PIN_MARGIN 이어야 실질 위협.
+ *   피핀 기물을 움직이면 고가치 기물이 공격에 노출되므로 사실상 묶인 상태.
+ *   규칙상 움직일 수 있지만 실리적으로 불리함.
+ *
+ * [핀 공통 감지 조건]
+ *   - 피핀 기물이 나이트(N) 이상 가치여야 함 (폰 제외)
+ *   - 이 수 이전에 이미 같은 핀이 존재했으면 카운트 제외 (1수 전술 원칙)
+ *   - 이동 후 적 킹이 체크 상태이면 제외 (체크가 주 전술)
  *
  * [핀 감지 경로 A - 직접 핀]
- *   이동한 기물이 B/R/Q이고,
- *   이동 후 해당 기물 → 적 기물(N↑) → 적 킹이 일직선으로 정렬되는 경우.
- *   단, 이동 전 출발지에서 이미 같은 핀이 있었으면 제외.
- *   단, 이동 후 체크 상태이면 제외.
+ *   이동한 기물이 B/R/Q이고, 이동 후 직접 핀(절대/상대)을 만드는 경우.
+ *   이동 전 출발지에서 같은 핀이 없었어야 "새 핀"으로 인정.
  *
  * [핀 감지 경로 B - 발견 핀]
  *   이동한 기물이 자리를 비워 뒤에 있던 아군 B/R/Q의 라인이 열리며
- *   적 기물(N↑)이 새로 핀되는 경우.
- *   단, 이동 후 체크 상태이면 제외.
+ *   새로 핀(절대/상대)이 생기는 경우.
+ *   nextBoard(실제 이동 완료 보드)로 검사하여 오탐 제거.
  *
  * ── 수정 이력 ──────────────────────────────────────────────────────────────
  * [수정 1] 경로 B(발견 핀) 오탐 수정
@@ -56,13 +61,18 @@
  *   기존: 이동 전 위치에서 이미 위협 2개 이상이어도 포크로 카운트
  *   수정: 이동 전 위치의 실질 위협이 이미 2개 이상이면 포크 불인정
  *
+ * [수정 4] 상대 핀(Relative Pin) 감지 추가
+ *   _isRelativePinFromSquare(): 공격자 → 피핀(N↑) → 고가치 기물(Q/R) 라인 검사.
+ *   detectPinCreated(): { absolute, relative } 객체 반환으로 변경.
+ *   1수 전술 원칙 동일 적용: 이동 전 이미 핀 존재 시 카운트 제외.
+ *
  * 의존성: chess-engine.js (전역 함수들 사용)
  *
  * 외부에 노출하는 주요 함수:
  *   PIECE_VALUE
- *   isValidFork(board, color, toPos, prevBoard)               → boolean
- *   detectPinCreated(prevBoard, nextBoard, move, color)       → boolean
- *   doesBestMoveCreatePin(prevBoard, sfBestUci, color, prevState) → boolean
+ *   isValidFork(board, color, toPos, prevBoard)                    → boolean
+ *   detectPinCreated(prevBoard, nextBoard, move, color)            → { absolute: boolean, relative: boolean }
+ *   doesBestMoveCreatePin(prevBoard, sfBestUci, color, prevState)  → { absolute: boolean, relative: boolean }
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -72,6 +82,13 @@ const PIECE_VALUE = { P:100, N:320, B:330, R:500, Q:900, K:20000 };
 
 // 핀으로 인정하는 피핀 기물 최소 가치 (폰 제외, 나이트 이상)
 const PIN_MIN_PINNED_VALUE = PIECE_VALUE['N']; // 320
+
+// 상대 핀: shield 기물이 피핀 기물보다 이 값 이상 비싸야 실질 위협으로 인정
+// 예) 피핀=N(320), margin=150 → shield ≥ 470 → R(500)/Q(900)만 해당
+const RELATIVE_PIN_MARGIN = 150;
+
+// 상대 핀 shield로 인정하는 최소 기물 가치 (퀸/룩만 인정)
+const RELATIVE_PIN_SHIELD_MIN = PIECE_VALUE['R']; // 500
 
 // ── 내부 유틸 ─────────────────────────────────────────────────────────────────
 
@@ -190,7 +207,7 @@ function isValidFork(board, color, toPos, prevBoard) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// 핀 판정
+// 핀 판정 - 절대 핀 (Absolute Pin)
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -210,7 +227,7 @@ function isValidFork(board, color, toPos, prevBoard) {
  * @param {string} color - 슬라이딩 기물의 색상
  * @returns {boolean}
  */
-function _isPinningFromSquare(board, r, c, color) {
+function _isAbsolutePinFromSquare(board, r, c, color) {
   const piece = board[r][c];
   if (!piece || piece[0] !== color) return false;
   const pt = piece[1];
@@ -238,10 +255,9 @@ function _isPinningFromSquare(board, r, c, color) {
         if (!firstPiece) {
           firstPiece = { r:nr, c:nc, piece:sq };
         } else {
-          // 두 번째 기물이 적 킹이고 첫 번째가 적 기물이면 핀 후보
+          // 두 번째 기물이 적 킹이고 첫 번째가 적 기물이면 절대 핀 후보
           if (sq === enemy + 'K' && firstPiece.piece[0] === enemy) {
             // [핵심 필터] 피핀 기물이 폰이면 전술적 핀으로 인정하지 않음
-            // 킹 앞 폰이 슬라이딩 기물 라인에 걸리는 것은 매우 흔한 상황
             if (PIECE_VALUE[firstPiece.piece[1]] < PIN_MIN_PINNED_VALUE) break;
 
             const test = board.map(row => [...row]);
@@ -257,8 +273,86 @@ function _isPinningFromSquare(board, r, c, color) {
   return false;
 }
 
+// 하위 호환성을 위한 별칭 (기존 코드에서 _isPinningFromSquare 사용 시)
+const _isPinningFromSquare = _isAbsolutePinFromSquare;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 핀 판정 - 상대 핀 (Relative Pin)
+// ════════════════════════════════════════════════════════════════════════════
+
 /**
- * 이동으로 인해 새로운 절대 핀이 생성되었는지 판정.
+ * 보드에서 [r,c]의 슬라이딩 기물(B/R/Q)이 라인 위에
+ * 상대 핀을 만들고 있는지 기하학적으로 확인.
+ *
+ * 조건:
+ *   - [r,c]의 기물이 B/R/Q이어야 함
+ *   - 라인 위 첫 번째 기물: 적 기물 (피핀, N 이상 가치)
+ *   - 라인 위 두 번째 기물: 적의 고가치 기물 (Q/R, RELATIVE_PIN_SHIELD_MIN 이상)
+ *                            단, 킹은 절대 핀이 담당하므로 제외
+ *   - shield 가치 > 피핀 가치 + RELATIVE_PIN_MARGIN 이어야 실질 위협
+ *     (예: 피핀=N(320), margin=150 → shield ≥ 470 → R(500) 이상)
+ *
+ * @param {Array}  board
+ * @param {number} r
+ * @param {number} c
+ * @param {string} color - 슬라이딩 기물(공격자)의 색상
+ * @returns {boolean}
+ */
+function _isRelativePinFromSquare(board, r, c, color) {
+  const piece = board[r][c];
+  if (!piece || piece[0] !== color) return false;
+  const pt = piece[1];
+  if (!['B', 'R', 'Q'].includes(pt)) return false;
+
+  const enemy = enemyColor(color);
+
+  const directions = [];
+  if (pt === 'B' || pt === 'Q') directions.push([-1,-1],[-1,1],[1,-1],[1,1]);
+  if (pt === 'R' || pt === 'Q') directions.push([-1,0],[1,0],[0,-1],[0,1]);
+
+  for (const [dr, dc] of directions) {
+    let nr = r + dr, nc = c + dc;
+    let firstPiece = null;
+
+    while (isInBounds(nr, nc)) {
+      const sq = board[nr][nc];
+      if (sq) {
+        if (!firstPiece) {
+          // 첫 번째 기물: 적 기물이며 N 이상 가치여야 함 (폰 제외)
+          if (sq[0] !== enemy) break; // 아군 기물이면 이 방향 종료
+          if (PIECE_VALUE[sq[1]] < PIN_MIN_PINNED_VALUE) break; // 폰이면 제외
+          firstPiece = { r:nr, c:nc, piece:sq };
+        } else {
+          // 두 번째 기물: 적의 고가치 기물 (킹 제외 - 킹은 절대 핀이 처리)
+          if (sq[0] !== enemy) break; // 아군 기물이면 이 방향 종료
+          if (sq[1] === 'K') break;   // 킹은 절대 핀이 담당
+
+          const shieldVal  = PIECE_VALUE[sq[1]];
+          const pinnedVal  = PIECE_VALUE[firstPiece.piece[1]];
+
+          // shield 기물이 최소 가치 이상이고, 피핀보다 충분히 비싸야 실질 위협
+          if (shieldVal >= RELATIVE_PIN_SHIELD_MIN &&
+              shieldVal >= pinnedVal + RELATIVE_PIN_MARGIN) {
+            return true;
+          }
+          break; // 조건 미충족이면 이 방향 종료
+        }
+      }
+      nr += dr; nc += dc;
+    }
+  }
+  return false;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 이동으로 인한 핀 생성 판정 (절대 + 상대)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 이동으로 인해 새로운 핀(절대/상대)이 생성되었는지 판정.
+ *
+ * [1수 전술 원칙]
+ *   이동 전에 이미 같은 핀이 존재했으면 "이 수 덕분에 생긴 전술"이 아니므로 제외.
  *
  * [경로 A - 직접 핀]
  *   이동한 기물이 B/R/Q이고 이동 후 핀을 만들면서,
@@ -266,7 +360,7 @@ function _isPinningFromSquare(board, r, c, color) {
  *
  * [경로 B - 발견 핀]
  *   이동한 기물이 자리를 비워 뒤의 아군 B/R/Q가 새로 핀을 만드는 경우.
- *   nextBoard(실제 이동 완료 보드)로 핀 검사하여 오탐 제거.
+ *   nextBoard(실제 이동 완료 보드)로 검사하여 오탐 제거.
  *
  * 공통 제외: 이동 후 적 킹이 체크 상태이면 false (체크가 주목적인 수)
  *
@@ -274,64 +368,84 @@ function _isPinningFromSquare(board, r, c, color) {
  * @param {Array}  nextBoard
  * @param {Object} move      - {from:[r,c], to:[r,c], ...}
  * @param {string} color     - 이동한 쪽 색상
- * @returns {boolean}
+ * @returns {{ absolute: boolean, relative: boolean }}
  */
 function detectPinCreated(prevBoard, nextBoard, move, color) {
   const [fr, fc] = move.from;
   const [tr, tc] = move.to;
   const enemy     = enemyColor(color);
 
-  // 이동 후 적 킹이 체크이면 핀 감지 제외
-  if (isInCheck(nextBoard, enemy)) return false;
+  const result = { absolute: false, relative: false };
+
+  // 이동 후 적 킹이 체크이면 핀 감지 제외 (체크가 주 전술)
+  if (isInCheck(nextBoard, enemy)) return result;
 
   // ── 경로 A: 직접 핀 ──────────────────────────────────────────────────────
   const movedPiece = nextBoard[tr][tc];
   if (movedPiece && ['B','R','Q'].includes(movedPiece[1])) {
-    if (_isPinningFromSquare(nextBoard, tr, tc, color)) {
-      // 이동 전 출발지에서 이미 같은 핀이 존재했으면 새 핀이 아님
-      if (!_isPinningFromSquare(prevBoard, fr, fc, color)) {
-        return true;
-      }
+    // 절대 핀
+    if (!result.absolute &&
+        _isAbsolutePinFromSquare(nextBoard, tr, tc, color) &&
+        !_isAbsolutePinFromSquare(prevBoard, fr, fc, color)) {
+      result.absolute = true;
+    }
+    // 상대 핀
+    if (!result.relative &&
+        _isRelativePinFromSquare(nextBoard, tr, tc, color) &&
+        !_isRelativePinFromSquare(prevBoard, fr, fc, color)) {
+      result.relative = true;
     }
   }
 
   // ── 경로 B: 발견 핀 ──────────────────────────────────────────────────────
   // nextBoard(실제 이동 완료 보드)를 사용하여 발견 핀 검사
-  // prevBoard vs nextBoard 비교로 이동 전후 상태를 정확히 반영
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
     // 이동한 기물 자신(목적지)은 경로 A에서 이미 처리했으므로 제외
     if (r === tr && c === tc) continue;
     const p = nextBoard[r][c];
     if (!p || p[0] !== color || !['B','R','Q'].includes(p[1])) continue;
-    // 이전 보드에서는 핀 없고, 이동 후 보드에서는 핀 있으면 발견 핀
-    if (!_isPinningFromSquare(prevBoard, r, c, color) &&
-         _isPinningFromSquare(nextBoard, r, c, color)) {
-      return true;
+
+    // 절대 핀 발견
+    if (!result.absolute &&
+        !_isAbsolutePinFromSquare(prevBoard, r, c, color) &&
+         _isAbsolutePinFromSquare(nextBoard, r, c, color)) {
+      result.absolute = true;
     }
+    // 상대 핀 발견
+    if (!result.relative &&
+        !_isRelativePinFromSquare(prevBoard, r, c, color) &&
+         _isRelativePinFromSquare(nextBoard, r, c, color)) {
+      result.relative = true;
+    }
+
+    // 둘 다 찾았으면 조기 종료
+    if (result.absolute && result.relative) break;
   }
 
-  return false;
+  return result;
 }
 
 /**
- * SF 최선수가 핀을 만드는지 확인
+ * SF 최선수가 핀(절대/상대)을 만드는지 확인
  *
  * @param {Array}  prevBoard
  * @param {string} sfBestUci
  * @param {string} color
  * @param {Object} prevState - {board, turn, castling, enPassant}
- * @returns {boolean}
+ * @returns {{ absolute: boolean, relative: boolean }}
  */
 function doesBestMoveCreatePin(prevBoard, sfBestUci, color, prevState) {
+  const none = { absolute: false, relative: false };
+
   const sfMov = uciToMoveObj(
     sfBestUci, prevState.board, prevState.turn, prevState.castling, prevState.enPassant
   );
-  if (!sfMov) return false;
+  if (!sfMov) return none;
 
   const sfBoard = applyMoveToBoard(prevState.board, sfMov, color);
 
   // SF 최선수가 체크를 거는 수면 핀 생성 수로 보지 않음
-  if (isInCheck(sfBoard, enemyColor(color))) return false;
+  if (isInCheck(sfBoard, enemyColor(color))) return none;
 
   return detectPinCreated(prevState.board, sfBoard, sfMov, color);
 }

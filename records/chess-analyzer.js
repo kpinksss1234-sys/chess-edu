@@ -11,7 +11,7 @@
  *      b. cp 손실 계산 → 블런더/실수/부정확 분류
  *      c. 상대 블런더 포착 여부 판정
  *      d. 포크 감지 (chess-tactics.js)
- *      e. 핀 감지 (chess-tactics.js)
+ *      e. 절대 핀 / 상대 핀 감지 (chess-tactics.js)
  *
  * ── 포크/핀 카운팅 원칙 ────────────────────────────────────────────────────
  *
@@ -23,6 +23,12 @@
  * 한 포지션에서 found와 missed는 동시에 집계되지 않습니다 (found 우선).
  * chess-tactics.js의 isValidFork / detectPinCreated가 이미 "이 수 덕분에 생긴
  * 전술인지" 여부를 판별하므로, 여기서는 단순히 그 결과를 집계합니다.
+ *
+ * ── 핀 집계 항목 ─────────────────────────────────────────────────────────────
+ *   absPinFound   : 내가 실행한 절대 핀 (피핀 기물 뒤에 적 킹)
+ *   absPinMissed  : 놓친 절대 핀 (SF 최선수가 절대 핀, cp 손실 ≥ 임계값)
+ *   relPinFound   : 내가 실행한 상대 핀 (피핀 기물 뒤에 적 Q/R)
+ *   relPinMissed  : 놓친 상대 핀 (SF 최선수가 상대 핀, cp 손실 ≥ 임계값)
  *
  * 의존성:
  *   - chess-engine.js
@@ -51,7 +57,11 @@ async function analyzeGame(pgn, myColor, onProgress) {
     forkFound:       { P:0, N:0, B:0, R:0, Q:0, K:0 },
     forkMissed:      { P:0, N:0, B:0, R:0, Q:0, K:0 },
     oppForkCreated:  { P:0, N:0, B:0, R:0, Q:0, K:0 },
-    pinFound:        0, pinMissed: 0,
+    // ── 핀: 절대(absolute) / 상대(relative) 분리 ──────────────────────────
+    absPinFound:     0,   // 내가 실행한 절대 핀 (피핀 뒤: 적 킹)
+    absPinMissed:    0,   // 놓친 절대 핀
+    relPinFound:     0,   // 내가 실행한 상대 핀 (피핀 뒤: 적 Q/R)
+    relPinMissed:    0,   // 놓친 상대 핀
     myCpSum:         0, myMoveCount: 0,
     tacticEvents:    []
   };
@@ -156,26 +166,39 @@ async function analyzeGame(pgn, myColor, onProgress) {
       }
     }
 
-    // ── 핀 ───────────────────────────────────────────────────────────────
+    // ── 핀 (절대 + 상대) ─────────────────────────────────────────────────
 
     // [found] 내가 실제로 둔 수가 핀 생성
-    const actualIsPin = detectPinCreated(prev.board, state.board, move, mover);
-    if (actualIsPin) {
-      result.pinFound++;
-      result.tacticEvents.push(_makeTacticEvent('pin','found','',i,states,mover));
+    const actualPin = detectPinCreated(prev.board, state.board, move, mover);
+
+    if (actualPin.absolute) {
+      result.absPinFound++;
+      result.tacticEvents.push(_makeTacticEvent('absPin','found','',i,states,mover));
+    }
+    if (actualPin.relative) {
+      result.relPinFound++;
+      result.tacticEvents.push(_makeTacticEvent('relPin','found','',i,states,mover));
     }
 
     // [missed] SF 최선수가 핀을 만들었는데 내가 다른 수를 뒀고 cp 손실 ≥ 임계값
     // found 포지션은 중복 카운트하지 않음
-    if (!actualIsPin && sfBest && sfBest !== actualUci && sfBest !== '(none)' && loss >= PIN_CP_GAIN) {
+    const pinAlreadyFound = actualPin.absolute || actualPin.relative;
+
+    if (!pinAlreadyFound && sfBest && sfBest !== actualUci && sfBest !== '(none)' && loss >= PIN_CP_GAIN) {
       const sfFromR     = 8 - parseInt(sfBest[1]);
       const sfFromC     = sfBest.charCodeAt(0) - 97;
       const sfPieceType = prev.board[sfFromR]?.[sfFromC]?.[1];
-      // 슬라이딩 기물(B/R/Q)이거나 발견 핀 가능성이 있는 경우만 검사
+
       if (sfPieceType) {
-        if (doesBestMoveCreatePin(prev.board, sfBest, mover, prev)) {
-          result.pinMissed++;
-          result.tacticEvents.push(_makeTacticEvent('pin','missed','',i,states,mover,sfBest));
+        const sfPin = doesBestMoveCreatePin(prev.board, sfBest, mover, prev);
+
+        if (sfPin.absolute && !actualPin.absolute) {
+          result.absPinMissed++;
+          result.tacticEvents.push(_makeTacticEvent('absPin','missed','',i,states,mover,sfBest));
+        }
+        if (sfPin.relative && !actualPin.relative) {
+          result.relPinMissed++;
+          result.tacticEvents.push(_makeTacticEvent('relPin','missed','',i,states,mover,sfBest));
         }
       }
     }
