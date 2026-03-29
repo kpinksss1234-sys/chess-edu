@@ -1,0 +1,4 @@
+  chess-engine.js     ← 체스 규칙 엔진 (순수 로직)
+  chess-tactics.js    ← 전술 감지 (포크핀 정교화)
+  ui.js    ← 사용자 인터페이스
+  coach.js    ← AI 코칭 & Grok 연동

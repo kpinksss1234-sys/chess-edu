@@ -174,6 +174,34 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
 .stats-note{font-size:10px;color:var(--text-muted);margin-top:6px;line-height:1.5}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-tertiary);border:1px solid var(--border-light);color:var(--text-primary);padding:10px 20px;border-radius:20px;font-size:13px;font-weight:500;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
 #toast.show{opacity:1}
+
+/* TACTIC DETAIL MODAL */
+#tactic-modal{display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+#tactic-modal.show{display:flex}
+.tmodal-box{background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:18px;width:480px;max-width:94vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.5)}
+.tmodal-head{padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.tmodal-title{font-size:15px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px}
+.tmodal-close{width:30px;height:30px;border-radius:8px;background:transparent;border:1px solid var(--border-light);color:var(--text-secondary);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.tmodal-close:hover{background:var(--bg-hover);color:var(--text-primary)}
+.tmodal-body{overflow-y:auto;padding:14px 16px;flex:1}
+.tmodal-body::-webkit-scrollbar{width:4px}
+.tmodal-body::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:2px}
+.tmodal-empty{text-align:center;padding:32px 0;color:var(--text-muted);font-size:13px}
+.tmodal-game-item{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,background .15s}
+.tmodal-game-item:hover{border-color:var(--accent-green-dark);background:var(--bg-hover)}
+.tg-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.tg-players{font-size:12px;font-weight:600;color:var(--text-primary)}
+.tg-result-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px}
+.tg-result-badge.win{background:rgba(127,166,80,.2);color:var(--accent-green-bright)}
+.tg-result-badge.lose{background:rgba(192,64,64,.15);color:#e07070}
+.tg-result-badge.draw{background:rgba(160,160,160,.12);color:var(--text-secondary)}
+.tg-meta{font-size:11px;color:var(--text-muted);display:flex;gap:10px;align-items:center}
+.tg-tactic-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tg-tag{font-size:10px;font-weight:600;padding:2px 7px;border-radius:5px;background:rgba(192,64,64,.13);color:#e07070}
+.tg-tag.found{background:rgba(127,166,80,.15);color:var(--accent-green-bright)}
+.tmodal-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin:14px 0 8px}
+.fvm-row.clickable{cursor:pointer;transition:border-color .15s,background .15s}
+.fvm-row.clickable:hover{border-color:var(--accent-green-dark);background:var(--bg-hover)}
 </style>
 </head>
 <body>
@@ -258,6 +286,17 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
   </div>
 </div>
 <div id="toast"></div>
+
+<!-- 전술 상세 모달 -->
+<div id="tactic-modal" onclick="if(event.target===this)closeTacticModal()">
+  <div class="tmodal-box">
+    <div class="tmodal-head">
+      <div class="tmodal-title" id="tmodal-title">전술 상세</div>
+      <button class="tmodal-close" onclick="closeTacticModal()">✕</button>
+    </div>
+    <div class="tmodal-body" id="tmodal-body"></div>
+  </div>
+</div>
 
 <script src="records/chess-engine.js"></script>
 <script src="records/chess-tactics.js"></script>
@@ -438,6 +477,7 @@ function switchTab(tab){
 // 통계 분석
 // ════════════════════════════════════════
 let _statsCache=null;
+let _statsGameDetails=[];  // 게임별 전술 상세 [{doc, tacticEvents}]
 
 async function renderStats(){
   const contentEl=document.getElementById('stats-content'),subEl=document.getElementById('stats-sub');
@@ -471,6 +511,7 @@ async function renderStats(){
   let sumForkFound={P:0,N:0,B:0,R:0,Q:0,K:0},sumForkMissed={P:0,N:0,B:0,R:0,Q:0,K:0};
   let sumCp=0,sumMoves=0;
   const total=docs.length;
+  _statsGameDetails=[];
 
   for(let gi=0;gi<docs.length;gi++){
     const doc=docs[gi];
@@ -508,6 +549,8 @@ async function renderStats(){
         sumCheckmates+=a.checkmates;sumPinFound+=a.pinFound;sumPinMissed+=a.pinMissed;
         sumCp+=a.myCpSum;sumMoves+=a.myMoveCount;totalMovesSum+=a.totalMoves;
         for(const k of['P','N','B','R','Q','K']){sumForkFound[k]+=(a.forkFound[k]||0);sumForkMissed[k]+=(a.forkMissed[k]||0);}
+        // 게임별 전술 상세 저장
+        if(a.tacticEvents&&a.tacticEvents.length)_statsGameDetails.push({doc,tacticEvents:a.tacticEvents});
       }catch(e){console.warn('게임 분석 실패:',e);if(doc.moveCount)totalMovesSum+=doc.moveCount;}
     }else if(doc.moveCount)totalMovesSum+=doc.moveCount;
   }
@@ -530,6 +573,79 @@ async function renderStats(){
 }
 
 // ════════════════════════════════════════
+// 전술 상세 모달
+// ════════════════════════════════════════
+function openTacticModal(tacticType,tacticPiece,icon,name){
+  const modal=document.getElementById('tactic-modal');
+  const titleEl=document.getElementById('tmodal-title');
+  const bodyEl=document.getElementById('tmodal-body');
+
+  const typeLabel={fork:'포크',pin:'절대 핀',oppBlunder:'상대 블런더 포착'}[tacticType]||tacticType;
+  titleEl.innerHTML=`<span>${icon}</span> ${name} — ${typeLabel} 게임 목록`;
+
+  // 해당 전술이 있는 게임만 필터
+  const PIECE_ICONS={P:'♙',N:'♞',B:'♝',R:'♜',Q:'♛',K:'♚'};
+  const matchingGames=_statsGameDetails.filter(gd=>
+    gd.tacticEvents.some(ev=>
+      ev.type===tacticType&&(tacticPiece===''||ev.piece===tacticPiece)
+    )
+  );
+
+  if(!matchingGames.length){
+    bodyEl.innerHTML=`<div class="tmodal-empty">해당 전술 기록이 없습니다</div>`;
+    modal.classList.add('show');return;
+  }
+
+  let html='';
+  for(const gd of matchingGames){
+    const doc=gd.doc;
+    const myColor=doc.myColor||'w',result=doc.result||'*';
+    const myWin=(result==='1-0'&&myColor==='w')||(result==='0-1'&&myColor==='b');
+    const myLose=(result==='0-1'&&myColor==='w')||(result==='1-0'&&myColor==='b');
+    const resLabel=myWin?'승리':myLose?'패배':'무승부';
+    const resCls=myWin?'win':myLose?'lose':'draw';
+    const dateStr=doc.playedAt?new Date(doc.playedAt.seconds*1000).toLocaleDateString('ko-KR',{month:'short',day:'numeric'}):'—';
+    const whiteName=doc.whiteName||'백',blackName=doc.blackName||'흑';
+
+    // 해당 게임에서 이 전술의 이벤트들
+    const evs=gd.tacticEvents.filter(ev=>ev.type===tacticType&&(tacticPiece===''||ev.piece===tacticPiece));
+    const foundEvs=evs.filter(ev=>ev.subtype==='found');
+    const missedEvs=evs.filter(ev=>ev.subtype==='missed');
+
+    let tagHtml='';
+    if(foundEvs.length)tagHtml+=foundEvs.map(ev=>`<span class="tg-tag found">✔ ${ev.moveNum}수${ev.piece&&ev.piece!==''?' '+PIECE_ICONS[ev.piece]:''} (${ev.san||'?'})</span>`).join('');
+    if(missedEvs.length)tagHtml+=missedEvs.map(ev=>`<span class="tg-tag">✘ ${ev.moveNum}수${ev.piece&&ev.piece!==''?' '+PIECE_ICONS[ev.piece]:''} (${ev.san||'?'})</span>`).join('');
+
+    html+=`<div class="tmodal-game-item" onclick="closeTacticModalAndOpen(${JSON.stringify(doc).replace(/"/g,'&quot;')})">
+      <div class="tg-header">
+        <div class="tg-players">⬜ ${whiteName} vs ⬛ ${blackName}</div>
+        <div class="tg-result-badge ${resCls}">${resLabel}</div>
+      </div>
+      <div class="tg-meta"><span>${doc.moveCount||0}수</span><span>${dateStr}</span></div>
+      <div class="tg-tactic-tags">${tagHtml}</div>
+    </div>`;
+  }
+  bodyEl.innerHTML=html;
+  modal.classList.add('show');
+}
+
+function closeTacticModal(){
+  document.getElementById('tactic-modal').classList.remove('show');
+}
+
+function closeTacticModalAndOpen(doc){
+  closeTacticModal();
+  // 기보 탭으로 전환 후 해당 기보 열기
+  switchTab('records');
+  // 리스트에서 해당 게임 찾아 클릭
+  setTimeout(()=>{
+    const item=document.querySelector(`.record-item[data-id="${doc.id}"]`);
+    if(item){item.click();item.scrollIntoView({behavior:'smooth',block:'nearest'});}
+    else showToast('기보 목록에서 해당 게임을 선택해주세요');
+  },120);
+}
+
+// ════════════════════════════════════════
 // 통계 HTML 렌더링
 // ════════════════════════════════════════
 function renderStatsHTML(s){
@@ -537,10 +653,11 @@ function renderStatsHTML(s){
   const endMax=Math.max(s.endCheckmate,s.endResign,s.endDraw,s.endTimeout,1);
   const PIECES=[{key:'P',icon:'♙',name:'폰'},{key:'N',icon:'♞',name:'나이트'},{key:'B',icon:'♝',name:'비숍'},{key:'R',icon:'♜',name:'룩'},{key:'Q',icon:'♛',name:'퀸'},{key:'K',icon:'♚',name:'킹'}];
 
-  function fvmRow(icon,name,total_label,found,missed){
+  function fvmRow(icon,name,total_label,found,missed,tacticType,tacticPiece){
     const tot=found+missed;if(tot===0)return'';
     const fp=Math.round(found/tot*100),mp=100-fp;
-    return`<div class="fvm-row">
+    const clickAttr=tacticType?`onclick="openTacticModal('${tacticType}','${tacticPiece||''}','${icon}','${name}')" style="cursor:pointer"`:'';
+    return`<div class="fvm-row${tacticType?' clickable':''}" ${clickAttr}>
       <div class="fvm-piece-col"><div class="fvm-piece-icon">${icon}</div><div class="fvm-piece-name">${name}</div><div class="fvm-piece-total">${tot}회</div></div>
       <div class="fvm-bars-col">
         <div class="fvm-bar-row"><span class="fvm-pct found">✔ ${fp}%</span><div class="fvm-track"><div class="fvm-fill found" style="width:${fp}%"></div></div><span class="fvm-count">${found}</span></div>
@@ -548,9 +665,9 @@ function renderStatsHTML(s){
       </div></div>`;
   }
 
-  const forkHtml=PIECES.map(p=>fvmRow(p.icon,p.name,'',s.forkFound[p.key]||0,s.forkMissed[p.key]||0)).join('');
-  const pinHtml=fvmRow('📌','절대 핀','',s.pinFound,s.pinMissed);
-  const obHtml=fvmRow('🎯','상대 실수','',s.oppBlunderFound,s.oppBlunderMissed);
+  const forkHtml=PIECES.map(p=>fvmRow(p.icon,p.name,'',s.forkFound[p.key]||0,s.forkMissed[p.key]||0,'fork',p.key)).join('');
+  const pinHtml=fvmRow('📌','절대 핀','',s.pinFound,s.pinMissed,'pin','');
+  const obHtml=fvmRow('🎯','상대 실수','',s.oppBlunderFound,s.oppBlunderMissed,'oppBlunder','');
   const cpColor=s.avgCpLoss<30?'var(--accent-green-bright)':s.avgCpLoss<75?'#e0b040':'#e07070';
 
   contentEl.innerHTML=`
@@ -616,15 +733,15 @@ function renderStatsHTML(s){
 
     <div class="stats-section-title">🎯 상대 블런더 포착</div>
     <div class="fvm-section">${obHtml||'<div class="stats-note" style="padding:12px 0">상대 블런더 데이터 없음</div>'}</div>
-    <div class="stats-note">※ 상대 블런더 직후 최선수로 응수 → 찾음. 놓치면 → 놓침.</div>
+    <div class="stats-note">※ 상대 블런더 직후 최선수로 응수 → 찾음. 놓치면 → 놓침. <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록을 확인할 수 있습니다</span></div>
 
     <div class="stats-section-title">♞ 찾은 vs 놓친 포크</div>
     <div class="fvm-section">${forkHtml||'<div class="stats-note" style="padding:12px 0">포크 데이터 없음</div>'}</div>
-    <div class="stats-note">※ Stockfish 베스트 무브가 포크였는데 다른 수를 두고 ≥${FORK_CP_GAIN}cp 손실이면 "놓친 포크".</div>
+    <div class="stats-note">※ Stockfish 베스트 무브가 포크였는데 다른 수를 두고 ≥${FORK_CP_GAIN}cp 손실이면 "놓친 포크". <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록을 확인할 수 있습니다</span></div>
 
     <div class="stats-section-title">📌 찾은 vs 놓친 핀</div>
     <div class="fvm-section">${pinHtml||'<div class="stats-note" style="padding:12px 0">핀 데이터 없음</div>'}</div>
-    <div class="stats-note">※ 상대 기물이 움직이면 상대 킹 노출되는 절대 핀. Stockfish 베스트가 핀이었는데 안 뒀으면 "놓침".</div>
+    <div class="stats-note">※ 상대 기물이 움직이면 상대 킹 노출되는 절대 핀. Stockfish 베스트가 핀이었는데 안 뒀으면 "놓침". <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록을 확인할 수 있습니다</span></div>
 
     <div class="stats-section-title">📏 게임 길이</div>
     <div class="avg-moves-card">
