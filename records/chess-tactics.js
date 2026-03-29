@@ -18,29 +18,43 @@
  *   2. 체크포크가 아닌 경우: 이동 기물이 즉시 잡히지 않는 안전한 자리
  *   3. [핵심] 이동 전 출발지에서 이미 같은 대상들을 위협하지 않았어야 함
  *      → "이 수 덕분에 새로 생긴 포크"만 카운트
+ *   4. [1수 전술] 이동 전 위치에서 이미 실질 위협 ≥ 2개였으면 제외
+ *      → 기존 포크 유지가 아닌, 이 수로 새로 생긴 포크만 인정
  *
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * [핀 정의]
  *   공격자(슬라이딩 기물 B/R/Q)의 공격 라인 위에 적 기물이 정확히 1개 있고,
  *   그 기물을 제거하면 적 킹이 공격에 노출되는 상태.
  *
+ * [핀 감지 추가 조건]
+ *   피핀 기물이 나이트(N) 이상 가치의 기물이어야 함.
+ *   → 피핀 기물이 폰(P)인 경우 제외.
+ *      "슬라이딩 기물이 킹 방향으로 이동 시 킹 앞 폰 공격"은
+ *      매우 흔한 상황으로 전술적 핀으로 인정하지 않음.
+ *
  * [핀 감지 경로 A - 직접 핀]
  *   이동한 기물이 B/R/Q이고,
- *   이동 후 해당 기물 → 적 기물 → 적 킹이 일직선으로 정렬되는 경우.
+ *   이동 후 해당 기물 → 적 기물(N↑) → 적 킹이 일직선으로 정렬되는 경우.
  *   단, 이동 전 출발지에서 이미 같은 핀이 있었으면 제외.
  *   단, 이동 후 체크 상태이면 제외.
  *
  * [핀 감지 경로 B - 발견 핀]
  *   이동한 기물이 자리를 비워 뒤에 있던 아군 B/R/Q의 라인이 열리며
- *   적 기물이 새로 핀되는 경우.
+ *   적 기물(N↑)이 새로 핀되는 경우.
  *   단, 이동 후 체크 상태이면 제외.
  *
  * ── 수정 이력 ──────────────────────────────────────────────────────────────
- * [버그 수정] 경로 B(발견 핀) 오탐 수정
- *   기존: prevBoard에서 출발지만 비운 boardWithout으로 핀 검사
- *         → 이동 기물의 목적지 반영 안 됨 → 오탐 발생
- *   수정: 실제 이동이 완료된 nextBoard로 핀 검사
- *         → 이동 전(prevBoard) vs 이동 후(nextBoard) 정확히 비교
+ * [수정 1] 경로 B(발견 핀) 오탐 수정
+ *   기존: prevBoard 출발지만 비운 boardWithout으로 핀 검사 → 이동 목적지 미반영
+ *   수정: nextBoard(실제 이동 완료 보드)로 핀 검사
+ *
+ * [수정 2] 피핀 기물 폰 오탐 수정
+ *   기존: 피핀 기물이 폰이어도 핀으로 인정 → 킹 앞 폰 공격이 핀으로 오탐
+ *   수정: _isPinningFromSquare에서 피핀 기물 가치 < N(320)이면 핀 불인정
+ *
+ * [수정 3] 포크 1수 전술 필터
+ *   기존: 이동 전 위치에서 이미 위협 2개 이상이어도 포크로 카운트
+ *   수정: 이동 전 위치의 실질 위협이 이미 2개 이상이면 포크 불인정
  *
  * 의존성: chess-engine.js (전역 함수들 사용)
  *
@@ -55,6 +69,9 @@
 'use strict';
 
 const PIECE_VALUE = { P:100, N:320, B:330, R:500, Q:900, K:20000 };
+
+// 핀으로 인정하는 피핀 기물 최소 가치 (폰 제외, 나이트 이상)
+const PIN_MIN_PINNED_VALUE = PIECE_VALUE['N']; // 320
 
 // ── 내부 유틸 ─────────────────────────────────────────────────────────────────
 
@@ -163,6 +180,10 @@ function isValidFork(board, color, toPos, prevBoard) {
     // 이동 후 새로 위협받는 대상이 최소 1개 있어야 "새로운 포크"
     const newThreats = threatsAfter.filter(t => !prevSet.has(t.r + ',' + t.c));
     if (newThreats.length === 0) return false;
+
+    // [1수 전술 필터] 이동 전 위치에서 이미 실질 위협 2개 이상이었으면
+    // 이 수는 포크를 '새로 만든' 것이 아닌 기존 위협 이동으로 간주 → 불인정
+    if (threatsBefore.length >= 2) return false;
   }
 
   return true;
@@ -180,6 +201,7 @@ function isValidFork(board, color, toPos, prevBoard) {
  *   - [r,c]의 기물이 B/R/Q이어야 함
  *   - 기물 → 킹 방향이 기물 종류에 맞아야 함 (B: 대각선, R: 직선, Q: 둘 다)
  *   - 그 방향 라인 위에 적 기물이 정확히 1개 존재
+ *   - 피핀 기물이 나이트(N) 이상 가치여야 함 (폰 제외)
  *   - 그 기물 제거 시 적 킹이 체크 상태
  *
  * @param {Array}  board
@@ -214,11 +236,14 @@ function _isPinningFromSquare(board, r, c, color) {
       const sq = board[nr][nc];
       if (sq) {
         if (!firstPiece) {
-          // 첫 번째 기물
           firstPiece = { r:nr, c:nc, piece:sq };
         } else {
-          // 두 번째 기물 — 킹이고 첫 번째가 적 기물이면 핀 후보
+          // 두 번째 기물이 적 킹이고 첫 번째가 적 기물이면 핀 후보
           if (sq === enemy + 'K' && firstPiece.piece[0] === enemy) {
+            // [핵심 필터] 피핀 기물이 폰이면 전술적 핀으로 인정하지 않음
+            // 킹 앞 폰이 슬라이딩 기물 라인에 걸리는 것은 매우 흔한 상황
+            if (PIECE_VALUE[firstPiece.piece[1]] < PIN_MIN_PINNED_VALUE) break;
+
             const test = board.map(row => [...row]);
             test[firstPiece.r][firstPiece.c] = null;
             if (isInCheck(test, enemy)) return true;
@@ -239,10 +264,9 @@ function _isPinningFromSquare(board, r, c, color) {
  *   이동한 기물이 B/R/Q이고 이동 후 핀을 만들면서,
  *   이동 전 출발지에서는 같은 핀이 없었던 경우.
  *
- * [경로 B - 발견 핀]  ← 버그 수정
+ * [경로 B - 발견 핀]
  *   이동한 기물이 자리를 비워 뒤의 아군 B/R/Q가 새로 핀을 만드는 경우.
- *   수정: boardWithout(출발지만 제거한 가상 보드) 대신
- *         nextBoard(실제 이동 완료 보드)로 핀 검사하여 오탐 제거.
+ *   nextBoard(실제 이동 완료 보드)로 핀 검사하여 오탐 제거.
  *
  * 공통 제외: 이동 후 적 킹이 체크 상태이면 false (체크가 주목적인 수)
  *
@@ -272,9 +296,8 @@ function detectPinCreated(prevBoard, nextBoard, move, color) {
   }
 
   // ── 경로 B: 발견 핀 ──────────────────────────────────────────────────────
-  // [수정] boardWithout(출발지만 비운 가상 보드) → nextBoard(실제 이동 완료 보드) 사용
-  // 이유: boardWithout은 이동 기물의 목적지가 반영되지 않아 오탐 발생
-  //       nextBoard는 이동 전후를 정확히 반영하므로 발견 핀을 올바르게 판정
+  // nextBoard(실제 이동 완료 보드)를 사용하여 발견 핀 검사
+  // prevBoard vs nextBoard 비교로 이동 전후 상태를 정확히 반영
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
     // 이동한 기물 자신(목적지)은 경로 A에서 이미 처리했으므로 제외
     if (r === tr && c === tc) continue;
