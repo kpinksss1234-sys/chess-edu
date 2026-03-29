@@ -219,6 +219,21 @@ async function initEngine() {
     hideLoading();
     console.log(`[Engine] 초기화 완료 — 메인 1개 + 백그라운드 ${bgCount}개`);
 
+    // ── SharedWorker pre-warm ────────────────────────────────────
+    // records.html 등 다른 탭이 SharedWorker에 연결 시 이미 Stockfish가
+    // 올라가 있으므로 추가 로딩 없이 즉시 ready 신호를 받게 됩니다.
+    if (typeof SharedWorker !== 'undefined') {
+      try {
+        const _sw = new SharedWorker('/stockfish-shared-worker.js', { name: 'stockfish-shared' });
+        _sw.port.onmessage = () => {};
+        _sw.port.start();
+        _sw.port.postMessage({ type: 'init' });
+        console.log('[Engine] SharedWorker pre-warm 완료');
+      } catch (e) {
+        console.warn('[Engine] SharedWorker pre-warm 실패 (무시):', e.message);
+      }
+    }
+
     if (autoAnalyze) analyzePosition();
 
   } catch (err) {
