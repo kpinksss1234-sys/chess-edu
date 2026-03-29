@@ -439,19 +439,6 @@ function updateControls(){
   if(_viewIdx===0){ne.textContent='시작';se.textContent='';}
   else{ne.textContent=`${Math.ceil(_viewIdx/2)}수 ${_states[_viewIdx-1].turn==='w'?'백':'흑'}`;se.textContent=_states[_viewIdx].san||'';}
 }
-// ════════════════════════════════════════
-// 기물 이미지 — chess-wasm-fixed 동일 방식
-// lichess CDN: https://lichess1.org/assets/piece/{style}/{piece}.svg
-// ════════════════════════════════════════
-let currentPieceStyle = 'cburnett'; // 기본 스타일 (chess-wasm-fixed와 동일)
-const LICHESS_PIECE_BASE = 'https://lichess1.org/assets/piece/';
-
-// piece 코드(wK, bP 등) → lichess CDN URL
-// chess-wasm-fixed: wK → 'wK.svg', bP → 'bP.svg' (대소문자 그대로)
-function pieceImg(piece) {
-  return LICHESS_PIECE_BASE + currentPieceStyle + '/' + piece[0] + piece[1].toUpperCase() + '.svg';
-}
-
 function renderViewerBoard(){
   const el=document.getElementById('viewer-board');if(!el)return;el.innerHTML='';
   const state=_states[_viewIdx],board=state.board,flipped=_viewMyColor==='b',lastMove=state.move,turn=state.turn;
@@ -463,14 +450,7 @@ function renderViewerBoard(){
     if(lastMove){if(lastMove.from[0]===r&&lastMove.from[1]===c)sq.classList.add('last-from');if(lastMove.to[0]===r&&lastMove.to[1]===c)sq.classList.add('last-to');}
     if(board[r][c]===turn+'K'&&isInCheck(board,turn))sq.classList.add('in-check');
     const piece=board[r][c];
-    if(piece){
-      const img=document.createElement('img');
-      img.className='piece-img'+(piece[0]==='b'?' black-piece':'');
-      img.src=pieceImg(piece);
-      img.alt=piece;
-      img.draggable=false;
-      sq.appendChild(img);
-    }
+    if(piece){const img=document.createElement('img');img.className='piece-img'+(piece.startsWith('b')?' black-piece':'');img.src=pieceImg(piece);img.alt=piece;img.draggable=false;sq.appendChild(img);}
     el.appendChild(sq);
   }
 }
@@ -501,6 +481,7 @@ let _statsGameDetails=[];  // 게임별 전술 상세 [{doc, tacticEvents}]
 
 async function renderStats(){
   const contentEl=document.getElementById('stats-content'),subEl=document.getElementById('stats-sub');
+  // _statsCache 히트: HTML만 재렌더 (_statsGameDetails는 이미 채워져 있음)
   if(_statsCache){renderStatsHTML(_statsCache);return;}
 
   if(!_sfReady){
@@ -512,12 +493,18 @@ async function renderStats(){
     }
   }
 
+  // docs 수집: orderBy 실패 시 fallback — snap을 하나만 사용해 중복 방지
   let docs=[];
   try{
-    let snap;
-    try{snap=await _fbDb.collection('game_records').where('uid','==',_user.uid).orderBy('playedAt','desc').limit(50).get();}
-    catch(e){snap=await _fbDb.collection('game_records').where('uid','==',_user.uid).limit(50).get();}
-    snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    let snap=null;
+    try{
+      snap=await _fbDb.collection('game_records').where('uid','==',_user.uid).orderBy('playedAt','desc').limit(50).get();
+    }catch(e){
+      snap=await _fbDb.collection('game_records').where('uid','==',_user.uid).limit(50).get();
+    }
+    // snap이 결정된 후 단 한 번만 push + 중복 id 차단
+    const seenIds=new Set();
+    snap.forEach(d=>{if(!seenIds.has(d.id)){seenIds.add(d.id);docs.push({id:d.id,...d.data()});}});
   }catch(e){contentEl.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><div>불러오기 실패: ${e.message}</div></div>`;return;}
 
   if(!docs.length){contentEl.innerHTML=`<div class="empty-state"><div class="empty-icon">📊</div><div>분석할 기록이 없습니다</div></div>`;return;}
