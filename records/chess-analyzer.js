@@ -17,7 +17,15 @@
  *      b. cp 손실 계산 → 블런더/실수/부정확 분류
  *      c. 상대 블런더 포착 여부 판정
  *      d. 포크 감지 (chess-tactics.js - isValidFork)
+ *         → found: 실제 둔 수가 포크
+ *         → missed: SF 최선수가 포크인데 다른 수를 둠 (found 포지션은 중복 카운트 안 함)
  *      e. 핀 감지 (chess-tactics.js - detectPinCreated)
+ *         → found: 실제 둔 수가 핀 생성
+ *         → missed: SF 최선수가 핀인데 다른 수를 둠 (found 포지션은 중복 카운트 안 함)
+ *
+ * ※ 포크/핀 카운트 기준:
+ *    "지금 당장(1수) 실행 가능한 전술 기회 포지션" 단위로 집계합니다.
+ *    한 포지션에서 found와 missed가 동시에 집계되지 않으며, found를 우선합니다.
  *
  * 전술 이벤트(tacticEvent) 객체 형태:
  *   {
@@ -153,6 +161,9 @@ async function analyzeGame(pgn, myColor, onProgress) {
     }
 
     // ── 내 수: 포크 / 핀 감지 ───────────────────────────────────────────────
+    // ※ "지금 당장(1수) 실행 가능한 전술 기회 포지션" 단위로 카운트합니다.
+    //   한 포지션에서 found와 missed가 동시에 카운트되지 않도록
+    //   found 확인 후 true이면 missed 검사를 건너뜁니다.
     const sfBest    = ana[i-1].bestmove;
     const actualUci = moveToUci(move);
     const movedPT   = prev.board[move.from[0]][move.from[1]]?.[1] || 'P';
@@ -160,13 +171,15 @@ async function analyzeGame(pgn, myColor, onProgress) {
     // ── 포크 감지 ──────────────────────────────────────────────────────────
 
     // 찾은 포크: 실제 둔 수가 포크 조건 충족
-    if (isValidFork(state.board, mover, move.to, prev.board)) {
+    const actualIsFork = isValidFork(state.board, mover, move.to, prev.board);
+    if (actualIsFork) {
       result.forkFound[movedPT] = (result.forkFound[movedPT] || 0) + 1;
       result.tacticEvents.push(_makeTacticEvent('fork', 'found', movedPT, i, states, mover));
     }
 
     // 놓친 포크: SF 최선수가 포크이고 내가 다른 수를 뒀으며 손실이 임계값 이상
-    if (sfBest && sfBest !== actualUci && sfBest !== '(none)' && loss >= FORK_CP_GAIN) {
+    // ※ 이미 포크를 찾은(found) 포지션은 중복 카운트하지 않음
+    if (!actualIsFork && sfBest && sfBest !== actualUci && sfBest !== '(none)' && loss >= FORK_CP_GAIN) {
       const sfFromR = 8 - parseInt(sfBest[1]);
       const sfFromC = sfBest.charCodeAt(0) - 97;
       const sfPT    = prev.board[sfFromR]?.[sfFromC]?.[1] || 'P';
@@ -184,13 +197,15 @@ async function analyzeGame(pgn, myColor, onProgress) {
     // ── 핀 감지 ────────────────────────────────────────────────────────────
 
     // 찾은 핀: 이 수가 실제로 핀을 만들었는지 판정
-    if (detectPinCreated(prev.board, state.board, move, mover)) {
+    const actualIsPin = detectPinCreated(prev.board, state.board, move, mover);
+    if (actualIsPin) {
       result.pinFound++;
       result.tacticEvents.push(_makeTacticEvent('pin', 'found', '', i, states, mover));
     }
 
     // 놓친 핀: SF 최선수가 핀을 만들었고 내가 다른 수를 뒀을 때
-    if (sfBest && sfBest !== actualUci && sfBest !== '(none)' && loss >= PIN_CP_GAIN) {
+    // ※ 이미 핀을 찾은(found) 포지션은 중복 카운트하지 않음
+    if (!actualIsPin && sfBest && sfBest !== actualUci && sfBest !== '(none)' && loss >= PIN_CP_GAIN) {
       // ── [수정] SF 최선수가 슬라이딩 기물(B/R/Q) 이동일 때만 핀 검사 진입 ──
       // 비슬라이딩 기물이 핀을 만드는 경우(발견 핀)는 doesBestMoveCreatePin 내부에서
       // 처리되지만, 오프닝처럼 cp 차이가 전술이 아닌 전략적 이유인 경우
