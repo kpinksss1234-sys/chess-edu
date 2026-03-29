@@ -439,6 +439,24 @@ function updateControls(){
   if(_viewIdx===0){ne.textContent='시작';se.textContent='';}
   else{ne.textContent=`${Math.ceil(_viewIdx/2)}수 ${_states[_viewIdx-1].turn==='w'?'백':'흑'}`;se.textContent=_states[_viewIdx].san||'';}
 }
+// ── 기물 이미지 경로 생성 ──────────────────────────────────────────────────
+const PIECE_IMG_MAP = {
+  wP:'wp', wN:'wn', wB:'wb', wR:'wr', wQ:'wq', wK:'wk',
+  bP:'bp', bN:'bn', bB:'bb', bR:'br', bQ:'bq', bK:'bk'
+};
+function pieceImg(piece) {
+  // 먼저 /pieces/ 경로 시도 (chess.com 스타일 SVG)
+  const code = PIECE_IMG_MAP[piece];
+  if (!code) return '';
+  return `pieces/${code}.svg`;
+}
+
+// SVG 인라인 폴백 (외부 이미지 로드 실패 시 유니코드 기물 사용)
+const PIECE_UNICODE = {
+  wK:'♔', wQ:'♕', wR:'♖', wB:'♗', wN:'♘', wP:'♙',
+  bK:'♚', bQ:'♛', bR:'♜', bB:'♝', bN:'♞', bP:'♟'
+};
+
 function renderViewerBoard(){
   const el=document.getElementById('viewer-board');if(!el)return;el.innerHTML='';
   const state=_states[_viewIdx],board=state.board,flipped=_viewMyColor==='b',lastMove=state.move,turn=state.turn;
@@ -450,7 +468,30 @@ function renderViewerBoard(){
     if(lastMove){if(lastMove.from[0]===r&&lastMove.from[1]===c)sq.classList.add('last-from');if(lastMove.to[0]===r&&lastMove.to[1]===c)sq.classList.add('last-to');}
     if(board[r][c]===turn+'K'&&isInCheck(board,turn))sq.classList.add('in-check');
     const piece=board[r][c];
-    if(piece){const img=document.createElement('img');img.className='piece-img'+(piece.startsWith('b')?' black-piece':'');img.src=pieceImg(piece);img.alt=piece;img.draggable=false;sq.appendChild(img);}
+    if(piece){
+      const imgSrc=pieceImg(piece);
+      if(imgSrc){
+        const img=document.createElement('img');
+        img.className='piece-img'+(piece.startsWith('b')?' black-piece':'');
+        img.src=imgSrc;img.alt=piece;img.draggable=false;
+        img.onerror=function(){
+          // 이미지 로드 실패 시 유니코드 기물로 대체
+          this.style.display='none';
+          const span=document.createElement('span');
+          span.className='piece-unicode';
+          span.textContent=PIECE_UNICODE[piece]||'';
+          span.style.cssText='font-size:clamp(20px,4vw,38px);line-height:1;user-select:none;'+(piece.startsWith('w')?'color:#fff;text-shadow:0 0 2px #000,0 1px 3px rgba(0,0,0,.8)':'color:#1a1a1a;text-shadow:0 0 2px rgba(255,255,255,.6),0 1px 3px rgba(0,0,0,.5)');
+          sq.appendChild(span);
+        };
+        sq.appendChild(img);
+      } else {
+        const span=document.createElement('span');
+        span.className='piece-unicode';
+        span.textContent=PIECE_UNICODE[piece]||'';
+        span.style.cssText='font-size:clamp(20px,4vw,38px);line-height:1;user-select:none;'+(piece.startsWith('w')?'color:#fff;text-shadow:0 0 2px #000,0 1px 3px rgba(0,0,0,.8)':'color:#1a1a1a;text-shadow:0 0 2px rgba(255,255,255,.6),0 1px 3px rgba(0,0,0,.5)');
+        sq.appendChild(span);
+      }
+    }
     el.appendChild(sq);
   }
 }
