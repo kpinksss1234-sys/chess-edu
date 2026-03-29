@@ -12,10 +12,10 @@
  *   - 수 품질 레이블 분류 (블런더/실수/부정확/양호)
  *
  * 설정 상수 (이 파일 상단에서 조정):
- *   SF_DEPTH    - 탐색 깊이 (높을수록 정확, 느림)
- *   SF_MULTIPV  - 후보수 개수 (최소 2 권장: 최선+차선 비교용)
- *   BLUNDER_CP  - 블런더 기준 센티폰 손실
- *   MISTAKE_CP  - 실수 기준 센티폰 손실
+ *   SF_DEPTH      - 탐색 깊이 (높을수록 정확, 느림)
+ *   SF_MULTIPV    - 후보수 개수 (3: 핀 라인 비교를 위해 3개 확보)
+ *   BLUNDER_CP    - 블런더 기준 센티폰 손실
+ *   MISTAKE_CP    - 실수 기준 센티폰 손실
  *   INACCURACY_CP - 부정확 기준 센티폰 손실
  *
  * 의존성: stockfish/stockfish-18-single.js (Worker 파일)
@@ -28,7 +28,7 @@
  *
  * analyzePosition 반환값 형태:
  *   {
- *     pvs: [{ depth, cp, mate, moves }],  // multipv 순서
+ *     pvs: [{ depth, cp, mate, moves }],  // multipv 순서 (최대 3개)
  *     bestmove: 'e2e4'                    // UCI 최선수
  *   }
  * ─────────────────────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@
 
 // ── 분석 설정 ────────────────────────────────────────────────────────────────
 const SF_DEPTH      = 14;   // 탐색 깊이. 높을수록 정확하지만 느림 (권장: 12~16)
-const SF_MULTIPV    = 2;    // 후보수 개수. 최선+차선을 봐야 "놓친" 판단 가능
+const SF_MULTIPV    = 3;    // 후보수 개수. 3개 라인으로 핀 라인 유무 비교
 const BLUNDER_CP    = 150;  // 이 이상 손해 = 블런더
 const MISTAKE_CP    = 75;   // 이 이상 손해 = 실수
 const INACCURACY_CP = 30;   // 이 이상 손해 = 부정확
