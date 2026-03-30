@@ -96,9 +96,11 @@ const PIECE_VALUE = { P:100, N:320, B:330, R:500, Q:900, K:20000 };
 // 핀으로 인정하는 피핀 기물 최소 가치 (폰 제외, 나이트 이상)
 const PIN_MIN_PINNED_VALUE = PIECE_VALUE['N']; // 320
 
-// 상대 핀 shield로 인정하는 최소 기물 가치 (퀸/룩만 인정)
-// 비숍/나이트를 shield로 쓰는 라인은 상대 핀으로 보지 않음
-const RELATIVE_PIN_SHIELD_MIN = PIECE_VALUE['R']; // 500
+// 상대 핀 shield로 인정하는 최소 기물 가치 (비숍 이상 인정)
+// 나이트(320) 이하를 shield로 쓰는 라인은 상대 핀으로 보지 않음
+// 예) R→N→B: 비숍(330)이 shield → 인정
+//     R→N→N: 나이트(320)이 shield → 제외 (동가치 교환이라 실질 압박 없음)
+const RELATIVE_PIN_SHIELD_MIN = PIECE_VALUE['B']; // 330
 
 // ── 내부 유틸 ─────────────────────────────────────────────────────────────────
 
