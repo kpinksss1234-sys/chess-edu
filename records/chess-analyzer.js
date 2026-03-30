@@ -222,6 +222,14 @@ async function analyzeGame(pgn, myColor, onProgress) {
     const needAbsMissed = !actualPin.absolute;
     const needRelMissed = !actualPin.relative;
 
+    // [안전장치] 엔진 PV1(최선수)이 실제 둔 수와 같은 경우에는
+    // "핀을 놓쳤다"고 보지 않는다.
+    // → chess.com 등 외부 분석에서 PV1 최선수인 경우와 직관을 맞추기 위함.
+    const engineBestUci = ana[i-1].bestmove || '';
+    if (engineBestUci === actualUci) {
+      continue;
+    }
+
     if (needAbsMissed || needRelMissed) {
       // 이동 전 포지션의 엔진 3개 라인을 핀 여부로 분류
       const { pinPvs } = classifyPvsByPin(ana[i-1].pvs, prev, mover);
