@@ -351,7 +351,11 @@ _auth.onAuthStateChanged(u=>{
   const name=u.displayName||u.email.split('@')[0];
   document.getElementById('sidebar-avatar-letter').textContent=name[0].toUpperCase();
   document.getElementById('sidebar-username').textContent=name;
-  loadRecords();
+  // chess-wasm-fixed.html에서 ?tab=stats로 링크한 경우 통계 탭을 바로 열기
+  const params=new URLSearchParams(window.location.search);
+  const initialTab=params.get('tab');
+  if(initialTab==='stats'){switchTab('stats');}
+  else{loadRecords();}
 });
 function handleLogout(){_auth.signOut().then(()=>window.location.href='/auth.html');}
 
