@@ -187,7 +187,6 @@ async function loadSavedPGN(docId) {
 }
 
 async function deleteSavedPGN(docId,btn) {
-  if(!confirm('이 게임을 삭제하시겠습니까?'))return;
   try {
     await window._fbDb.collection('saved_pgns').doc(docId).delete();
     btn.closest('.saved-game-item')?.remove();
