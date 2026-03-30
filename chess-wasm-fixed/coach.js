@@ -196,9 +196,11 @@ async function askCoach() {
   try {
     const prompt = buildCoachPrompt(context, userQuestion);
     const answer = await callAnthropicAPI(prompt);
+    const cleaned = sanitizeCoachAnswer(answer, context);
     responseDiv.className = '';
     responseDiv.style.display = 'block';
-    responseDiv.innerHTML = formatCoachResponse(answer);
+    responseDiv.innerHTML = formatCoachResponse(cleaned);
+    renderCoachSidebar(cleaned);
   } catch (err) {
     responseDiv.className = '';
     responseDiv.style.display = 'block';
@@ -208,6 +210,38 @@ async function askCoach() {
     coachLoading = false;
     document.getElementById('coach-ask-btn').disabled = false;
   }
+}
+
+// 모델이 만들어내는 플레이스홀더/잡음 제거 + 필요한 경우 수를 치환
+function sanitizeCoachAnswer(text, ctx) {
+  if (!text) return text;
+
+  let out = String(text);
+
+  // 모델이 가끔 만드는 플레이스홀더 제거: <<_0>>, <<0>>, <<_12>> 등
+  out = out.replace(/<<\s*_?\d+\s*>>/g, '');
+
+  // 공백 정리
+  out = out.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
+  // 혹시 너무 비어버리면 원문 대신 최소 컨텍스트 기반 문장이라도 유지
+  if (out.length < 20 && ctx) {
+    const bm = ctx.bestMove ? ctx.bestMove : '';
+    out = `**전략:** 지금 포지션의 핵심은 중앙과 왕의 안전 균형입니다.\n` +
+          `**계획:** 가능한 경우 **${bm}** 같은 자연스러운 전개로 기물의 활동성을 올리고, 상대의 반격 수단을 먼저 점검하세요.\n` +
+          `**목표:** 이 흐름을 놓치면 상대가 주도권을 잡아 내 기물들이 묶일 수 있습니다.`;
+  }
+
+  return cleanKorean(out);
+}
+
+// 오른쪽 패널에 "AI 해설"로 미러링 표시
+function renderCoachSidebar(answerText) {
+  const panel = document.getElementById('coach-sidebar');
+  const body  = document.getElementById('coach-sidebar-body');
+  if (!panel || !body) return;
+  panel.style.display = 'block';
+  body.innerHTML = formatCoachResponse(answerText);
 }
 
 // 코치 컨텍스트 빌드
@@ -245,7 +279,9 @@ function buildCoachPrompt(ctx, question) {
   lines.push(`[사용자 질문]`);
   lines.push(question);
   lines.push(``);
-  lines.push(`위 데이터를 참고하여, 유튜브 체스인사이드 해설 톤(관찰→이유→상대 대응→결론)으로 **전략 / 계획 / 목표** 구조를 유지한 채 한국어로 답변해주세요. 출력에는 cp/평가점수/승률/기보 번호 같은 수치(숫자)는 쓰지 마세요. 단, 수순 표기(e4, Nf3, O-O)는 예외입니다.`);
+  lines.push(`위 데이터를 참고하여, 유튜브 체스인사이드 해설 톤(관찰→이유→상대 대응→결론)으로 **전략 / 계획 / 목표** 구조를 유지한 채 한국어로 답변해주세요.`);
+  lines.push(`중요: 답변에 "<<_0>>", "<<1>>" 같은 플레이스홀더/토큰을 절대로 쓰지 마세요. 모르는 수를 쓰지 말고, 주어진 데이터(방금 둔 수/엔진 최선수/최선 라인)에서만 수 표기를 사용하세요.`);
+  lines.push(`출력에는 cp/평가점수/승률/기보 번호 같은 수치(숫자)는 쓰지 마세요. 단, 수순 표기(e4, Nf3, O-O)는 예외입니다.`);
 
   return lines.join('\n');
 }
@@ -661,8 +697,8 @@ LANGUAGE RULES (CRITICAL):
 - Output language: Korean (한국어) ONLY. No Japanese, Chinese, Arabic, or any other language.
 - Chess move notation (e.g. Nf3, e4, O-O, dxc4) stays in English/algebraic form.
 - All other text must be in Korean. If a word mixes Japanese/Chinese characters, replace it with Korean.
-- Do NOT use emojis or decorative symbols in the output.
 - Do NOT output any headings other than the required three section headers below.
+- Never output placeholders like "<<_0>>" or "<<1>>". If you do not know a move, omit it.
 
 You are an explainer who talks like the YouTube channel "ChessInside".
 

@@ -1214,6 +1214,56 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
   border-left-color: rgba(127,166,80,0.4);
 }
 
+/* ===== RIGHT PANEL: AI COMMENTARY CARD ===== */
+#coach-sidebar {
+  display: none;
+  margin: 0 8px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+#coach-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border);
+}
+#coach-sidebar-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+.coach-sidebar-actions {
+  display: flex;
+  gap: 6px;
+}
+.coach-mini-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+  font-family: var(--font-main);
+}
+.coach-mini-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+#coach-sidebar-body {
+  padding: 10px 10px 12px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
 /* ===== MOBILE RIGHT PANEL ===== */
 #mobile-panel-toggle {
   display: none;
@@ -1483,6 +1533,20 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
           <!-- 설명 본문 -->
           <div id="best-explain-content">
             <div class="threat-loading">분석 중...</div>
+          </div>
+        </div>
+
+        <!-- AI 해설 (우측 고정 카드: 읽기 쉬운 위치) -->
+        <div id="coach-sidebar">
+          <div id="coach-sidebar-header">
+            <span id="coach-sidebar-title">AI 해설</span>
+            <div class="coach-sidebar-actions">
+              <button class="coach-mini-btn" onclick="openCoach()">아래 패널 열기</button>
+              <button class="coach-mini-btn" onclick="document.getElementById('coach-sidebar').style.display='none'">닫기</button>
+            </div>
+          </div>
+          <div id="coach-sidebar-body">
+            <div class="threat-loading">아직 해설이 없습니다. 아래에서 질문하거나 빠른 버튼을 눌러주세요.</div>
           </div>
         </div>
 
