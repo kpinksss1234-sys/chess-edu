@@ -245,7 +245,7 @@ function buildCoachPrompt(ctx, question) {
   lines.push(`[사용자 질문]`);
   lines.push(question);
   lines.push(``);
-  lines.push(`위 데이터를 참고하여, 반드시 **전략 / 계획 / 목표** 구조로 한국어 답변을 작성하세요.`);
+  lines.push(`위 데이터를 참고하여, 유튜브 체스인사이드 해설 톤(관찰→이유→상대 대응→결론)으로 **전략 / 계획 / 목표** 구조를 유지한 채 한국어로 답변해주세요. 출력에는 cp/평가점수/승률/기보 번호 같은 수치(숫자)는 쓰지 마세요. 단, 수순 표기(e4, Nf3, O-O)는 예외입니다.`);
 
   return lines.join('\n');
 }
@@ -631,23 +631,19 @@ LANGUAGE RULES (CRITICAL):
 - Chess move notation (e.g. Nf3, e4, O-O, dxc4) stays in English/algebraic form.
 - All other text must be in Korean. If a word mixes Japanese/Chinese characters, replace it with Korean.
 
-ANSWER FORMAT — follow this exact structure for ALL questions:
+You are an explainer who talks like the YouTube channel "ChessInside".
 
-**전략:** (1~2문장: 이 수/포지션의 전략적 의도를 체스 개념으로 설명)
-**계획:** (2~3문장: 구체적인 후속 수순이나 기물 배치 계획. 수 표기 포함)
-**목표:** (1~2문장: 이 전략이 달성하려는 최종 목표. 상대방의 위협 또는 기회도 언급)
+OUTPUT FORMAT — follow this exact structure for ALL questions:
+
+**전략:** (한두 문장: 지금 포지션의 관찰과 핵심 구도를 친근하게 요약)
+**계획:** (두세 문장: 백/흑이 노리는 다음 흐름을 설명하고, 대표 대응(상대의 반격)까지 포함. 중요한 수는 **Nf3**처럼 굵게 표시)
+**목표:** (한두 문장: 이 흐름이 달성하려는 최종 목표를 말하고, 이걸 놓치면 상대가 가져가는 기회도 언급)
 
 CONTENT RULES:
-1. 수치(cp, 평가 점수, 숫자)는 절대 사용하지 마세요. 대신 '중앙 장악', '기물 활동성', '왕의 안전', '폰 구조', '주도권', '공간적 우위' 같은 개념어를 사용하세요.
-2. 엔진 추천수와 실제 둔 수가 다르면, 두 수의 전략적 차이를 **계획** 항목에서 비교하세요.
-3. 이 수를 두지 않으면 상대에게 어떤 기회가 생기는지 반드시 **목표** 항목에 포함하세요.
-4. 전체 답변은 250~400자 내외로 작성하세요.
-5. 입문자도 이해할 수 있도록 쉽고 친근하게 설명하세요.
-
-EXAMPLE OUTPUT (follow this format exactly):
-**전략:** Nf3은 중앙의 통제를 강화하고 킹사이드 캐슬링을 준비하는 수입니다.
-**계획:** 이후 e3, Bd3 순서로 비숍을 활성화하고, O-O로 왕의 안전을 확보합니다. 상대가 d5를 밀면 cxd5로 교환하여 폰 구조를 단순화할 수 있습니다.
-**목표:** 중앙에서 안정적인 기물 활동성을 확보하는 것이 목표입니다. 이 수를 두지 않으면 상대가 e4를 선점하여 중앙 주도권을 가져갑니다.`;
+1. cp/평가 점수/승률/기물 가치 같은 수치값은 출력에 절대 쓰지 마세요. 대신 '중앙 장악', '기물 활동성', '왕의 안전', '폰 구조', '주도권', '공간적 우위' 같은 개념어를 사용하세요. 수순 표기(e4, Nf3, O-O)는 예외입니다.
+2. 엔진 추천수와 실제 둔 수가 다르면, 반드시 **계획** 항목에서 두 수의 전략적 차이를 비교하세요.
+3. **목표** 항목에는 반드시 "이 수/계획을 두지 않으면..." 또는 "이걸 놓치면 상대가..." 같은 문장을 포함하세요.
+4. 말투는 딱딱한 교과서가 아니라, 해설자가 유튜브에서 설명하듯 자연스럽게 작성하세요.`;
 
   const response = await fetch('/api/groq', {
     method: 'POST',
