@@ -185,16 +185,12 @@ function isValidFork(board, color, toPos, prevBoard) {
   const kingThreats = threatsAfter.filter(t => t.piece[1] === 'K');
   const nonKingThreats = threatsAfter.filter(t => t.piece[1] !== 'K');
 
-  // 폰이 킹 + 동가치/싼 기물 1개만 동시에 공격하는 경우는
-  // 실질적인 전술 이득이 거의 없으므로 포크로 보지 않는다.
-  // (예: P가 K와 P만 동시에 치는 체크 수)
-  if (
-    piece[1] === 'P' &&
-    kingThreats.length > 0 &&
-    nonKingThreats.length === 1 &&
-    PIECE_VALUE[nonKingThreats[0].piece[1]] <= movedValue
-  ) {
-    return false;
+  // 체크(킹 포함) 포크는 "실질적 이득"이 생길 때만 인정.
+  // 킹+폰(또는 킹+저가치 기물)처럼 바로 정리되는 체크는 포크로 세지 않는다.
+  // 기준: 킹을 포함한 경우, 동시에 위협하는 비킹 기물이 최소 나이트 이상이어야 함.
+  if (kingThreats.length > 0) {
+    const hasValuableNonKing = nonKingThreats.some(t => PIECE_VALUE[t.piece[1]] >= PIECE_VALUE['N']);
+    if (!hasValuableNonKing) return false;
   }
 
   const isCheckFork = kingThreats.length > 0;
