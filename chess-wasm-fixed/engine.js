@@ -103,10 +103,12 @@ const evalCache = (() => {
 })();
 
 // ── Worker 풀 ────────────────────────────────────────────────
-// mainWorker  : 화면 포지션 분석 전용
+// mainWorker  : 화면 포지션 분석 전용 (실제 Worker 또는 SharedWorker 프록시 { postMessage })
 // bgWorkers[] : 백그라운드 전체 기보 병렬 분석
 let mainWorker      = null;
 let bgWorkers       = [];
+let _mainEnginePort = null;
+let _useSharedWorkerMain = false;
 let mainReady       = false;
 let renderTimer     = null;
 let engineSearching = false;  // go 전송 후 bestmove 수신 전
@@ -170,79 +172,166 @@ function createStockfishWorker(threads = 1, hashMb = 64) {
 }
 
 
+// 같은 탭에서 분석 보드를 다시 열 때 전체 화면 오버레이 생략 (SharedWorker 재사용 시 특히 빠름)
+const STOCKFISH_OVERLAY_SESSION_KEY = 'chess_education_sf_analysis_ready';
+
+function releaseSharedMainEngine() {
+  if (!_useSharedWorkerMain || !_mainEnginePort) return;
+  try {
+    _mainEnginePort.postMessage({ type: 'releaseStream' });
+  } catch (e) { /* ignore */ }
+  _mainEnginePort = null;
+  _useSharedWorkerMain = false;
+}
+
+function connectSharedMainEngine() {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const t = setTimeout(() => {
+      if (!settled) reject(new Error('SharedWorker stream 연결 타임아웃'));
+    }, 35000);
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      fn();
+    };
+    try {
+      const sw = new SharedWorker('/stockfish-shared-worker.js', { name: 'stockfish-shared' });
+      const port = sw.port;
+      _mainEnginePort = port;
+      port.onmessage = (e) => {
+        const msg = e.data;
+        if (!msg) return;
+        if (msg.type === 'uciLine' && msg.line) {
+          handleMainWorkerMessage({ data: typeof msg.line === 'string' ? msg.line.trim() : msg.line });
+          return;
+        }
+        if (msg.type === 'streamReady') {
+          finish(() => resolve());
+          return;
+        }
+        if (msg.type === 'error' && msg.message) {
+          finish(() => reject(new Error(msg.message)));
+        }
+      };
+      port.start();
+      port.postMessage({ type: 'claimStream' });
+    } catch (e) {
+      finish(() => reject(e));
+    }
+  });
+}
+
 // ── 엔진 초기화 ──────────────────────────────────────────────
 async function initEngine() {
+  var skipFullScreenOverlay = false;
+  try {
+    skipFullScreenOverlay = sessionStorage.getItem(STOCKFISH_OVERLAY_SESSION_KEY) === '1';
+  } catch (e) { /* private mode 등 */ }
+
+  if (skipFullScreenOverlay) {
+    var loadEl0 = document.getElementById('engine-loading');
+    if (loadEl0) loadEl0.classList.add('hidden');
+  }
+
   setEngineBadge('loading', '로딩 중...');
-  document.getElementById('loading-text').textContent = 'Stockfish 18 WASM 로딩 중...';
+  if (!skipFullScreenOverlay) {
+    document.getElementById('loading-text').textContent = 'Stockfish 18 WASM 로딩 중...';
+  }
 
   try {
-    // CPU 코어 수에 따라 설정
-    const cores     = navigator.hardwareConcurrency || 2;
-    const bgCount   = Math.max(1, Math.min(Math.floor(cores / 2), 2)); // 최대 2개로 제한 (메모리 절감)
-    const mainThr   = Math.max(2, Math.floor(cores / 2)); // 코어 절반을 메인에 할당
-    const bgThr     = 1;
+    const cores   = navigator.hardwareConcurrency || 2;
+    const bgCount = Math.max(1, Math.min(Math.floor(cores / 2), 2));
+    const mainThr = Math.max(2, Math.floor(cores / 2));
+    const bgThr   = 1;
 
-    console.log(`[Engine] 코어: ${cores} | 메인: ${mainThr}스레드 | 백그라운드: ${bgCount}개`);
-
-    // 메인 Worker + 백그라운드 Worker 병렬 생성
-    const workerPromises = [
-      createStockfishWorker(mainThr, 128),  // 512→128MB: 분석 품질 유지하면서 메모리 절감
-      ...Array.from({ length: bgCount }, () => createStockfishWorker(bgThr, 32))
-    ];
-
-    document.getElementById('loading-text').textContent =
-      `Stockfish 18 초기화 중... (0/${1 + bgCount})`;
-
-    // 완료되는 순서대로 처리 (가장 빠른 것부터)
-    let doneCount = 0;
-    const results = await Promise.all(workerPromises.map((p, idx) =>
-      p.then(w => {
-        doneCount++;
-        document.getElementById('loading-text').textContent =
-          `Stockfish 18 초기화 중... (${doneCount}/${1 + bgCount})`;
-        return { idx, worker: w };
-      })
-    ));
-
-    // idx 0 = 메인, idx 1~ = 백그라운드
-    for (const { idx, worker: w } of results) {
-      if (idx === 0) {
-        mainWorker = w;
-        mainWorker.onmessage = handleMainWorkerMessage;
-        mainReady = true;
-      } else {
-        bgWorkers.push({ worker: w, busy: false });
-      }
-    }
-
-    setEngineBadge('ready', `SF18 WASM | ${cores}코어`);
-    hideLoading();
-    console.log(`[Engine] 초기화 완료 — 메인 1개 + 백그라운드 ${bgCount}개`);
-
-    // ── SharedWorker pre-warm ────────────────────────────────────
-    // records.html 등 다른 탭이 SharedWorker에 연결 시 이미 Stockfish가
-    // 올라가 있으므로 추가 로딩 없이 즉시 ready 신호를 받게 됩니다.
+    let usedShared = false;
     if (typeof SharedWorker !== 'undefined') {
+      if (!skipFullScreenOverlay) {
+        document.getElementById('loading-text').textContent =
+          'Stockfish 공유 엔진 연결 중... (처음만 전체 로딩)';
+      }
       try {
-        const _sw = new SharedWorker('/stockfish-shared-worker.js', { name: 'stockfish-shared' });
-        _sw.port.onmessage = () => {};
-        _sw.port.start();
-        _sw.port.postMessage({ type: 'init' });
-        console.log('[Engine] SharedWorker pre-warm 완료');
-      } catch (e) {
-        console.warn('[Engine] SharedWorker pre-warm 실패 (무시):', e.message);
+        await connectSharedMainEngine();
+        mainWorker = {
+          postMessage(s) {
+            _mainEnginePort.postMessage({ type: 'streamUci', line: s });
+          }
+        };
+        mainReady = true;
+        _useSharedWorkerMain = true;
+        bgWorkers = [];
+        usedShared = true;
+        window.addEventListener('pagehide', releaseSharedMainEngine, { once: false });
+        console.log('[Engine] 메인 엔진 — SharedWorker 스트림 (탭 간 WASM 1회)');
+      } catch (swErr) {
+        console.warn('[Engine] SharedWorker 실패, 전용 Worker로 폴백:', swErr.message || swErr);
+        releaseSharedMainEngine();
+        mainWorker = null;
+        mainReady = false;
+        _mainEnginePort = null;
+        _useSharedWorkerMain = false;
       }
     }
+
+    if (!usedShared) {
+      console.log(`[Engine] 코어: ${cores} | 메인: ${mainThr}스레드 | 백그라운드: ${bgCount}개`);
+
+      const workerPromises = [
+        createStockfishWorker(mainThr, 128),
+        ...Array.from({ length: bgCount }, () => createStockfishWorker(bgThr, 32))
+      ];
+
+      if (!skipFullScreenOverlay) {
+        document.getElementById('loading-text').textContent =
+          `Stockfish 18 초기화 중... (0/${1 + bgCount})`;
+      }
+
+      let doneCount = 0;
+      const results = await Promise.all(workerPromises.map((p, idx) =>
+        p.then(w => {
+          doneCount++;
+          if (!skipFullScreenOverlay) {
+            document.getElementById('loading-text').textContent =
+              `Stockfish 18 초기화 중... (${doneCount}/${1 + bgCount})`;
+          }
+          return { idx, worker: w };
+        })
+      ));
+
+      for (let i = 0; i < results.length; i++) {
+        const { idx, worker: w } = results[i];
+        if (idx === 0) {
+          mainWorker = w;
+          mainWorker.onmessage = handleMainWorkerMessage;
+          mainReady = true;
+        } else {
+          bgWorkers.push({ worker: w, busy: false });
+        }
+      }
+      console.log(`[Engine] 초기화 완료 — 메인 1개 + 백그라운드 ${bgCount}개`);
+    }
+
+    setEngineBadge('ready', `SF18 WASM | ${cores}코어` + (usedShared ? ' · 공유' : ''));
+    hideLoading();
+    try {
+      sessionStorage.setItem(STOCKFISH_OVERLAY_SESSION_KEY, '1');
+    } catch (e) { /* ignore */ }
 
     if (autoAnalyze) analyzePosition();
-
     if (typeof tryInitEndgamePractice === 'function') tryInitEndgamePractice();
 
   } catch (err) {
     console.error('[Engine] 초기화 실패:', err);
     setEngineBadge('error', '엔진 오류');
-    document.getElementById('loading-text').textContent =
-      'Stockfish 18 로딩 실패: ' + (err && err.message ? err.message : String(err)) + ' — F12 콘솔에서 상세 오류를 확인하세요.';
+    var errEl = document.getElementById('engine-loading');
+    if (errEl) errEl.classList.remove('hidden');
+    var lt = document.getElementById('loading-text');
+    if (lt) {
+      lt.textContent =
+        'Stockfish 18 로딩 실패: ' + (err && err.message ? err.message : String(err)) + ' — F12 콘솔에서 상세 오류를 확인하세요.';
+    }
   }
 }
 
@@ -830,9 +919,7 @@ function analyzeWithWorker(workerObj, fen, depth, movetime, multipv) {
 async function startBgAnalysis() {
   if (!game || game.history.length === 0) return;
   if (bgWorkers.length === 0) {
-    showToast('백그라운드 엔진 준비 중...');
-    // 초기화 완료 후 재시도
-    setTimeout(startBgAnalysis, 1000);
+    // SharedWorker 모드: 메인 엔진은 공유하며 백그라운드 전용 Worker는 두지 않음
     return;
   }
 
