@@ -1,5 +1,6 @@
 /**
- * 엔드게임 연습: URL ?practice=endgame&topic=KEY 로 진입 시 지정 FEN + Stockfish 최선수 대국
+ * 엔드게임 연습: chess-wasm-fixed.html?practice=endgame&topic=KEY
+ * 학습 카드는 practice.html?mode=endgame&topic=KEY 로 연결됨 (chess-wasm-fixed/practice-page.js 의 ENDGAME_TOPICS 와 동기화)
  */
 (function () {
   var POSITIONS = {

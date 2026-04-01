@@ -1,5 +1,8 @@
 /**
  * practice.html — 오프닝·미들·엔드게임 대전 연습 (상대: Stockfish 최선수)
+ *
+ * 학습 엔드게임 카드: practice.html?mode=endgame&topic=square_rule 등
+ * (endgame-practice.js POSITIONS 와 동일 데이터)
  */
 (function () {
   'use strict';
@@ -19,10 +22,45 @@
     },
   };
 
+  /** 학습 페이지 카드와 동일 엔드게임 포지션 */
+  const ENDGAME_TOPICS = {
+    square_rule:        { fen: '8/8/8/8/3p4/8/3P4/3K4 w - - 0 1',           myColor: 'w', title: '사각형 규칙' },
+    king_pawn_vs_king:  { fen: '8/8/8/8/8/4P3/4K3/3k4 w - - 0 1',           myColor: 'w', title: '킹+폰 vs 킹' },
+    rook_knight_pawn:   { fen: '8/8/8/8/8/4P3/4K3/3k4 w - - 0 1',           myColor: 'w', title: '룩폰·나이트폰' },
+    connected_passed: { fen: '8/8/8/8/3p4/1P2P3/4K3/3k4 w - - 0 1',       myColor: 'w', title: '연결된 통과폰' },
+    breakthrough:      { fen: '8/8/8/8/8/PP6/4K3/3k4 w - - 0 1',           myColor: 'w', title: '돌파' },
+    bar_rule:          { fen: '8/8/8/8/8/1p6/6P1/6K1 w - - 0 1',          myColor: 'w', title: '바의 규칙' },
+    philidor:          { fen: '6k1/8/8/8/1p5/6P1/6P1/6K1 b - - 0 1',       myColor: 'b', title: '필리도어' },
+    lucena:            { fen: '3K4/3P1k2/8/8/8/8/8/3R4 w - - 0 1',          myColor: 'w', title: '루세나' },
+    short_side_defense:{ fen: '6k1/8/8/8/8/1p6/6P1/6K1 w - - 0 1',         myColor: 'w', title: '숏 사이드 디펜스' },
+    mate_king_queen_vs_king: { fen: '6k1/8/8/8/8/8/6K1/3Q4 w - - 0 1',     myColor: 'w', title: '킹·퀸 vs 킹' },
+    mate_king_rook_vs_king:  { fen: '6k1/8/8/8/8/8/6K1/3R4 w - - 0 1',     myColor: 'w', title: '킹·룩 vs 킹' },
+    rook_vs_queen:     { fen: '5k2/8/8/8/8/8/6r1/2K1Q3 w - - 0 1',         myColor: 'w', title: '룩 vs 퀸' },
+    queen_vs_pawn:     { fen: '8/8/8/8/8/4p3/2K5/3Q4 w - - 0 1',           myColor: 'w', title: '퀸 vs 폰' },
+  };
+
+  function readTopicFromUrl() {
+    try {
+      const t = new URLSearchParams(location.search).get('topic');
+      return t && ENDGAME_TOPICS[t] ? t : null;
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  function replacePracticeUrl(mode, topicKey) {
+    try {
+      let qs = 'mode=' + encodeURIComponent(mode);
+      if (topicKey) qs += '&topic=' + encodeURIComponent(topicKey);
+      history.replaceState(null, '', 'practice.html?' + qs);
+    } catch (e) { /* ignore */ }
+  }
+
   function readPhaseFromUrl() {
     try {
-      const q = new URLSearchParams(location.search).get('mode');
-      if (q && PHASE[q]) return q;
+      const q = new URLSearchParams(location.search);
+      if (q.get('topic') && ENDGAME_TOPICS[q.get('topic')]) return 'endgame';
+      const mode = q.get('mode');
+      if (mode && PHASE[mode]) return mode;
     } catch (e) { /* ignore */ }
     return 'opening';
   }
@@ -102,6 +140,33 @@
     return readStoredColor();
   }
 
+  function activateEndgameTopic(topicKey, humanColor) {
+    var t = ENDGAME_TOPICS[topicKey];
+    if (!t || typeof game === 'undefined' || !game) return;
+
+    window._enginePracticeThinking = false;
+    window._enginePracticeMode = {
+      myColor: humanColor,
+      title: t.title,
+      phase: 'endgame',
+      topicKey: topicKey,
+    };
+
+    game.loadFromFen(t.fen);
+    applyHumanFlip(humanColor);
+    setPlayerLabels(humanColor);
+
+    document.title = '연습 · ' + t.title + ' — Stockfish';
+
+    var el = document.getElementById('practice-phase-label');
+    if (el) el.textContent = t.title;
+
+    replacePracticeUrl('endgame', topicKey);
+
+    if (typeof analyzePosition === 'function') analyzePosition(true);
+    scheduleEngineTurn();
+  }
+
   function activatePractice(phaseKey, humanColor) {
     var cfg = PHASE[phaseKey];
     if (!cfg || typeof game === 'undefined' || !game) return;
@@ -111,6 +176,7 @@
       myColor: humanColor,
       title: cfg.title,
       phase: phaseKey,
+      topicKey: null,
     };
 
     if (cfg.useReset) {
@@ -133,6 +199,20 @@
 
   window.tryInitPracticePage = function () {
     if (!document.body || !document.body.classList.contains('practice-page')) return;
+
+    var topic = readTopicFromUrl();
+    if (topic) {
+      var t = ENDGAME_TOPICS[topic];
+      var hc = t.myColor;
+      try {
+        localStorage.setItem('chess_practice_human_color', hc);
+      } catch (e) { /* ignore */ }
+      syncModeButtons('endgame');
+      syncColorButtons(hc);
+      activateEndgameTopic(topic, hc);
+      return;
+    }
+
     var phase = currentPhaseFromUI();
     if (!PHASE[phase]) phase = 'opening';
     var hc = currentHumanColorFromUI();
@@ -153,9 +233,7 @@
         var phase = btn.getAttribute('data-practice-mode');
         if (!PHASE[phase]) return;
         syncModeButtons(phase);
-        try {
-          history.replaceState(null, '', 'practice.html?mode=' + encodeURIComponent(phase));
-        } catch (e) { /* ignore */ }
+        replacePracticeUrl(phase, null);
         var hc = currentHumanColorFromUI();
         activatePractice(phase, hc);
       });
@@ -168,9 +246,17 @@
           localStorage.setItem('chess_practice_human_color', hc);
         } catch (e) { /* ignore */ }
         syncColorButtons(hc);
-        var phase = currentPhaseFromUI();
-        if (!PHASE[phase]) phase = 'opening';
-        activatePractice(phase, hc);
+        var topic = readTopicFromUrl();
+        if (!topic && window._enginePracticeMode && window._enginePracticeMode.topicKey) {
+          topic = window._enginePracticeMode.topicKey;
+        }
+        if (topic && ENDGAME_TOPICS[topic]) {
+          activateEndgameTopic(topic, hc);
+        } else {
+          var phase = currentPhaseFromUI();
+          if (!PHASE[phase]) phase = 'opening';
+          activatePractice(phase, hc);
+        }
       });
     });
 
