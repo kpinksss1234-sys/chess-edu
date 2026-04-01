@@ -236,6 +236,8 @@ async function initEngine() {
 
     if (autoAnalyze) analyzePosition();
 
+    if (typeof tryInitEndgamePractice === 'function') tryInitEndgamePractice();
+
   } catch (err) {
     console.error('[Engine] 초기화 실패:', err);
     setEngineBadge('error', '엔진 오류');
@@ -361,6 +363,32 @@ function _sendGoCommand(fen, myId, mpv, movetime) {
   console.log('[CMD] → go sent ✓');
 }
 
+/**
+ * 현재 포지션에서 Stockfish 최선 1수만 요청 (엔드게임 연습 상대)
+ */
+function executeEnginePlayMove(fen, callback) {
+  if (!mainWorker || !mainReady) {
+    callback(null);
+    return;
+  }
+  var sendGo = function () {
+    window._enginePlayResolve = callback;
+    mainWorker.postMessage('setoption name MultiPV value 1');
+    mainWorker.postMessage('position fen ' + fen);
+    mainWorker.postMessage('go depth 40 movetime 10000');
+    engineSearching = true;
+    var ed = document.getElementById('engine-dot');
+    if (ed) ed.className = 'engine-dot thinking';
+  };
+  if (engineSearching) {
+    window._enginePlayAfterStop = sendGo;
+    mainWorker.postMessage('stop');
+  } else {
+    sendGo();
+  }
+}
+window.executeEnginePlayMove = executeEnginePlayMove;
+
 function handleMainWorkerMessage(e) {
   const line = e.data;
   if (!line) return;
@@ -414,6 +442,29 @@ function handleMainWorkerMessage(e) {
     }
 
   } else if (line.startsWith('bestmove')) {
+    if (typeof window._enginePlayAfterStop === 'function') {
+      clearTimeout(renderTimer);
+      const next = window._enginePlayAfterStop;
+      window._enginePlayAfterStop = null;
+      engineSearching = false;
+      next();
+      return;
+    }
+    if (typeof window._enginePlayResolve === 'function') {
+      clearTimeout(renderTimer);
+      const resolve = window._enginePlayResolve;
+      window._enginePlayResolve = null;
+      engineSearching = false;
+      const m = line.match(/^bestmove (\S+)/);
+      let uci = null;
+      if (m && m[1] !== '(none)') uci = m[1];
+      resolve(uci);
+      if (document.getElementById('engine-dot')) {
+        document.getElementById('engine-dot').className = 'engine-dot ready';
+      }
+      return;
+    }
+
     clearTimeout(renderTimer);
     engineSearching = false;
     // 이 bestmove가 현재 분석에 속하지 않으면 무시

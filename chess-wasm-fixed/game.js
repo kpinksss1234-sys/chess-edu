@@ -160,6 +160,9 @@ class ChessGame {
       document.getElementById('best-explain-seq').innerHTML = '';
       lastBestExplainFen = '';
     }
+    if (typeof window._enginePracticeAfterHumanMove === 'function') {
+      window._enginePracticeAfterHumanMove();
+    }
     return true;
   }
 
@@ -291,7 +294,33 @@ class ChessGame {
     }
   }
 
+  loadFromFen(fenString) {
+    this.variations = [];
+    this.currentVariation = null;
+    this.enginePreview = null;
+    const fp = fenString.trim().split(/\s+/);
+    if (!fp[0]) return false;
+    this.board = parseFenBoard(fp[0]) || INIT_BOARD.map(r => [...r]);
+    this.turn = fp[1] || 'w';
+    this.castling = parseFenCastling(fp[2] || '-');
+    this.enPassant = parseFenEP(fp[3] || '-');
+    this.halfMove = parseInt(fp[4] || '0', 10);
+    this.fullMove = parseInt(fp[5] || '1', 10);
+    this.history = [];
+    this.historyIndex = -1;
+    this.lastMove = null;
+    this.selectedSq = null;
+    this.possibleMoves = [];
+    this.renderBoard();
+    this.renderMoveList();
+    this.updateStatus();
+    analyzePosition(true);
+    return true;
+  }
+
   resetBoard() {
+    window._enginePracticeMode = null;
+    window._enginePracticeThinking = false;
     this.reset();
     pvData = {};
     lastAnalyzedFen = '';
@@ -311,6 +340,10 @@ class ChessGame {
   }
 
   handleSquareClick(r, c) {
+    if (window._enginePracticeMode) {
+      if (window._enginePracticeThinking) return;
+      if (this.turn !== window._enginePracticeMode.myColor) return;
+    }
     // variation 모드일 때는 variation에 수 추가
     if (this.currentVariation) {
       const piece = this.board[r][c];
@@ -372,6 +405,7 @@ class ChessGame {
 
   confirmPromo(piece) {
     document.getElementById('promotion-modal').classList.remove('visible');
+    if (window._enginePracticeMode && window._enginePracticeThinking) return;
     if (this.pendingPromo) {
       const m = this.pendingPromo;
       this.pendingPromo = null;
@@ -475,6 +509,10 @@ class ChessGame {
 
   // ── 마우스 드래그 이동 (mousedown 즉시 드래그 시작) ──────────
   _startMouseDrag(r, c, e, img) {
+    if (window._enginePracticeMode) {
+      if (window._enginePracticeThinking) return;
+      if (this.turn !== window._enginePracticeMode.myColor) return;
+    }
     const piece = this.board[r][c];
     if (!piece) return;
 

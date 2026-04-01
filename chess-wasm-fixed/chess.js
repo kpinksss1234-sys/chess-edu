@@ -656,6 +656,23 @@ function _sanToMoveCellHTML(san, turn) {
   return `${pieceIconHTML}<span>${displaySan}</span>`;
 }
 
+/** 단일 UCI → legal move 객체 (엔진 대국용) */
+function uciToMove(uci, board, turn, castling, enPassant) {
+  if (!uci || uci.length < 4) return null;
+  const fc = FILES.indexOf(uci[0]);
+  const fr = 8 - parseInt(uci[1]);
+  const tc = FILES.indexOf(uci[2]);
+  const tr = 8 - parseInt(uci[3]);
+  const promo = uci[4] ? uci[4].toUpperCase() : null;
+  const allLegal = getAllLegalMoves(board, turn, castling, enPassant);
+  const move = allLegal.find(m =>
+    m.from[0] === fr && m.from[1] === fc && m.to[0] === tr && m.to[1] === tc &&
+    (!promo || m.promo)
+  );
+  if (move && promo) move.promoPiece = promo;
+  return move || null;
+}
+
 function uciMovesToSan(uciMoves, startBoard, startTurn, startCastling, startEnPassant) {
   let board = startBoard.map(r=>[...r]);
   let turn = startTurn;
