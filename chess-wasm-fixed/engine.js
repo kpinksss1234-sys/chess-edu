@@ -321,6 +321,7 @@ async function initEngine() {
 
     if (autoAnalyze) analyzePosition();
     if (typeof tryInitEndgamePractice === 'function') tryInitEndgamePractice();
+    if (typeof tryInitPracticePage === 'function') tryInitPracticePage();
 
   } catch (err) {
     console.error('[Engine] 초기화 실패:', err);

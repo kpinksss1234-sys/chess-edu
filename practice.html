@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ko" data-color-mode="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>체스 연습 — Stockfish 대전</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyDiBFoUf2QVG9QXO34Xny0bSslFYaiwozg",
+  authDomain: "chess-education-464fc.firebaseapp.com",
+  projectId: "chess-education-464fc",
+  storageBucket: "chess-education-464fc.firebasestorage.app",
+  messagingSenderId: "963998720041",
+  appId: "1:963998720041:web:aa4037707214d3777c7c38",
+});
+var _fbAuth = firebase.auth();
+var _fbDb = null;
+var _currentUser = null;
+_fbAuth.onAuthStateChanged(function (user) {
+  if (!user) {
+    window.location.href = '/auth.html';
+  } else {
+    _currentUser = user;
+    var name = user.displayName || user.email || '?';
+    var avatarEl = document.getElementById('sidebar-avatar-letter');
+    var nameEl = document.getElementById('sidebar-username');
+    if (avatarEl) avatarEl.textContent = name[0].toUpperCase();
+    if (nameEl) nameEl.textContent = name.split('@')[0];
+  }
+});
+function handleLogout() {
+  _fbAuth.signOut().then(function () { window.location.href = '/auth.html'; });
+}
+</script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+:root {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #242424;
+  --bg-tertiary: #2d2d2d;
+  --bg-card: #1e1e1e;
+  --bg-hover: #333333;
+  --border: #3a3a3a;
+  --border-light: #444444;
+  --text-primary: #e8e8e8;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --accent-green: #7fa650;
+  --accent-green-bright: #a0c060;
+  --accent-green-dark: #5a8030;
+  --accent-blue: #5090d0;
+  --accent-orange: #e08030;
+  --sidebar-width: 72px;
+  --board-light: #f0d9b5;
+  --board-dark: #b58863;
+  --move-brilliant: #1bada6;
+  --move-great: #5c8fff;
+  --move-best: #7fa650;
+  --move-excellent: #7fa650;
+  --move-good: #96af8b;
+  --move-book: #b07030;
+  --move-inaccuracy: #f6c94a;
+  --move-mistake: #e08c3a;
+  --move-blunder: #cc3333;
+  --move-miss: #9944cc;
+  --font-main: 'Noto Sans KR', sans-serif;
+}
+body {
+  font-family: var(--font-main);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+.practice-page #coach-fab,
+.practice-page #coach-panel { display: none !important; }
+
+#sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 4px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.sidebar-logo {
+  width: 40px; height: 40px;
+  background: var(--accent-green);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 12px; cursor: pointer; font-size: 22px;
+  transition: background 0.2s;
+  color: inherit;
+  text-decoration: none;
+}
+.sidebar-logo:hover { background: var(--accent-green-bright); }
+.sidebar-nav {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; width: 100%; flex: 1;
+}
+.sidebar-item {
+  width: 52px; height: 52px; border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; gap: 3px; transition: background 0.15s;
+  text-decoration: none; color: inherit;
+}
+.sidebar-item:hover { background: var(--bg-hover); }
+.sidebar-item.active { background: var(--bg-tertiary); }
+.sidebar-item.active .sidebar-icon { color: var(--accent-green-bright); }
+.sidebar-icon { width: 22px; height: 22px; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
+.sidebar-label { font-size: 9px; color: var(--text-muted); text-align: center; line-height: 1; }
+.sidebar-item.active .sidebar-label { color: var(--accent-green-bright); }
+.sidebar-divider { width: 32px; height: 1px; background: var(--border); margin: 6px 0; }
+.sidebar-footer {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px; padding-top: 8px; border-top: 1px solid var(--border); width: 100%;
+}
+.sidebar-user {
+  width: 52px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 3px; padding: 6px 0; cursor: default;
+}
+.sidebar-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-green), var(--accent-green-dark));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff;
+  border: 2px solid var(--accent-green-dark);
+}
+.sidebar-username {
+  font-size: 8.5px; color: var(--text-muted);
+  text-align: center; max-width: 52px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.sidebar-item.logout-btn:hover { background: rgba(192,64,64,0.12); }
+.sidebar-item.logout-btn:hover .sidebar-icon { color: #e07070; }
+
+#main { flex: 1; display: flex; overflow: hidden; min-width: 0; }
+
+#board-area {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 16px; background: var(--bg-primary);
+  min-width: 0; overflow: hidden;
+}
+.player-info {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; max-width: 520px; padding: 8px 0;
+}
+.player-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg-tertiary); border: 2px solid var(--border-light);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0; overflow: hidden;
+}
+.player-avatar img { width: 100%; height: 100%; object-fit: contain; }
+.player-details { flex: 1; min-width: 0; }
+.player-name { font-size: 14px; font-weight: 600; }
+.player-rating {
+  font-size: 12px; color: var(--text-secondary);
+  background: var(--bg-tertiary); padding: 1px 6px;
+  border-radius: 4px; margin-left: 6px;
+}
+.player-clock {
+  font-size: 18px; font-weight: 700; color: var(--text-secondary);
+  background: var(--bg-tertiary); border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 6px;
+}
+.captured-pieces { flex: 1; display: flex; flex-wrap: wrap; gap: 1px; align-items: center; font-size: 14px; }
+.captured-pieces img { width: 18px; height: 18px; }
+
+#eval-container { display: flex; align-items: stretch; gap: 8px; width: 100%; max-width: 540px; }
+#eval-bar-wrap {
+  width: 20px; height: min(80vmin, 520px);
+  background: #2a2a2a; border-radius: 6px; overflow: visible;
+  border: 1px solid var(--border); flex-shrink: 0; position: relative;
+}
+#eval-bar-fill {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: #f0f0f0; transition: height 0.35s cubic-bezier(0.4,0,0.2,1);
+  border-radius: 0 0 5px 5px;
+}
+#eval-bar-black {
+  position: absolute; top: 0; left: 0; right: 0;
+  background: #1a1a1a; border-radius: 5px 5px 0 0;
+}
+#eval-score-black {
+  position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; font-weight: 700; color: #ccc; z-index: 10;
+}
+#eval-score-white {
+  position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; font-weight: 700; color: #333; z-index: 10;
+}
+#board-wrap { flex: 1; min-width: 0; }
+
+#chessboard {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: min(80vmin, 520px);
+  height: min(80vmin, 520px);
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  cursor: pointer;
+  user-select: none;
+}
+.square {
+  display: flex; align-items: center; justify-content: center;
+  position: relative; transition: background 0.1s;
+}
+.square.possible-move::after {
+  content: ''; position: absolute;
+  width: 30%; height: 30%; border-radius: 50%;
+  background: rgba(0,0,0,0.2); pointer-events: none; z-index: 2;
+}
+.square.possible-capture::after {
+  content: ''; position: absolute; inset: 0;
+  border-radius: 50%; border: 4px solid rgba(0,0,0,0.25);
+  pointer-events: none; z-index: 2;
+}
+.piece-img {
+  width: 88%; height: 88%; object-fit: contain;
+  z-index: 1; pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+  cursor: grab;
+}
+.piece-img.black-piece {
+  filter:
+    drop-shadow(0 0 1px rgba(180,180,180,0.9))
+    drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
+.coord-rank {
+  position: absolute; top: 2px; left: 3px;
+  font-size: 10px; font-weight: 600; pointer-events: none; z-index: 3;
+}
+.coord-file {
+  position: absolute; bottom: 2px; right: 3px;
+  font-size: 10px; font-weight: 600; pointer-events: none; z-index: 3;
+}
+
+#board-controls {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; max-width: 520px; padding: 10px 0 4px;
+}
+.ctrl-btn {
+  width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-secondary);
+  color: var(--text-secondary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.ctrl-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ctrl-spacer { flex: 1; }
+.eval-score {
+  font-size: 13px; font-weight: 700; color: var(--text-secondary);
+  min-width: 56px; text-align: center;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px;
+}
+
+#right-panel {
+  width: 300px; flex-shrink: 0; display: flex; flex-direction: column;
+  background: var(--bg-secondary); border-left: 1px solid var(--border); overflow: hidden;
+}
+
+.practice-panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.practice-panel-header h2 {
+  font-size: 15px; font-weight: 700;
+  margin-bottom: 4px;
+}
+.practice-panel-header p {
+  font-size: 11px; color: var(--text-muted);
+  line-height: 1.5;
+}
+#practice-phase-label {
+  font-size: 12px;
+  color: var(--accent-green-bright);
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.practice-seg {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.practice-seg button {
+  flex: 1;
+  min-width: 72px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-main);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.practice-seg button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.practice-seg button.active {
+  border-color: var(--accent-green-dark);
+  background: rgba(127,166,80,0.2);
+  color: var(--accent-green-bright);
+}
+.practice-seg.mode-open .practice-mode-opening.active { border-color: var(--accent-blue); background: rgba(80,144,208,0.15); color: #7eb8e8; }
+.practice-seg.mode-mid .practice-mode-middlegame.active { border-color: var(--accent-orange); background: rgba(224,128,48,0.12); color: #e8a060; }
+.practice-seg.mode-end .practice-mode-endgame.active { border-color: var(--accent-green); background: rgba(127,166,80,0.22); color: var(--accent-green-bright); }
+
+.btn-newgame {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent-green-dark);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-main);
+}
+.btn-newgame:hover { background: var(--accent-green); }
+
+#analysis-panel { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
+.analysis-header {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  flex-shrink: 0;
+}
+.engine-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--accent-green-bright); }
+.engine-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0;
+}
+.engine-dot.thinking { animation: pulse 1s ease-in-out infinite; }
+.engine-dot.ready { background: var(--accent-green-bright); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+.depth-info { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+.practice-hide-top-moves { display: none !important; }
+
+#move-list-wrap { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
+.move-list-header {
+  display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 10px;
+}
+.move-list-title { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+.move-count { font-size: 11px; color: var(--text-muted); }
+.move-pair {
+  display: grid; grid-template-columns: 32px 1fr 1fr;
+  align-items: center; border-radius: 4px; margin-bottom: 2px;
+}
+.move-num { font-size: 13px; color: var(--text-muted); padding: 5px 4px; text-align: right; padding-right: 8px; }
+.move-cell {
+  padding: 5px 8px; font-size: 14.5px; font-weight: 600;
+  cursor: pointer; border-radius: 4px; transition: background 0.1s;
+}
+.move-cell:hover { background: var(--bg-hover); }
+.move-cell.active { background: var(--accent-green-dark); color: #fff; }
+.move-cell img { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; }
+.move-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dot-brilliant { background: var(--move-brilliant); }
+.dot-great { background: var(--move-great); }
+.dot-best { background: var(--move-best); }
+.dot-excellent { background: var(--move-excellent); }
+.dot-good { background: var(--move-good); }
+.dot-book { background: var(--move-book); }
+.dot-inaccuracy { background: var(--move-inaccuracy); }
+.dot-mistake { background: var(--move-mistake); }
+.dot-blunder { background: var(--move-blunder); }
+.dot-miss { background: var(--move-miss); }
+.dot-forced { background: #555; }
+.move-ann {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  font-size: 10px; font-weight: 900; margin-left: 3px;
+}
+.ann-brilliant { background: #1bada6; color: #fff; }
+.ann-great { background: #5c8fff; color: #fff; }
+.ann-best { background: #7fa650; color: #fff; }
+.ann-excellent { background: #7fa650; color: #fff; }
+.ann-good { background: var(--move-good); color: #fff; }
+.ann-book { background: #9b7240; color: #fff; }
+.ann-inaccuracy { background: #f6c94a; color: #222; }
+.ann-mistake { background: #e08c3a; color: #fff; }
+.ann-blunder { background: #cc3333; color: #fff; }
+.ann-miss { background: #9944cc; color: #fff; }
+.ann-forced { background: #555; color: #ccc; }
+
+#status-bar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+  border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary);
+  background: var(--bg-primary); flex-shrink: 0;
+}
+.status-indicator { display: flex; align-items: center; gap: 6px; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); }
+
+#promotion-modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000;
+  display: none; align-items: center; justify-content: center;
+}
+#promotion-modal.visible { display: flex; }
+.promotion-box {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px; text-align: center;
+}
+.promotion-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.promotion-pieces { display: flex; gap: 8px; }
+.promo-piece {
+  width: 64px; height: 64px; border-radius: 8px;
+  background: var(--bg-tertiary); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.promo-piece:hover { border-color: var(--accent-green); }
+.promo-piece img { width: 50px; height: 50px; object-fit: contain; }
+
+#toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: #333; color: #fff; padding: 8px 18px; border-radius: 8px;
+  font-size: 13px; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 2000;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+#engine-loading {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 3000;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+#engine-loading.hidden { display: none; }
+.loading-spinner {
+  width: 40px; height: 40px; border: 3px solid var(--border);
+  border-top-color: var(--accent-green); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { color: var(--text-secondary); font-size: 14px; text-align: center; padding: 0 24px; }
+
+body.dragging, body.dragging * { user-select: none !important; cursor: grabbing !important; }
+#chessboard { -webkit-user-select: none; user-select: none; }
+
+.sr-only-gameinfo {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); border: 0;
+}
+</style>
+</head>
+<body class="practice-page">
+
+<div id="engine-loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loading-text">Stockfish 18 WASM 로딩 중...<br><small style="opacity:0.6;font-size:12px">처음 로드 시 잠시 시간이 걸립니다</small></div>
+</div>
+
+<nav id="sidebar">
+  <a class="sidebar-logo" href="/" title="홈">♟</a>
+  <div class="sidebar-nav">
+    <a class="sidebar-item" href="/chess-wasm-fixed.html" title="분석">
+      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/></svg></div>
+      <span class="sidebar-label">분석</span>
+    </a>
+    <a class="sidebar-item" href="/play.html" title="대국">
+      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></div>
+      <span class="sidebar-label">대국</span>
+    </a>
+    <a class="sidebar-item" href="/puzzle.html" title="퍼즐">
+      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg></div>
+      <span class="sidebar-label">퍼즐</span>
+    </a>
+    <div class="sidebar-divider"></div>
+    <a class="sidebar-item" href="/records.html" title="기록">
+      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM8 15V17H16V15H8ZM8 11V13H16V11H8Z"/></svg></div>
+      <span class="sidebar-label">기록</span>
+    </a>
+    <a class="sidebar-item" href="/study.html" title="학습">
+      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg></div>
+      <span class="sidebar-label">학습</span>
+    </a>
+    <a class="sidebar-item active" href="/practice.html" title="연습">
+      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5v14h2v2h10v-2h2V5zm-2 12H7V7h10v10zM9 9h6v6H9V9z"/></svg></div>
+      <span class="sidebar-label">연습</span>
+    </a>
+  </div>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar" id="sidebar-avatar-letter">?</div>
+      <div class="sidebar-username" id="sidebar-username">로딩중</div>
+    </div>
+    <div class="sidebar-item logout-btn" title="로그아웃" onclick="handleLogout()">
+      <div class="sidebar-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
+      <span class="sidebar-label">로그아웃</span>
+    </div>
+  </div>
+</nav>
+
+<div id="main">
+  <div id="board-area">
+    <div class="player-info" id="player-black">
+      <div class="player-avatar" id="avatar-black">
+        <img src="https://lichess1.org/assets/piece/cburnett/bP.svg" alt="흑">
+      </div>
+      <div class="player-details">
+        <span class="player-name" id="name-black">흑</span>
+        <span class="player-rating" id="rating-black">?</span>
+        <div class="captured-pieces" id="captured-black"></div>
+      </div>
+      <div class="player-clock" id="clock-black">∞</div>
+    </div>
+
+    <div id="eval-container">
+      <div id="eval-bar-wrap">
+        <div id="eval-bar-black"></div>
+        <div id="eval-bar-fill" style="height:50%"></div>
+        <span id="eval-score-black">0.0</span>
+        <span id="eval-score-white">0.0</span>
+      </div>
+      <div id="board-wrap">
+        <div id="chessboard"></div>
+      </div>
+    </div>
+
+    <div class="player-info" id="player-white">
+      <div class="player-avatar" id="avatar-white">
+        <img src="https://lichess1.org/assets/piece/cburnett/wP.svg" alt="백">
+      </div>
+      <div class="player-details">
+        <span class="player-name" id="name-white">백</span>
+        <span class="player-rating" id="rating-white">?</span>
+        <div class="captured-pieces" id="captured-white"></div>
+      </div>
+      <div class="player-clock" id="clock-white">∞</div>
+    </div>
+
+    <div id="board-controls">
+      <button class="ctrl-btn" onclick="game.goToStart()" title="처음">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6H8V18H6ZM9.5 12L18 18V6L9.5 12Z"/></svg>
+      </button>
+      <button class="ctrl-btn" onclick="game.prevMove()" title="이전">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 19L7 12L15.5 5V19Z"/></svg>
+      </button>
+      <button class="ctrl-btn" onclick="game.nextMove()" title="다음">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 5L17 12L8.5 19V5Z"/></svg>
+      </button>
+      <button class="ctrl-btn" onclick="game.goToEnd()" title="끝">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 18H16V6H18ZM14.5 12L6 6V18L14.5 12Z"/></svg>
+      </button>
+      <div class="ctrl-spacer"></div>
+      <div class="eval-score" id="eval-score" title="엔진 평가">0.0</div>
+      <button class="ctrl-btn" onclick="game.flipBoard()" title="보드 뒤집기">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      </button>
+      <button class="ctrl-btn" onclick="practiceNewGame()" title="같은 조건으로 새 게임">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="right-panel">
+    <div class="practice-panel-header">
+      <h2>엔진 대전 연습</h2>
+      <p>오프닝·미들·엔드게임 구간을 고르고, 백/흑을 선택하세요. 상대는 매 수 <strong>Stockfish 최선수</strong>입니다.</p>
+      <div id="practice-phase-label">오프닝</div>
+
+      <div class="practice-seg" id="practice-mode-seg">
+        <button type="button" class="practice-mode-opening" data-practice-mode="opening">오프닝</button>
+        <button type="button" class="practice-mode-middlegame" data-practice-mode="middlegame">미들게임</button>
+        <button type="button" class="practice-mode-endgame" data-practice-mode="endgame">엔드게임</button>
+      </div>
+      <div class="practice-seg">
+        <button type="button" data-human-color="w">나 · 백</button>
+        <button type="button" data-human-color="b">나 · 흑</button>
+      </div>
+      <button type="button" class="btn-newgame" id="practice-new-game">이 단계로 새 게임</button>
+    </div>
+
+    <div id="analysis-panel">
+      <div class="analysis-header">
+        <div class="engine-badge">
+          <div class="engine-dot idle" id="engine-dot"></div>
+          <span id="engine-name">Stockfish 18</span>
+        </div>
+        <span class="depth-info" id="depth-info">준비 중</span>
+      </div>
+
+      <div id="top-moves" class="top-moves practice-hide-top-moves">
+        <div id="top-moves-empty"></div>
+      </div>
+
+      <div id="threat-panel" style="display:none;"></div>
+      <div id="threat-content" style="display:none;"></div>
+      <div id="best-explain-panel" style="display:none;"></div>
+      <div id="best-explain-content" style="display:none;"></div>
+      <div id="best-explain-seq" style="display:none;"></div>
+
+      <div id="move-list-wrap">
+        <div class="move-list-header">
+          <span class="move-list-title">기보</span>
+          <span class="move-count" id="move-count">0 수</span>
+        </div>
+        <div id="move-list"></div>
+      </div>
+    </div>
+
+    <div id="status-bar">
+      <div class="status-indicator">
+        <div class="status-dot"></div>
+        <span id="status-text">백의 차례</span>
+      </div>
+      <span>|</span>
+      <span id="move-count-bar">0 수</span>
+    </div>
+  </div>
+</div>
+
+<div id="promotion-modal">
+  <div class="promotion-box">
+    <div class="promotion-title">프로모션 기물 선택</div>
+    <div class="promotion-pieces" id="promo-pieces"></div>
+  </div>
+</div>
+
+<div class="sr-only-gameinfo" aria-hidden="true">
+  <span id="info-white">-</span>
+  <span id="info-black">-</span>
+  <span id="info-date">-</span>
+  <span id="info-result">*</span>
+  <span id="info-opening">-</span>
+</div>
+
+<div id="toast"></div>
+
+<input id="coach-input" type="text" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" tabindex="-1" aria-hidden="true">
+
+<div id="coach-panel"></div>
+<button id="coach-fab" type="button">coach</button>
+
+<script src="chess-wasm-fixed/chess.js"></script>
+<script src="chess-wasm-fixed/engine.js"></script>
+<script src="chess-wasm-fixed/game.js"></script>
+<script src="chess-wasm-fixed/ui.js"></script>
+<script src="chess-wasm-fixed/endgame-practice.js"></script>
+<script src="chess-wasm-fixed/practice-page.js"></script>
+<script src="chess-wasm-fixed/coach.js"></script>
+</body>
+</html>
