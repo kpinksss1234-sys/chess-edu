@@ -81,19 +81,23 @@
     window._enginePracticeThinking = true;
     var fen = getFenForEngine();
     executeEnginePlayMove(fen, function (uci) {
-      window._enginePracticeThinking = false;
       if (!uci || !window._enginePracticeMode) {
+        window._enginePracticeThinking = false;
         analyzePosition(true);
         return;
       }
-      var mv = uciToMove(uci, game.board, game.turn, game.castling, game.enPassant);
-      if (!mv) {
-        showToast('엔진 수 적용 실패');
+      // 1초 딜레이 후 엔진 수 적용 (사용자가 생각할 시간 제공)
+      setTimeout(function () {
+        window._enginePracticeThinking = false;
+        var mv = uciToMove(uci, game.board, game.turn, game.castling, game.enPassant);
+        if (!mv) {
+          showToast('엔진 수 적용 실패');
+          analyzePosition(true);
+          return;
+        }
+        game.makeMove(mv, mv.promoPiece || null);
         analyzePosition(true);
-        return;
-      }
-      game.makeMove(mv, mv.promoPiece || null);
-      analyzePosition(true);
+      }, 1000);
     });
   }
 

@@ -79,19 +79,23 @@
     window._enginePracticeThinking = true;
     var fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
     executeEnginePlayMove(fen, function (uci) {
-      window._enginePracticeThinking = false;
       if (!uci || !window._enginePracticeMode) {
+        window._enginePracticeThinking = false;
         if (typeof analyzePosition === 'function') analyzePosition(true);
         return;
       }
-      var mv = uciToMove(uci, game.board, game.turn, game.castling, game.enPassant);
-      if (!mv) {
-        if (typeof showToast === 'function') showToast('엔진 수 적용 실패');
+      // 1초 딜레이 후 엔진 수 적용 (사용자가 생각할 시간 제공)
+      setTimeout(function () {
+        window._enginePracticeThinking = false;
+        var mv = uciToMove(uci, game.board, game.turn, game.castling, game.enPassant);
+        if (!mv) {
+          if (typeof showToast === 'function') showToast('엔진 수 적용 실패');
+          if (typeof analyzePosition === 'function') analyzePosition(true);
+          return;
+        }
+        game.makeMove(mv, mv.promoPiece || null);
         if (typeof analyzePosition === 'function') analyzePosition(true);
-        return;
-      }
-      game.makeMove(mv, mv.promoPiece || null);
-      if (typeof analyzePosition === 'function') analyzePosition(true);
+      }, 1000);
     });
   }
 
@@ -140,6 +144,13 @@
     return readStoredColor();
   }
 
+  function resetHintPanel() {
+    var panel = document.getElementById('hint-panel');
+    var btn = document.getElementById('hint-toggle-btn');
+    if (panel) panel.style.display = 'none';
+    if (btn) { btn.classList.remove('active'); btn.title = '힌트 보기'; }
+  }
+
   function activateEndgameTopic(topicKey, humanColor) {
     var t = ENDGAME_TOPICS[topicKey];
     if (!t || typeof game === 'undefined' || !game) return;
@@ -155,6 +166,7 @@
     game.loadFromFen(t.fen);
     applyHumanFlip(humanColor);
     setPlayerLabels(humanColor);
+    resetHintPanel();
 
     document.title = '연습 · ' + t.title + ' — Stockfish';
 
@@ -187,6 +199,7 @@
 
     applyHumanFlip(humanColor);
     setPlayerLabels(humanColor);
+    resetHintPanel();
 
     document.title = '연습 · ' + cfg.title + ' — Stockfish';
 
@@ -263,4 +276,52 @@
     var newGame = document.getElementById('practice-new-game');
     if (newGame) newGame.addEventListener('click', function () { window.practiceNewGame(); });
   });
+  /** ── 힌트 패널 토글 ── */
+  window.toggleHintPanel = function () {
+    var panel = document.getElementById('hint-panel');
+    var btn = document.getElementById('hint-toggle-btn');
+    if (!panel || !btn) return;
+
+    var isVisible = panel.style.display !== 'none';
+    if (isVisible) {
+      panel.style.display = 'none';
+      btn.classList.remove('active');
+      btn.title = '힌트 보기';
+      return;
+    }
+
+    // 패널 열기 + 힌트 로드
+    panel.style.display = 'block';
+    btn.classList.add('active');
+    btn.title = '힌트 숨기기';
+
+    var hintContent = document.getElementById('hint-content');
+    if (!hintContent) return;
+
+    hintContent.innerHTML = '<span style="color:var(--text-muted);font-size:12px">힌트 계산 중…</span>';
+
+    if (typeof game === 'undefined' || !game) {
+      hintContent.innerHTML = '<span style="color:var(--text-muted);font-size:12px">게임을 먼저 시작하세요.</span>';
+      return;
+    }
+
+    var fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
+    executeEnginePlayMove(fen, function (uci) {
+      if (!uci) {
+        hintContent.innerHTML = '<span style="color:var(--text-muted);font-size:12px">힌트를 가져올 수 없습니다.</span>';
+        return;
+      }
+      // UCI → 읽기 쉬운 표기 (e.g. e2e4 → e2 → e4)
+      var from = uci.slice(0, 2);
+      var to   = uci.slice(2, 4);
+      var promo = uci.length > 4 ? uci[4].toUpperCase() : '';
+      var promoNames = { Q: '퀸', R: '룩', B: '비숍', N: '나이트' };
+      var promoText = promo ? ' (' + (promoNames[promo] || promo) + '으로 승진)' : '';
+      hintContent.innerHTML =
+        '<span style="font-size:13px;font-weight:700;color:var(--accent-green-bright)">💡 ' +
+        from + ' → ' + to + promoText + '</span>' +
+        '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Stockfish 추천 수입니다.</div>';
+    });
+  };
+
 })();
