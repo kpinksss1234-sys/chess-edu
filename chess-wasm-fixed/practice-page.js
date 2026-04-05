@@ -298,30 +298,27 @@
     var hintContent = document.getElementById('hint-content');
     if (!hintContent) return;
 
-    hintContent.innerHTML = '<span style="color:var(--text-muted);font-size:12px">힌트 계산 중…</span>';
-
-    if (typeof game === 'undefined' || !game) {
-      hintContent.innerHTML = '<span style="color:var(--text-muted);font-size:12px">게임을 먼저 시작하세요.</span>';
-      return;
+    // 현재 연습 중인 topic 또는 phase 키 결정
+    var key = null;
+    if (window._enginePracticeMode) {
+      key = window._enginePracticeMode.topicKey || window._enginePracticeMode.phase || null;
     }
+    if (!key) key = readTopicFromUrl() || readPhaseFromUrl();
 
-    var fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
-    executeEnginePlayMove(fen, function (uci) {
-      if (!uci) {
-        hintContent.innerHTML = '<span style="color:var(--text-muted);font-size:12px">힌트를 가져올 수 없습니다.</span>';
-        return;
-      }
-      // UCI → 읽기 쉬운 표기 (e.g. e2e4 → e2 → e4)
-      var from = uci.slice(0, 2);
-      var to   = uci.slice(2, 4);
-      var promo = uci.length > 4 ? uci[4].toUpperCase() : '';
-      var promoNames = { Q: '퀸', R: '룩', B: '비숍', N: '나이트' };
-      var promoText = promo ? ' (' + (promoNames[promo] || promo) + '으로 승진)' : '';
+    // hints.js 에 정의된 HINT_TEXT 에서 내용 조회
+    var hints = (typeof window.HINT_TEXT !== 'undefined') ? window.HINT_TEXT : {};
+    var hint = key ? hints[key] : null;
+
+    if (hint) {
       hintContent.innerHTML =
-        '<span style="font-size:13px;font-weight:700;color:var(--accent-green-bright)">💡 ' +
-        from + ' → ' + to + promoText + '</span>' +
-        '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Stockfish 추천 수입니다.</div>';
-    });
+        '<div style="font-size:13px;font-weight:700;color:var(--accent-green-bright);margin-bottom:6px">💡 ' +
+        (hint.title || '힌트') + '</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.6">' +
+        hint.body.replace(/\n/g, '<br>') + '</div>';
+    } else {
+      hintContent.innerHTML =
+        '<span style="color:var(--text-muted);font-size:12px">이 포지션에 등록된 힌트가 없습니다.</span>';
+    }
   };
 
 })();
