@@ -15,17 +15,17 @@
       title: '킹+폰 vs 킹',
     },
     connected_passed: {
-      fen: '8/8/8/8/3p4/1P2P3/4K3/3k4 w - - 0 1',
+      fen: '8/8/8/K4k2/8/6P1/5P2/8 w - - 0 1',
       myColor: 'w',
       title: '연결된 통과폰',
     },
     breakthrough: {
-      fen: '8/8/8/8/8/PP6/4K3/3k4 w - - 0 1',
+      fen: '8/ppp5/8/PPP5/8/7k/8/7K w - - 0 1',
       myColor: 'w',
       title: '돌파',
     },
     bar_rule: {
-      fen: '8/8/8/8/8/1p6/6P1/6K1 w - - 0 1',
+      fen: '8/8/p3k3/P7/4KP2/8/8/8 w - - 0 1',
       myColor: 'w',
       title: '바의 규칙',
     },
