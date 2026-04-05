@@ -5,19 +5,14 @@
 (function () {
   var POSITIONS = {
     square_rule: {
-      fen: '8/1p4p1/5b1p/8/P2B4/2P5/1Pk2KP1/8 w - - 2 2',
+      fen: '8/8/7k/8/2P3p1/8/5K2/8 w - - 0 1',
       myColor: 'w',
       title: '사각형 규칙',
     },
     king_pawn_vs_king: {
-      fen: '8/8/8/8/8/4P3/4K3/3k4 w - - 0 1',
+      fen: '4k3/8/8/8/8/8/4P3/4K3 w - - 0 1',
       myColor: 'w',
       title: '킹+폰 vs 킹',
-    },
-    rook_knight_pawn: {
-      fen: '8/8/8/8/8/4P3/4K3/3k4 w - - 0 1',
-      myColor: 'w',
-      title: '룩폰·나이트폰',
     },
     connected_passed: {
       fen: '8/8/8/8/3p4/1P2P3/4K3/3k4 w - - 0 1',
