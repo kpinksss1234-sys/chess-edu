@@ -30,27 +30,27 @@
       title: '바의 규칙',
     },
     philidor: {
-      fen: '6k1/8/8/8/1p5/6P1/6P1/6K1 b - - 0 1',
+      fen: '8/8/8/8/3pk3/R7/7r/3K4 w - - 0 1',
       myColor: 'b',
       title: '필리도어',
     },
     lucena: {
-      fen: '3K4/3P1k2/8/8/8/8/8/3R4 w - - 0 1',
+      fen: '4r3/R7/8/8/8/5K2/3p4/3k4 w - - 0 1',
       myColor: 'w',
       title: '루세나',
     },
     short_side_defense: {
-      fen: '6k1/8/8/8/8/1p6/6P1/6K1 w - - 0 1',
+      fen: '1r6/8/8/8/7R/K7/2p5/2k5 w - - 0 1',
       myColor: 'w',
       title: '숏 사이드 디펜스',
     },
     mate_king_queen_vs_king: {
-      fen: '6k1/8/8/8/8/8/6K1/3Q4 w - - 0 1',
+      fen: '8/8/8/3k4/8/8/8/4KQ2 w - - 0 1',
       myColor: 'w',
       title: '킹·퀸 vs 킹',
     },
     mate_king_rook_vs_king: {
-      fen: '6k1/8/8/8/8/8/6K1/3R4 w - - 0 1',
+      fen: '8/8/8/3k4/8/8/8/4KR2 w - - 0 1',
       myColor: 'w',
       title: '킹·룩 vs 킹',
     },
