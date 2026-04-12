@@ -54,16 +54,6 @@
       myColor: 'w',
       title: '킹·룩 vs 킹',
     },
-    rook_vs_queen: {
-      fen: '8/2QK4/8/8/8/8/3rk3/8 w - - 0 1',
-      myColor: 'w',
-      title: '룩 vs 퀸',
-    },
-    queen_vs_pawn: {
-      fen: '8/2QK4/8/8/8/8/3pk3/8 w - - 0 1',
-      myColor: 'w',
-      title: '퀸 vs 폰',
-    },
   };
 
   function getFenForEngine() {

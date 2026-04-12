@@ -34,8 +34,6 @@
     short_side_defense:{ fen: '1r6/8/8/8/7R/K7/2p5/2k5 w - - 0 1',         myColor: 'w', title: '숏 사이드 디펜스' },
     mate_king_queen_vs_king: { fen: '8/8/8/3k4/8/8/8/4KQ2 w - - 0 1',     myColor: 'w', title: '킹·퀸 vs 킹' },
     mate_king_rook_vs_king:  { fen: '8/8/8/3k4/8/8/8/4KR2 w - - 0 1',     myColor: 'w', title: '킹·룩 vs 킹' },
-    rook_vs_queen:     { fen: '8/2QK4/8/8/8/8/3rk3/8 w - - 0 1',         myColor: 'w', title: '룩 vs 퀸' },
-    queen_vs_pawn:     { fen: '8/2QK4/8/8/8/8/3pk3/8 w - - 0 1',           myColor: 'w', title: '퀸 vs 폰' },
   };
 
   function readTopicFromUrl() {
