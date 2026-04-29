@@ -1154,11 +1154,22 @@ function findMoveFromSAN(board, color, castling, enPassant, legal, san) {
 }
 
 // ===== TOKEN =====
-// Vercel 환경변수에 저장된 토큰을 하드코딩으로 사용
-// 토큰 입력 UI는 완전히 숨김
-let lichessToken = 'lip_IQo6W4CT7HFHG0VDyEgR';
+// /api/lichess-token (Vercel Serverless Function) 에서 토큰을 가져옴
+// 토큰은 Vercel 환경변수 LICHESS_TOKEN 에 저장되어 있음
+let lichessToken = '';
 
-(function initToken() {
+(async function initToken() {
+  try {
+    const res = await fetch('/api/lichess-token');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.token) lichessToken = data.token;
+    }
+  } catch (e) {
+    console.warn('[Token] /api/lichess-token 요청 실패:', e);
+  }
+  // 토큰 로드 완료 후 탐색기 데이터 로드
+  fetchExplorerData();
 })();
 
 // ===== LICHESS EXPLORER API =====
