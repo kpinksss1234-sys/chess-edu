@@ -29,7 +29,7 @@ function loadApiKey() {
 function openCoach() {
   coachOpen = true;
   const panel = document.getElementById('coach-inline');
-  if (panel) panel.style.display = 'block';
+  if (panel) panel.classList.add('visible');
   const btn = document.getElementById('coach-open-btn');
   if (btn) btn.classList.add('active');
   // 보드 왼쪽 정렬로 전환
@@ -42,7 +42,7 @@ function openCoach() {
 function closeCoach() {
   coachOpen = false;
   const panel = document.getElementById('coach-inline');
-  if (panel) panel.style.display = 'none';
+  if (panel) panel.classList.remove('visible');
   const btn = document.getElementById('coach-open-btn');
   if (btn) btn.classList.remove('active');
   // 보드 중앙 정렬 복원
@@ -196,7 +196,7 @@ async function runPositionCommentary() {
 
   // 인라인 패널 열기
   const inlinePanel = document.getElementById('coach-inline');
-  if (inlinePanel) inlinePanel.style.display = 'block';
+  if (inlinePanel) inlinePanel.classList.add('visible');
   const coachBtn = document.getElementById('coach-open-btn');
   if (coachBtn) coachBtn.classList.add('active');
   const boardAreaRpc = document.getElementById('board-area');
@@ -270,7 +270,7 @@ async function askCoach() {
 
   // 인라인 패널 열기
   const inlinePanel = document.getElementById('coach-inline');
-  if (inlinePanel) inlinePanel.style.display = 'block';
+  if (inlinePanel) inlinePanel.classList.add('visible');
   const coachBtn2 = document.getElementById('coach-open-btn');
   if (coachBtn2) coachBtn2.classList.add('active');
   const boardAreaAsk = document.getElementById('board-area');
