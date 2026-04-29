@@ -30,6 +30,8 @@ function openCoach() {
   coachOpen = true;
   const panel = document.getElementById('coach-inline');
   if (panel) panel.style.display = 'block';
+  const btn = document.getElementById('coach-open-btn');
+  if (btn) btn.classList.add('active');
   // 패널을 열자마자 자동으로 포지션 해설 실행
   runPositionCommentary();
 }
@@ -38,10 +40,20 @@ function closeCoach() {
   coachOpen = false;
   const panel = document.getElementById('coach-inline');
   if (panel) panel.style.display = 'none';
+  const btn = document.getElementById('coach-open-btn');
+  if (btn) btn.classList.remove('active');
 }
 
 function closeCoachInline() {
   closeCoach();
+}
+
+function toggleCoachPanel() {
+  if (coachOpen) {
+    closeCoach();
+  } else {
+    openCoach();
+  }
 }
 
 // updateCoachContext: 상단 태그 표시는 제거 (빈 함수로 유지 — 다른 곳에서 호출될 수 있음)
@@ -179,6 +191,8 @@ async function runPositionCommentary() {
   // 인라인 패널 열기
   const inlinePanel = document.getElementById('coach-inline');
   if (inlinePanel) inlinePanel.style.display = 'block';
+  const coachBtn = document.getElementById('coach-open-btn');
+  if (coachBtn) coachBtn.classList.add('active');
   coachOpen = true;
 
   const responseDiv = document.getElementById('coach-response');
@@ -249,6 +263,8 @@ async function askCoach() {
   // 인라인 패널 열기
   const inlinePanel = document.getElementById('coach-inline');
   if (inlinePanel) inlinePanel.style.display = 'block';
+  const coachBtn2 = document.getElementById('coach-open-btn');
+  if (coachBtn2) coachBtn2.classList.add('active');
   coachOpen = true;
 
   const responseDiv = document.getElementById('coach-response');
