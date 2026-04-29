@@ -183,6 +183,42 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
 .end-bar-fill{height:100%;background:var(--accent-green-dark);border-radius:3px}
 .end-count{font-size:12px;font-weight:700;color:var(--text-primary);min-width:28px;text-align:right}
 .stats-note{font-size:10px;color:var(--text-muted);margin-top:6px;line-height:1.5}
+
+/* OPENING STATS */
+.opening-stats-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.opening-stat-row {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px;
+  cursor: default; transition: border-color .15s;
+}
+.opening-stat-row:hover { border-color: var(--accent-green-dark); }
+.opening-eco-badge {
+  font-size: 10px; font-weight: 800; font-family: monospace;
+  color: var(--move-book, #b07030);
+  background: rgba(176,112,48,.15);
+  border: 1px solid rgba(176,112,48,.3);
+  padding: 3px 7px; border-radius: 5px; flex-shrink: 0;
+  min-width: 36px; text-align: center;
+}
+.opening-stat-info { flex: 1; min-width: 0; }
+.opening-stat-name { font-size: 12px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opening-stat-var  { font-size: 10px; color: var(--text-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opening-stat-bars { display: flex; flex-direction: column; gap: 3px; min-width: 120px; flex-shrink: 0; }
+.opening-bar-row { display: flex; align-items: center; gap: 6px; font-size: 10px; }
+.opening-bar-label { color: var(--text-muted); min-width: 18px; font-size: 9px; font-weight: 700; }
+.opening-bar-track { flex: 1; height: 5px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; min-width: 60px; }
+.opening-bar-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+.opening-bar-fill.white { background: linear-gradient(90deg, #b8b8b8, #e8e8e8); }
+.opening-bar-fill.black { background: linear-gradient(90deg, #4a4a4a, #888888); }
+.opening-bar-count { font-size: 10px; font-weight: 700; color: var(--text-primary); min-width: 22px; text-align: right; }
+.opening-wdl { display: flex; gap: 3px; margin-top: 4px; }
+.owdl { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; }
+.owdl.w { background: rgba(127,166,80,.2); color: var(--accent-green-bright); }
+.owdl.d { background: rgba(160,160,160,.12); color: var(--text-secondary); }
+.owdl.l { background: rgba(192,64,64,.15); color: #e07070; }
+.opening-color-badge { font-size: 10px; flex-shrink: 0; }
+.opening-games-count { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bg-tertiary);border:1px solid var(--border-light);color:var(--text-primary);padding:10px 20px;border-radius:20px;font-size:13px;font-weight:500;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
 #toast.show{opacity:1}
 
@@ -334,6 +370,168 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
 <script src="records/chess-tactics.js"></script>
 <script src="records/chess-stockfish.js"></script>
 <script src="records/chess-analyzer.js"></script>
+<script>
+// ════════════════════════════════════════
+// 오프닝 데이터베이스 & 감지
+// ════════════════════════════════════════
+const OPENING_DB = (function(){
+  const raw = [
+    ["A00","Van't Kruijs Opening","","e2e3"],
+    ["A00","Grob's Attack","","g2g4"],
+    ["A00","Nimzowitsch-Larsen Attack","","b2b3"],
+    ["A00","Polish Opening","","b2b4"],
+    ["A00","Hungarian Opening","","g2g3"],
+    ["A01","Nimzowitsch-Larsen Attack","Main Line","b2b3 e7e5"],
+    ["A02","Bird's Opening","","f2f4"],
+    ["A04","Réti Opening","","g1f3"],
+    ["A05","Réti Opening","King's Indian Attack","g1f3 g8f6"],
+    ["A06","Réti Opening","","g1f3 d7d5"],
+    ["A10","English Opening","","c2c4"],
+    ["A11","English Opening","Caro-Kann Defensive System","c2c4 c7c6"],
+    ["A13","English Opening","","c2c4 e7e6"],
+    ["A15","English Opening","King's Indian","c2c4 g8f6"],
+    ["A16","English Opening","","c2c4 g8f6 b1c3"],
+    ["A20","English Opening","Reversed Sicilian","c2c4 e7e5"],
+    ["A21","English Opening","Reversed Sicilian","c2c4 e7e5 b1c3"],
+    ["A25","English Opening","Closed","c2c4 e7e5 b1c3 b8c6"],
+    ["A30","English Opening","Symmetrical","c2c4 c7c5"],
+    ["A40","Queen's Pawn","","d2d4"],
+    ["A45","Queen's Pawn Game","Trompowsky Attack","d2d4 g8f6"],
+    ["A51","Budapest Gambit","","d2d4 g8f6 c2c4 e7e5"],
+    ["A57","Benko Gambit","","d2d4 g8f6 c2c4 c7c5 d4d5 b7b5"],
+    ["A60","Modern Benoni","","d2d4 g8f6 c2c4 c7c5 d4d5 e7e6"],
+    ["A80","Dutch Defence","","d2d4 f7f5"],
+    ["A84","Dutch Defence","","d2d4 f7f5 c2c4"],
+    ["B00","King's Pawn Game","","e2e4"],
+    ["B00","Nimzowitsch Defence","","e2e4 b8c6"],
+    ["B01","Scandinavian Defence","","e2e4 d7d5"],
+    ["B01","Scandinavian Defence","Mieses-Kotroc Variation","e2e4 d7d5 e4d5 d8d5"],
+    ["B02","Alekhine's Defence","","e2e4 g8f6"],
+    ["B06","Modern Defence","","e2e4 g7g6"],
+    ["B07","Pirc Defence","","e2e4 d7d6 d2d4 g8f6"],
+    ["B08","Pirc Defence","Classical System","e2e4 d7d6 d2d4 g8f6 b1c3 g7g6"],
+    ["B10","Caro-Kann Defence","","e2e4 c7c6"],
+    ["B12","Caro-Kann Defence","Advance Variation","e2e4 c7c6 d2d4 d7d5 e4e5"],
+    ["B13","Caro-Kann Defence","Exchange Variation","e2e4 c7c6 d2d4 d7d5 e4d5"],
+    ["B15","Caro-Kann Defence","","e2e4 c7c6 d2d4 d7d5 b1c3"],
+    ["B18","Caro-Kann Defence","Classical Variation","e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 c8f5"],
+    ["B20","Sicilian Defence","","e2e4 c7c5"],
+    ["B21","Sicilian Defence","Grand Prix Attack","e2e4 c7c5 f2f4"],
+    ["B22","Sicilian Defence","Alapin Variation","e2e4 c7c5 c2c3"],
+    ["B23","Sicilian Defence","Closed","e2e4 c7c5 b1c3"],
+    ["B27","Sicilian Defence","","e2e4 c7c5 g1f3"],
+    ["B30","Sicilian Defence","","e2e4 c7c5 g1f3 b8c6"],
+    ["B40","Sicilian Defence","","e2e4 c7c5 g1f3 e7e6"],
+    ["B41","Sicilian Defence","Kan Variation","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 a7a6"],
+    ["B44","Sicilian Defence","","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 b8c6"],
+    ["B50","Sicilian Defence","","e2e4 c7c5 g1f3 d7d6"],
+    ["B51","Sicilian Defence","Moscow Variation","e2e4 c7c5 g1f3 d7d6 f1b5"],
+    ["B60","Sicilian Defence","Richter-Rauzer Attack","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 b8c6 c1g5"],
+    ["B70","Sicilian Defence","Dragon Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 g7g6"],
+    ["B80","Sicilian Defence","Scheveningen Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 e7e6"],
+    ["B90","Sicilian Defence","Najdorf Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6"],
+    ["B94","Sicilian Defence","Najdorf, 6.Bg5","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 c1g5"],
+    ["B96","Sicilian Defence","Najdorf, Polugaevsky","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 c1g5 e7e6"],
+    ["C00","French Defence","","e2e4 e7e6"],
+    ["C02","French Defence","Advance Variation","e2e4 e7e6 d2d4 d7d5 e4e5"],
+    ["C03","French Defence","Tarrasch Variation","e2e4 e7e6 d2d4 d7d5 b1d2"],
+    ["C10","French Defence","","e2e4 e7e6 d2d4 d7d5 b1c3"],
+    ["C11","French Defence","Classical Variation","e2e4 e7e6 d2d4 d7d5 b1c3 g8f6"],
+    ["C15","French Defence","Winawer Variation","e2e4 e7e6 d2d4 d7d5 b1c3 f8b4"],
+    ["C20","King's Pawn Game","","e2e4 e7e5"],
+    ["C23","Bishop's Opening","","e2e4 e7e5 f1c4"],
+    ["C25","Vienna Game","","e2e4 e7e5 b1c3"],
+    ["C30","King's Gambit","","e2e4 e7e5 f2f4"],
+    ["C33","King's Gambit Accepted","","e2e4 e7e5 f2f4 e5f4"],
+    ["C41","Philidor Defence","","e2e4 e7e5 g1f3 d7d6"],
+    ["C42","Petrov's Defence","","e2e4 e7e5 g1f3 g8f6"],
+    ["C44","King's Pawn Game","","e2e4 e7e5 g1f3 b8c6"],
+    ["C45","Scotch Game","","e2e4 e7e5 g1f3 b8c6 d2d4"],
+    ["C46","Three Knights Game","","e2e4 e7e5 g1f3 b8c6 b1c3"],
+    ["C47","Four Knights Game","","e2e4 e7e5 g1f3 b8c6 b1c3 g8f6"],
+    ["C50","Italian Game","","e2e4 e7e5 g1f3 b8c6 f1c4"],
+    ["C51","Evans Gambit","","e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 b2b4"],
+    ["C53","Italian Game","Classical Variation","e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 c2c3"],
+    ["C55","Two Knights Defence","","e2e4 e7e5 g1f3 b8c6 f1c4 g8f6"],
+    ["C57","Two Knights Defence","Fried Liver Attack","e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 f3g5"],
+    ["C60","Ruy Lopez (Spanish Game)","","e2e4 e7e5 g1f3 b8c6 f1b5"],
+    ["C65","Ruy Lopez","Berlin Defence","e2e4 e7e5 g1f3 b8c6 f1b5 g8f6"],
+    ["C68","Ruy Lopez","Exchange Variation","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5c6"],
+    ["C70","Ruy Lopez","","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6"],
+    ["C78","Ruy Lopez","","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1"],
+    ["C80","Ruy Lopez","Open Variation","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f6e4"],
+    ["C84","Ruy Lopez","Closed","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7"],
+    ["C89","Ruy Lopez","Marshall Attack","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7 h1e1 b7b5 a4b3 e8g8 c2c3 d7d5"],
+    ["D00","Queen's Pawn Game","","d2d4 d7d5"],
+    ["D06","Queen's Gambit","","d2d4 d7d5 c2c4"],
+    ["D07","Queen's Gambit Declined","Chigorin Defence","d2d4 d7d5 c2c4 b8c6"],
+    ["D08","Queen's Gambit Declined","Albin Counter-Gambit","d2d4 d7d5 c2c4 e7e5"],
+    ["D10","Queen's Gambit Declined","Slav Defence","d2d4 d7d5 c2c4 c7c6"],
+    ["D11","Slav Defence","","d2d4 d7d5 c2c4 c7c6 g1f3"],
+    ["D20","Queen's Gambit Accepted","","d2d4 d7d5 c2c4 d5c4"],
+    ["D30","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6"],
+    ["D32","Queen's Gambit Declined","Tarrasch Defence","d2d4 d7d5 c2c4 e7e6 b1c3 c7c5"],
+    ["D35","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6"],
+    ["D40","Queen's Gambit Declined","Semi-Tarrasch","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 c7c5"],
+    ["D43","Semi-Slav Defence","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 c7c6"],
+    ["D50","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5"],
+    ["D70","Grünfeld Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5"],
+    ["D85","Grünfeld Defence","Exchange Variation","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 c4d5 f6d5 e2e4 d5c3 b2c3 f8g7"],
+    ["E00","Catalan Opening","","d2d4 g8f6 c2c4 e7e6"],
+    ["E01","Catalan Opening","","d2d4 g8f6 c2c4 e7e6 g2g3"],
+    ["E11","Bogo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 g1f3 f8b4"],
+    ["E12","Queen's Indian Defence","","d2d4 g8f6 c2c4 e7e6 g1f3 b7b6"],
+    ["E20","Nimzo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4"],
+    ["E24","Nimzo-Indian Defence","Sämisch Variation","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 a2a3"],
+    ["E32","Nimzo-Indian Defence","Classical Variation","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 d1c2"],
+    ["E40","Nimzo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3"],
+    ["E60","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6"],
+    ["E61","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6 b1c3"],
+    ["E62","King's Indian Defence","Fianchetto Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 g1f3 e8g8 g2g3"],
+    ["E70","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4"],
+    ["E80","King's Indian Defence","Sämisch Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 f2f3"],
+    ["E90","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3"],
+    ["E91","King's Indian Defence","Classical Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3 e8g8 f1e2"],
+    ["E92","King's Indian Defence","Classical Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3 e8g8 f1e2 e7e5"],
+  ];
+  const sorted = raw.slice().sort((a,b)=>b[3].split(' ').length - a[3].split(' ').length);
+  const map = new Map();
+  for(const [eco,name,variation,moves] of sorted){
+    const key=moves.trim();
+    if(!map.has(key)) map.set(key,{eco,name,variation});
+  }
+  return map;
+})();
+
+// PGN에서 UCI 수 배열 추출 (간단한 버전)
+function pgnToUciMoves(pgn) {
+  try {
+    // parsePgnToStates가 이미 있으므로 그 결과 활용
+    const states = parsePgnToStates(pgn);
+    const uciArr = [];
+    for(let i=1; i<Math.min(states.length, 21); i++){
+      const m = states[i].move;
+      if(!m) continue;
+      const FILES = 'abcdefgh';
+      const from = FILES[m.from[1]] + (8 - m.from[0]);
+      const to   = FILES[m.to[1]]   + (8 - m.to[0]);
+      uciArr.push(from + to + (m.promotion||''));
+    }
+    return uciArr;
+  } catch(e){ return []; }
+}
+
+function detectOpening(uciMoves) {
+  for(let len=uciMoves.length; len>=1; len--){
+    const key=uciMoves.slice(0,len).join(' ');
+    if(OPENING_DB.has(key)) return OPENING_DB.get(key);
+  }
+  return null;
+}
+
+// 오프닝 키 (eco+name 조합)
+function openingKey(op){ return op.eco+'|'+op.name+(op.variation?'|'+op.variation:''); }
+</script>
 <script>
 // ════════════════════════════════════════
 // Firebase
@@ -580,6 +778,8 @@ async function renderStats(){
   let sumCp=0,sumMoves=0;
   const total=docs.length;
   _statsGameDetails=[];
+  // 오프닝별 통계 맵: key -> {eco, name, variation, w:{wins,draws,losses}, b:{wins,draws,losses}}
+  const openingStatsMap = new Map();
 
   for(let gi=0;gi<docs.length;gi++){
     const doc=docs[gi];
@@ -595,6 +795,24 @@ async function renderStats(){
     else if(term.includes('resign')||term.includes('기권'))endResign++;
     else if(term.includes('time')||term.includes('시간'))endTimeout++;
     else endDraw++;
+
+    // 오프닝 감지
+    if(doc.pgn){
+      try {
+        const uciArr = pgnToUciMoves(doc.pgn);
+        const op = detectOpening(uciArr);
+        if(op){
+          const k = openingKey(op);
+          if(!openingStatsMap.has(k)) openingStatsMap.set(k,{eco:op.eco,name:op.name,variation:op.variation,w:{wins:0,draws:0,losses:0,total:0},b:{wins:0,draws:0,losses:0,total:0}});
+          const entry = openingStatsMap.get(k);
+          const colorStats = entry[myColor];
+          colorStats.total++;
+          if(myWin) colorStats.wins++;
+          else if(myLose) colorStats.losses++;
+          else colorStats.draws++;
+        }
+      } catch(e){}
+    }
 
     const pct=Math.round(gi/total*100);
     contentEl.innerHTML=`<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
@@ -637,10 +855,11 @@ async function renderStats(){
     forkFound:sumForkFound,forkMissed:sumForkMissed,oppForkCreated:sumOppForkCreated,
     absPinFound:sumAbsPinFound,absPinMissed:sumAbsPinMissed,
     relPinFound:sumRelPinFound,relPinMissed:sumRelPinMissed,
-    // 하위 호환: 합산 필드도 유지
     pinFound:sumAbsPinFound+sumRelPinFound,
     pinMissed:sumAbsPinMissed+sumRelPinMissed,
-    avgCpLoss:sumMoves>0?Math.round(sumCp/sumMoves):0
+    avgCpLoss:sumMoves>0?Math.round(sumCp/sumMoves):0,
+    openingStats: Array.from(openingStatsMap.values())
+      .sort((a,b)=>(b.w.total+b.b.total)-(a.w.total+a.b.total))
   };
   subEl.textContent=`총 ${total}게임 · Stockfish 깊이 ${SF_DEPTH} 분석 완료`;
   renderStatsHTML(_statsCache);
@@ -720,6 +939,65 @@ function closeTacticModalAndOpen(doc){
     if(item){item.click();item.scrollIntoView({behavior:'smooth',block:'nearest'});}
     else showToast('기보 목록에서 해당 게임을 선택해주세요');
   },120);
+}
+
+// ════════════════════════════════════════
+// 오프닝 통계 렌더링
+// ════════════════════════════════════════
+function renderOpeningStats(openingStats) {
+  if(!openingStats || !openingStats.length){
+    return `<div class="stats-section-title">📖 오프닝 통계</div>
+      <div class="stats-note" style="padding:8px 0">오프닝 데이터가 없습니다 (기보 필요)</div>`;
+  }
+
+  // 백으로 플레이한 것들 (w.total > 0)
+  const whiteOps = openingStats.filter(o=>o.w.total>0).sort((a,b)=>b.w.total-a.w.total);
+  // 흑으로 플레이한 것들 (b.total > 0)
+  const blackOps = openingStats.filter(o=>o.b.total>0).sort((a,b)=>b.b.total-a.b.total);
+
+  function opRow(op, colorKey) {
+    const cs = op[colorKey];
+    const tot = cs.total;
+    if(!tot) return '';
+    const maxVal = tot;
+    const wPct = Math.round(cs.wins/tot*100);
+    const dPct = Math.round(cs.draws/tot*100);
+    const lPct = 100-wPct-dPct;
+    const varText = op.variation ? `<div class="opening-stat-var">${op.variation}</div>` : '';
+    return `<div class="opening-stat-row">
+      <span class="opening-eco-badge">${op.eco}</span>
+      <div class="opening-stat-info">
+        <div class="opening-stat-name">${op.name}</div>
+        ${varText}
+        <div class="opening-wdl">
+          <span class="owdl w">${cs.wins}승</span>
+          <span class="owdl d">${cs.draws}무</span>
+          <span class="owdl l">${cs.losses}패</span>
+        </div>
+      </div>
+      <div class="opening-stat-bars">
+        <div style="font-size:9px;color:var(--text-muted);text-align:right;margin-bottom:2px">${tot}게임 · 승률 ${wPct}%</div>
+        <div style="height:8px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;display:flex;">
+          <div style="height:100%;background:var(--accent-green-bright);width:${wPct}%;transition:width .5s"></div>
+          <div style="height:100%;background:var(--text-muted);width:${dPct}%;transition:width .5s"></div>
+          <div style="height:100%;background:#e07070;width:${lPct}%;transition:width .5s"></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  let html = `<div class="stats-section-title">📖 오프닝 통계</div>`;
+
+  if(whiteOps.length){
+    html += `<div class="stats-section-title" style="margin-top:12px;color:var(--text-secondary)">⬜ 백으로 플레이한 오프닝</div>
+      <div class="opening-stats-grid">${whiteOps.slice(0,8).map(o=>opRow(o,'w')).join('')}</div>`;
+  }
+  if(blackOps.length){
+    html += `<div class="stats-section-title" style="margin-top:12px;color:var(--text-secondary)">⬛ 흑으로 플레이한 오프닝</div>
+      <div class="opening-stats-grid">${blackOps.slice(0,8).map(o=>opRow(o,'b')).join('')}</div>`;
+  }
+  html += `<div class="stats-note">※ 오프닝은 ECO 코드 기준으로 기보의 초반 수에서 자동 감지됩니다. 상위 8개 표시.</div>`;
+  return html;
 }
 
 // ════════════════════════════════════════
@@ -855,6 +1133,8 @@ function renderStatsHTML(s){
     <div class="stats-section-title">📌 찾은 vs 놓친 핀</div>
     <div class="fvm-section">${pinHtml||'<div class="stats-note" style="padding:12px 0">핀 데이터 없음</div>'}</div>
     <div class="stats-note">※ 상대 기물이 움직이면 상대 킹 노출되는 절대 핀. Stockfish 베스트가 핀이었는데 안 뒀으면 "놓침". <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록을 확인할 수 있습니다</span></div>
+
+    ${renderOpeningStats(s.openingStats||[])}
 
     <div class="stats-section-title">📏 게임 길이</div>
     <div class="avg-moves-card">

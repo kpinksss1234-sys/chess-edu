@@ -643,6 +643,36 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 
 .icon { display: block; }
 
+/* ===== OPENING BADGE ===== */
+#opening-badge {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  min-height: 36px;
+  flex-shrink: 0;
+  overflow: hidden;
+  flex-wrap: wrap;
+}
+#opening-badge.hidden { display: none; }
+.opening-book-icon { font-size: 14px; flex-shrink: 0; opacity: 0.8; }
+#opening-eco {
+  font-size: 10px; font-weight: 700; color: var(--text-muted);
+  background: var(--bg-tertiary); padding: 2px 6px;
+  border-radius: 4px; flex-shrink: 0; font-family: monospace;
+}
+#opening-name {
+  font-size: 12px; font-weight: 700; color: var(--move-book);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+}
+.opening-variation-row {
+  width: 100%; padding-left: 21px;
+  font-size: 10px; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: none;
+}
+#opening-badge.has-variation .opening-variation-row { display: block; }
+
 /* ===== AI COACH PANEL ===== */
 #coach-panel {
   position: fixed;
@@ -1509,6 +1539,14 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
             <span class="depth-info" id="depth-info">로딩 중...</span>
           </div>
         </div>
+        <!-- 실시간 오프닝 표시 -->
+        <div id="opening-badge" class="hidden">
+          <span class="opening-book-icon">📖</span>
+          <span id="opening-eco"></span>
+          <span id="opening-name">오프닝</span>
+          <span class="opening-variation-row" id="opening-variation"></span>
+        </div>
+
         <div class="top-moves" id="top-moves">
           <div class="top-moves-empty" id="top-moves-empty">엔진 초기화 중...</div>
         </div>
@@ -1747,6 +1785,366 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
   </div>
 </div>
 
+
+<!-- ===== 오프닝 데이터베이스 & 실시간 감지 ===== -->
+<script>
+// ECO 오프닝 데이터베이스 (주요 오프닝 ~200개)
+// 형식: { moves: "UCI moves string", eco: "코드", name: "이름", variation: "변형" }
+const OPENING_DB = (function(){
+  const raw = [
+    // ── A: 비정규 오프닝 / 플랭크 오프닝 ──
+    ["A00","Van't Kruijs Opening","","e2e3"],
+    ["A00","Grob's Attack","","g2g4"],
+    ["A00","Nimzowitsch-Larsen Attack","","b2b3"],
+    ["A00","Polish Opening","","b2b4"],
+    ["A00","Hungarian Opening","","g2g3"],
+    ["A01","Nimzowitsch-Larsen Attack","Main Line","b2b3 e7e5"],
+    ["A02","Bird's Opening","","f2f4"],
+    ["A04","Réti Opening","","g1f3"],
+    ["A05","Réti Opening","King's Indian Attack","g1f3 g8f6"],
+    ["A06","Réti Opening","","g1f3 d7d5"],
+    ["A10","English Opening","","c2c4"],
+    ["A11","English Opening","Caro-Kann Defensive System","c2c4 c7c6"],
+    ["A12","English Opening","Caro-Kann Defensive System","c2c4 c7c6 g1f3 d7d5"],
+    ["A13","English Opening","","c2c4 e7e6"],
+    ["A15","English Opening","King's Indian","c2c4 g8f6"],
+    ["A16","English Opening","","c2c4 g8f6 b1c3"],
+    ["A17","English Opening","Hedgehog","c2c4 g8f6 b1c3 e7e6"],
+    ["A20","English Opening","Reversed Sicilian","c2c4 e7e5"],
+    ["A21","English Opening","Reversed Sicilian","c2c4 e7e5 b1c3"],
+    ["A22","English Opening","Bremen System","c2c4 e7e5 g1f3"],
+    ["A25","English Opening","Closed","c2c4 e7e5 b1c3 b8c6"],
+    ["A30","English Opening","Symmetrical","c2c4 c7c5"],
+    ["A31","English Opening","Symmetrical","c2c4 c7c5 g1f3 g8f6"],
+    ["A40","Queen's Pawn","","d2d4"],
+    ["A41","Queen's Pawn","","d2d4 d7d6"],
+    ["A43","Queen's Pawn","Benoni Defence","d2d4 c7c5"],
+    ["A45","Queen's Pawn Game","Trompowsky Attack","d2d4 g8f6"],
+    ["A46","Queen's Pawn Game","","d2d4 g8f6 g1f3"],
+    ["A48","King's Indian","","d2d4 g8f6 g1f3 g7g6"],
+    ["A50","Queen's Pawn Game","","d2d4 g8f6 c2c4"],
+    ["A51","Budapest Gambit","","d2d4 g8f6 c2c4 e7e5"],
+    ["A52","Budapest Gambit","Rubinstein Variation","d2d4 g8f6 c2c4 e7e5 d4e5"],
+    ["A57","Benko Gambit","","d2d4 g8f6 c2c4 c7c5 d4d5 b7b5"],
+    ["A60","Modern Benoni","","d2d4 g8f6 c2c4 c7c5 d4d5 e7e6"],
+    ["A80","Dutch Defence","","d2d4 f7f5"],
+    ["A81","Dutch Defence","","d2d4 f7f5 g1f3"],
+    ["A84","Dutch Defence","","d2d4 f7f5 c2c4"],
+    ["A85","Dutch Defence","","d2d4 f7f5 c2c4 g8f6"],
+    // ── B: 반개방 게임 ──
+    ["B00","King's Pawn Game","","e2e4"],
+    ["B00","Nimzowitsch Defence","","e2e4 b8c6"],
+    ["B01","Scandinavian Defence","","e2e4 d7d5"],
+    ["B01","Scandinavian Defence","Mieses-Kotroc Variation","e2e4 d7d5 e4d5 d8d5"],
+    ["B02","Alekhine's Defence","","e2e4 g8f6"],
+    ["B06","Modern Defence","","e2e4 g7g6"],
+    ["B07","Pirc Defence","","e2e4 d7d6 d2d4 g8f6"],
+    ["B08","Pirc Defence","Classical System","e2e4 d7d6 d2d4 g8f6 b1c3 g7g6"],
+    ["B10","Caro-Kann Defence","","e2e4 c7c6"],
+    ["B12","Caro-Kann Defence","Advance Variation","e2e4 c7c6 d2d4 d7d5 e4e5"],
+    ["B13","Caro-Kann Defence","Exchange Variation","e2e4 c7c6 d2d4 d7d5 e4d5"],
+    ["B14","Caro-Kann Defence","Panov-Botvinnik Attack","e2e4 c7c6 d2d4 d7d5 e4d5 c6d5 c2c4"],
+    ["B15","Caro-Kann Defence","","e2e4 c7c6 d2d4 d7d5 b1c3"],
+    ["B17","Caro-Kann Defence","Steinitz Variation","e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 b8d7"],
+    ["B18","Caro-Kann Defence","Classical Variation","e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 c8f5"],
+    ["B20","Sicilian Defence","","e2e4 c7c5"],
+    ["B21","Sicilian Defence","Grand Prix Attack","e2e4 c7c5 f2f4"],
+    ["B22","Sicilian Defence","Alapin Variation","e2e4 c7c5 c2c3"],
+    ["B23","Sicilian Defence","Closed","e2e4 c7c5 b1c3"],
+    ["B27","Sicilian Defence","","e2e4 c7c5 g1f3"],
+    ["B30","Sicilian Defence","","e2e4 c7c5 g1f3 b8c6"],
+    ["B32","Sicilian Defence","","e2e4 c7c5 g1f3 b8c6 d2d4 c5d4 f3d4 e7e5"],
+    ["B40","Sicilian Defence","","e2e4 c7c5 g1f3 e7e6"],
+    ["B41","Sicilian Defence","Kan Variation","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 a7a6"],
+    ["B42","Sicilian Defence","Kan Variation","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 a7a6 f1d3"],
+    ["B43","Sicilian Defence","Kan Variation","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 a7a6 b1c3"],
+    ["B44","Sicilian Defence","","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 b8c6"],
+    ["B45","Sicilian Defence","Taimanov Variation","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 b8c6 b1c3"],
+    ["B46","Sicilian Defence","Taimanov Variation","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 b8c6 b1c3 a7a6"],
+    ["B48","Sicilian Defence","Taimanov-Paulsen","e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 b8c6 b1c3 d8c7"],
+    ["B50","Sicilian Defence","","e2e4 c7c5 g1f3 d7d6"],
+    ["B51","Sicilian Defence","Moscow Variation","e2e4 c7c5 g1f3 d7d6 f1b5"],
+    ["B52","Sicilian Defence","Moscow Variation","e2e4 c7c5 g1f3 d7d6 f1b5 c8d7"],
+    ["B54","Sicilian Defence","","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4"],
+    ["B56","Sicilian Defence","","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3"],
+    ["B57","Sicilian Defence","","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 b8c6"],
+    ["B60","Sicilian Defence","Richter-Rauzer Attack","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 b8c6 c1g5"],
+    ["B70","Sicilian Defence","Dragon Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 g7g6"],
+    ["B72","Sicilian Defence","Dragon Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 g7g6 c1e3"],
+    ["B76","Sicilian Defence","Dragon, Yugoslav Attack","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 g7g6 f2f3"],
+    ["B78","Sicilian Defence","Dragon, Yugoslav Attack","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 g7g6 f2f3 c8g4"],
+    ["B80","Sicilian Defence","Scheveningen Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 e7e6"],
+    ["B81","Sicilian Defence","Scheveningen, Keres Attack","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 e7e6 g2g4"],
+    ["B85","Sicilian Defence","Scheveningen","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 e7e6 f1e2 f8e7"],
+    ["B86","Sicilian Defence","Sozin Attack","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 e7e6 f1c4"],
+    ["B90","Sicilian Defence","Najdorf Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6"],
+    ["B91","Sicilian Defence","Najdorf, Opovcensky Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 g2g3"],
+    ["B92","Sicilian Defence","Najdorf, Opovcensky Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 f1e2"],
+    ["B93","Sicilian Defence","Najdorf, 6.f4","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 f2f4"],
+    ["B94","Sicilian Defence","Najdorf, 6.Bg5","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 c1g5"],
+    ["B96","Sicilian Defence","Najdorf, Polugaevsky Variation","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 c1g5 e7e6"],
+    ["B97","Sicilian Defence","Najdorf, Poisoned Pawn","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 c1g5 e7e6 f2f4 d8b6"],
+    ["B99","Sicilian Defence","Najdorf, 7...Be7 Main Line","e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 c1g5 e7e6 f2f4 f8e7"],
+    // ── C: 개방 게임 ──
+    ["C00","French Defence","","e2e4 e7e6"],
+    ["C01","French Defence","Exchange Variation","e2e4 e7e6 d2d4 d7d5 e4d5 e6d5"],
+    ["C02","French Defence","Advance Variation","e2e4 e7e6 d2d4 d7d5 e4e5"],
+    ["C03","French Defence","Tarrasch Variation","e2e4 e7e6 d2d4 d7d5 b1d2"],
+    ["C05","French Defence","Tarrasch Variation","e2e4 e7e6 d2d4 d7d5 b1d2 g8f6"],
+    ["C06","French Defence","Tarrasch Variation","e2e4 e7e6 d2d4 d7d5 b1d2 g8f6 e4e5"],
+    ["C10","French Defence","","e2e4 e7e6 d2d4 d7d5 b1c3"],
+    ["C11","French Defence","Classical Variation","e2e4 e7e6 d2d4 d7d5 b1c3 g8f6"],
+    ["C14","French Defence","Classical Variation","e2e4 e7e6 d2d4 d7d5 b1c3 g8f6 c1g5 f8e7"],
+    ["C15","French Defence","Winawer Variation","e2e4 e7e6 d2d4 d7d5 b1c3 f8b4"],
+    ["C16","French Defence","Winawer Variation","e2e4 e7e6 d2d4 d7d5 b1c3 f8b4 e4e5"],
+    ["C20","King's Pawn Game","","e2e4 e7e5"],
+    ["C21","Center Game","","e2e4 e7e5 d2d4 e5d4"],
+    ["C22","Center Game","","e2e4 e7e5 d2d4 e5d4 d1d4 b8c6"],
+    ["C23","Bishop's Opening","","e2e4 e7e5 f1c4"],
+    ["C24","Bishop's Opening","Berlin Defence","e2e4 e7e5 f1c4 g8f6"],
+    ["C25","Vienna Game","","e2e4 e7e5 b1c3"],
+    ["C26","Vienna Game","","e2e4 e7e5 b1c3 g8f6"],
+    ["C27","Vienna Game","Frankenstein-Dracula Variation","e2e4 e7e5 b1c3 g8f6 f1c4 f6e4"],
+    ["C28","Vienna Game","","e2e4 e7e5 b1c3 b8c6 f1c4"],
+    ["C29","Vienna Game","Würzburger Trap","e2e4 e7e5 b1c3 b8c6 f2f4"],
+    ["C30","King's Gambit","","e2e4 e7e5 f2f4"],
+    ["C31","King's Gambit Declined","Falkbeer Counter Gambit","e2e4 e7e5 f2f4 d7d5"],
+    ["C33","King's Gambit Accepted","","e2e4 e7e5 f2f4 e5f4"],
+    ["C34","King's Gambit Accepted","Fischer Defence","e2e4 e7e5 f2f4 e5f4 g1f3"],
+    ["C36","King's Gambit Accepted","Modern Defence","e2e4 e7e5 f2f4 e5f4 g1f3 d7d5"],
+    ["C37","King's Gambit Accepted","Muzio Gambit","e2e4 e7e5 f2f4 e5f4 g1f3 g7g5 f1c4"],
+    ["C40","King's Pawn Game","Gunderam Defence","e2e4 e7e5 g1f3 d8f6"],
+    ["C41","Philidor Defence","","e2e4 e7e5 g1f3 d7d6"],
+    ["C42","Petrov's Defence","","e2e4 e7e5 g1f3 g8f6"],
+    ["C43","Petrov's Defence","Modern Attack","e2e4 e7e5 g1f3 g8f6 d2d4"],
+    ["C44","King's Pawn Game","","e2e4 e7e5 g1f3 b8c6"],
+    ["C45","Scotch Game","","e2e4 e7e5 g1f3 b8c6 d2d4"],
+    ["C46","Three Knights Game","","e2e4 e7e5 g1f3 b8c6 b1c3"],
+    ["C47","Four Knights Game","","e2e4 e7e5 g1f3 b8c6 b1c3 g8f6"],
+    ["C48","Four Knights Game","","e2e4 e7e5 g1f3 b8c6 b1c3 g8f6 f1b5"],
+    ["C50","Italian Game","","e2e4 e7e5 g1f3 b8c6 f1c4"],
+    ["C51","Evans Gambit","","e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 b2b4"],
+    ["C52","Evans Gambit","","e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 b2b4 c5b4"],
+    ["C53","Italian Game","Classical Variation","e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 c2c3"],
+    ["C54","Italian Game","","e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 c2c3 g8f6"],
+    ["C55","Two Knights Defence","","e2e4 e7e5 g1f3 b8c6 f1c4 g8f6"],
+    ["C56","Two Knights Defence","","e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 d2d4"],
+    ["C57","Two Knights Defence","Fried Liver Attack","e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 f3g5"],
+    ["C58","Two Knights Defence","","e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 f3g5 d7d5"],
+    ["C60","Ruy Lopez (Spanish Game)","","e2e4 e7e5 g1f3 b8c6 f1b5"],
+    ["C61","Ruy Lopez","Bird's Defence","e2e4 e7e5 g1f3 b8c6 f1b5 b8d4"],
+    ["C62","Ruy Lopez","Old Steinitz Defence","e2e4 e7e5 g1f3 b8c6 f1b5 d7d6"],
+    ["C63","Ruy Lopez","Schliemann Defence","e2e4 e7e5 g1f3 b8c6 f1b5 f7f5"],
+    ["C64","Ruy Lopez","Classical Defence","e2e4 e7e5 g1f3 b8c6 f1b5 f8c5"],
+    ["C65","Ruy Lopez","Berlin Defence","e2e4 e7e5 g1f3 b8c6 f1b5 g8f6"],
+    ["C66","Ruy Lopez","Berlin Defence","e2e4 e7e5 g1f3 b8c6 f1b5 g8f6 d2d3"],
+    ["C67","Ruy Lopez","Berlin Defence, Rio Gambit Accepted","e2e4 e7e5 g1f3 b8c6 f1b5 g8f6 e1g1 f6e4"],
+    ["C68","Ruy Lopez","Exchange Variation","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5c6"],
+    ["C70","Ruy Lopez","","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6"],
+    ["C71","Ruy Lopez","Modern Steinitz Defence","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 d7d6"],
+    ["C72","Ruy Lopez","Modern Steinitz Defence","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 d7d6 e1g1"],
+    ["C78","Ruy Lopez","","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1"],
+    ["C80","Ruy Lopez","Open Variation","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f6e4"],
+    ["C84","Ruy Lopez","Closed","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7"],
+    ["C87","Ruy Lopez","Closed","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7 d2d3"],
+    ["C88","Ruy Lopez","Closed","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7 h1e1 b7b5"],
+    ["C89","Ruy Lopez","Marshall Attack","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7 h1e1 b7b5 a4b3 e8g8 c2c3 d7d5"],
+    ["C90","Ruy Lopez","Closed","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7 h1e1 b7b5 a4b3 d7d6"],
+    ["C91","Ruy Lopez","Closed","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7 h1e1 b7b5 a4b3 d7d6 c2c3"],
+    ["C95","Ruy Lopez","Closed, Breyer Defence","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7 h1e1 b7b5 a4b3 d7d6 c2c3 e8g8 h2h3 b8d7"],
+    ["C96","Ruy Lopez","Closed","e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 f1a4 g8f6 e1g1 f8e7 h1e1 b7b5 a4b3 d7d6 c2c3 e8g8 h2h3"],
+    // ── D: 퀸즈 갬빗 ──
+    ["D00","Queen's Pawn Game","","d2d4 d7d5"],
+    ["D01","Richter-Veresov Attack","","d2d4 d7d5 b1c3 g8f6 c1g5"],
+    ["D02","Queen's Pawn Game","","d2d4 d7d5 g1f3"],
+    ["D04","Queen's Pawn Game","","d2d4 d7d5 g1f3 g8f6"],
+    ["D05","Queen's Pawn Game","Stonewall Variation","d2d4 d7d5 g1f3 g8f6 e2e3"],
+    ["D06","Queen's Gambit","","d2d4 d7d5 c2c4"],
+    ["D07","Queen's Gambit Declined","Chigorin Defence","d2d4 d7d5 c2c4 b8c6"],
+    ["D08","Queen's Gambit Declined","Albin Counter-Gambit","d2d4 d7d5 c2c4 e7e5"],
+    ["D10","Queen's Gambit Declined","Slav Defence","d2d4 d7d5 c2c4 c7c6"],
+    ["D11","Queen's Gambit Declined","Slav Defence","d2d4 d7d5 c2c4 c7c6 g1f3"],
+    ["D12","Slav Defence","","d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 e2e3 c8f5"],
+    ["D14","Slav Defence","Exchange Variation","d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 b1c3 d5c4 a2a4 c8f5 e2e3 e7e6 f1c4 c8b4 e1g1"],
+    ["D15","Slav Defence","","d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 b1c3"],
+    ["D17","Slav Defence","Czech Variation","d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 b1c3 d5c4 a2a4 c8f5 g1h4"],
+    ["D20","Queen's Gambit Accepted","","d2d4 d7d5 c2c4 d5c4"],
+    ["D21","Queen's Gambit Accepted","","d2d4 d7d5 c2c4 d5c4 g1f3"],
+    ["D27","Queen's Gambit Accepted","Classical Variation","d2d4 d7d5 c2c4 d5c4 g1f3 g8f6 e2e3 e7e6 f1c4 c7c5"],
+    ["D30","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6"],
+    ["D31","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3"],
+    ["D32","Queen's Gambit Declined","Tarrasch Defence","d2d4 d7d5 c2c4 e7e6 b1c3 c7c5"],
+    ["D34","Queen's Gambit Declined","Tarrasch Defence","d2d4 d7d5 c2c4 e7e6 b1c3 c7c5 c4d5 e6d5 g1f3 b8c6 g2g3"],
+    ["D35","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6"],
+    ["D37","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3"],
+    ["D38","Queen's Gambit Declined","Ragozin Variation","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 f8b4"],
+    ["D40","Queen's Gambit Declined","Semi-Tarrasch","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 c7c5"],
+    ["D41","Queen's Gambit Declined","Semi-Tarrasch","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 c7c5 c4d5"],
+    ["D43","Semi-Slav Defence","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 c7c6"],
+    ["D44","Semi-Slav Defence","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 c7c6 c1g5"],
+    ["D45","Semi-Slav Defence","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 c7c6 e2e3"],
+    ["D46","Semi-Slav Defence","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 g1f3 c7c6 e2e3 b8d7"],
+    ["D50","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5"],
+    ["D51","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 b8d7"],
+    ["D52","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 b8d7 e2e3 c7c6"],
+    ["D53","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 f8e7"],
+    ["D56","Queen's Gambit Declined","","d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 f8e7 e2e3 e8g8 g1f3 h7h6"],
+    ["D70","Grünfeld Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5"],
+    ["D71","Grünfeld Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 c4d5"],
+    ["D72","Grünfeld Defence","Neo-Grünfeld","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 g2g3"],
+    ["D80","Grünfeld Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 c1g5"],
+    ["D85","Grünfeld Defence","Exchange Variation","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 c4d5 f6d5 e2e4 d5c3 b2c3 f8g7"],
+    ["D86","Grünfeld Defence","Exchange Variation","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 c4d5 f6d5 e2e4 d5c3 b2c3 f8g7 f1c4"],
+    ["D87","Grünfeld Defence","Exchange Variation","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 c4d5 f6d5 e2e4 d5c3 b2c3 f8g7 f1c4 c7c5 g1e2"],
+    ["D90","Grünfeld Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 g1f3"],
+    // ── E: 인도 방어 ──
+    ["E00","Queen's Pawn Game","Catalan Opening","d2d4 g8f6 c2c4 e7e6"],
+    ["E01","Catalan Opening","","d2d4 g8f6 c2c4 e7e6 g2g3"],
+    ["E02","Catalan Opening","Open Defence","d2d4 g8f6 c2c4 e7e6 g2g3 d7d5 f1g2 d5c4"],
+    ["E06","Catalan Opening","Closed","d2d4 g8f6 c2c4 e7e6 g2g3 d7d5 f1g2 f8e7 g1f3"],
+    ["E10","Queen's Indian","","d2d4 g8f6 c2c4 e7e6 g1f3 c7c5"],
+    ["E11","Bogo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 g1f3 f8b4"],
+    ["E12","Queen's Indian Defence","","d2d4 g8f6 c2c4 e7e6 g1f3 b7b6"],
+    ["E14","Queen's Indian Defence","","d2d4 g8f6 c2c4 e7e6 g1f3 b7b6 e2e3"],
+    ["E15","Queen's Indian Defence","","d2d4 g8f6 c2c4 e7e6 g1f3 b7b6 g2g3"],
+    ["E20","Nimzo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4"],
+    ["E21","Nimzo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 g1f3"],
+    ["E23","Nimzo-Indian Defence","Spielmann Variation","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 d1b3"],
+    ["E24","Nimzo-Indian Defence","Sämisch Variation","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 a2a3"],
+    ["E32","Nimzo-Indian Defence","Classical Variation","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 d1c2"],
+    ["E40","Nimzo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3"],
+    ["E41","Nimzo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3 c7c5"],
+    ["E43","Nimzo-Indian Defence","Fischer Variation","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3 b7b6"],
+    ["E46","Nimzo-Indian Defence","","d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3 e8g8"],
+    ["E60","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6"],
+    ["E61","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6 b1c3"],
+    ["E62","King's Indian Defence","Fianchetto Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 g1f3 e8g8 g2g3"],
+    ["E70","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4"],
+    ["E72","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g2g3"],
+    ["E73","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 f1e2"],
+    ["E76","King's Indian Defence","Four Pawns Attack","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 f2f4"],
+    ["E80","King's Indian Defence","Sämisch Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 f2f3"],
+    ["E84","King's Indian Defence","Sämisch Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 f2f3 b8c6 c1e3 e8g8 d1d2"],
+    ["E86","King's Indian Defence","Sämisch Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 f2f3 e8g8 c1e3 c7c6"],
+    ["E90","King's Indian Defence","","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3"],
+    ["E91","King's Indian Defence","Classical Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3 e8g8 f1e2"],
+    ["E92","King's Indian Defence","Classical Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3 e8g8 f1e2 e7e5"],
+    ["E97","King's Indian Defence","Mar del Plata Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3 e8g8 f1e2 e7e5 e1g1 b8c6 d4d5 c6e7 g1h1 f6e8 f2f3"],
+    ["E99","King's Indian Defence","Orthodox Variation","d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3 e8g8 f1e2 e7e5 e1g1 b8c6 d4d5 c6e7 g1h1 f6e8 f2f3 f7f5"],
+  ];
+
+  // 트라이 구조로 변환: moveString -> {eco, name, variation}
+  // 수가 많은 것 우선(더 구체적인 오프닝)
+  const sorted = raw.slice().sort((a,b)=>{
+    const la = a[3].split(' ').length, lb = b[3].split(' ').length;
+    return lb - la;
+  });
+  const map = new Map();
+  for(const [eco, name, variation, moves] of sorted){
+    const key = moves.trim();
+    if(!map.has(key)) map.set(key, {eco, name, variation});
+  }
+  return map;
+})();
+
+// 현재 게임의 UCI 수 배열을 받아 오프닝을 감지
+function detectOpening(uciMoves) {
+  // 길이가 긴 것부터 매칭 시도
+  for(let len = uciMoves.length; len >= 1; len--) {
+    const key = uciMoves.slice(0, len).join(' ');
+    if(OPENING_DB.has(key)) return OPENING_DB.get(key);
+  }
+  return null;
+}
+
+// 오프닝 배지 업데이트 (game.js에서 매 수 후 호출됨)
+function updateOpeningBadge(uciMoves) {
+  const badge = document.getElementById('opening-badge');
+  const ecoEl = document.getElementById('opening-eco');
+  const nameEl = document.getElementById('opening-name');
+  const varEl  = document.getElementById('opening-variation');
+  if(!badge) return;
+
+  // 오프닝 감지는 처음 ~20수까지만 의미 있음
+  const movesToCheck = uciMoves ? uciMoves.slice(0, 20) : [];
+  const op = movesToCheck.length > 0 ? detectOpening(movesToCheck) : null;
+
+  if(op) {
+    badge.classList.remove('hidden');
+    ecoEl.textContent = op.eco;
+    nameEl.textContent = op.name;
+    if(op.variation) {
+      varEl.textContent = op.variation;
+      badge.classList.add('has-variation');
+    } else {
+      varEl.textContent = '';
+      badge.classList.remove('has-variation');
+    }
+    // PGN 탭 오프닝 필드도 동기화
+    const infoOpening = document.getElementById('info-opening');
+    if(infoOpening) infoOpening.textContent = op.eco + ' ' + op.name + (op.variation ? ', ' + op.variation : '');
+  } else {
+    badge.classList.add('hidden');
+    const infoOpening = document.getElementById('info-opening');
+    if(infoOpening && movesToCheck.length === 0) infoOpening.textContent = '-';
+  }
+}
+
+// game.js가 로드된 후 수 이동 훅에 오프닝 업데이트를 연결
+// game.js의 makeMove / loadPGN / prevMove / nextMove / goToStart / goToEnd 후 호출됨
+document.addEventListener('DOMContentLoaded', function() {
+  // game 객체가 준비된 후 패치
+  const _patch = setInterval(function(){
+    if(typeof game === 'undefined' || !game) return;
+    clearInterval(_patch);
+    // game 객체의 수 이동 후 오프닝 업데이트 훅
+    const _hookFns = ['makeMove','prevMove','nextMove','goToStart','goToEnd','flipBoard','resetBoard','loadPGN'];
+    _hookFns.forEach(fn => {
+      const orig = game[fn];
+      if(typeof orig === 'function') {
+        game[fn] = function() {
+          const result = orig.apply(this, arguments);
+          try {
+            // game 객체에서 현재까지의 UCI 수 목록 가져오기
+            // game.moves 배열이 {from, to, promotion} 형태라 가정
+            const moves = (game.moves || []).slice(0, game.currentMoveIndex + 1);
+            const uciArr = moves.map(m => {
+              if(!m || !m.from || !m.to) return null;
+              const fromSq = typeof m.from === 'string' ? m.from : (m.from[1]!==undefined ? 'abcdefgh'[m.from[1]]+(8-m.from[0]) : null);
+              const toSq   = typeof m.to   === 'string' ? m.to   : (m.to[1]  !==undefined ? 'abcdefgh'[m.to[1]]  +(8-m.to[0])   : null);
+              if(!fromSq || !toSq) return null;
+              return fromSq + toSq + (m.promotion||'');
+            }).filter(Boolean);
+            updateOpeningBadge(uciArr);
+          } catch(e) {}
+          return result;
+        };
+      }
+    });
+    // loadPGN standalone function hook
+    const origLoadPGN = window.loadPGN;
+    if(typeof origLoadPGN === 'function') {
+      window.loadPGN = function() {
+        const r = origLoadPGN.apply(this, arguments);
+        setTimeout(() => {
+          try {
+            const moves = (game.moves || []).slice(0, game.currentMoveIndex + 1);
+            const uciArr = moves.map(m => {
+              if(!m || !m.from || !m.to) return null;
+              const fromSq = typeof m.from === 'string' ? m.from : ('abcdefgh'[m.from[1]]+(8-m.from[0]));
+              const toSq   = typeof m.to   === 'string' ? m.to   : ('abcdefgh'[m.to[1]]  +(8-m.to[0]));
+              if(!fromSq || !toSq) return null;
+              return fromSq + toSq + (m.promotion||'');
+            }).filter(Boolean);
+            updateOpeningBadge(uciArr);
+          } catch(e) {}
+        }, 200);
+        return r;
+      };
+    }
+  }, 300);
+});
+</script>
 
 <!-- ===== JS 모듈 분리 ===== -->
 <script src="chess-wasm-fixed/chess.js"></script>
