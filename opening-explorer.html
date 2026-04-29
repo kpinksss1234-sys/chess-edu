@@ -150,8 +150,8 @@ body {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
-  width: min(52vmin, 440px);
-  height: min(52vmin, 440px);
+  width: min(62vmin, 560px);
+  height: min(62vmin, 560px);
   border: 2px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
@@ -193,7 +193,7 @@ body {
 /* ===== BOARD CONTROLS ===== */
 #board-controls {
   display: flex; align-items: center; gap: 6px;
-  width: min(52vmin, 440px); padding: 2px 0;
+  width: min(62vmin, 560px); padding: 2px 0;
 }
 .ctrl-btn {
   width: 34px; height: 34px; border-radius: 8px;
@@ -209,7 +209,7 @@ body {
 /* PGN 입력 */
 #pgn-input-row {
   display: flex; gap: 6px; align-items: center;
-  width: min(52vmin, 440px);
+  width: min(62vmin, 560px);
 }
 #pgn-input {
   flex: 1; background: var(--bg-secondary); border: 1px solid var(--border);
@@ -232,7 +232,7 @@ body {
 #right-panel {
   flex: 1; display: flex; flex-direction: column;
   background: var(--bg-secondary); border-left: 1px solid var(--border);
-  overflow: hidden; min-width: 0;
+  overflow: hidden; min-width: 0; max-width: 420px;
 }
 
 /* ===== OPENING NAME HEADER ===== */
@@ -442,9 +442,9 @@ body {
 @media (max-width: 900px) {
   #main { flex-direction: column; }
   #board-area { padding: 10px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-  #right-panel { flex: 1; border-left: none; border-top: 1px solid var(--border); }
-  #chessboard { width: min(46vw, 300px); height: min(46vw, 300px); }
-  #board-controls, #pgn-input-row { width: min(46vw, 300px); }
+  #right-panel { flex: 1; border-left: none; border-top: 1px solid var(--border); max-width: 100%; }
+  #chessboard { width: min(46vw, 380px); height: min(46vw, 380px); }
+  #board-controls, #pgn-input-row { width: min(46vw, 380px); }
 }
 </style>
 </head>
