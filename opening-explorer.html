@@ -541,42 +541,7 @@ body {
     <div id="move-history-bar">
       <span style="font-size:10px;color:var(--text-muted);margin-right:4px;">♟</span>
     </div>
-
-    <!-- Token banner -->
-    <div id="token-banner" style="
-      display:flex; align-items:center; gap:8px;
-      padding:8px 14px; background:rgba(224,128,48,0.12);
-      border-bottom:1px solid rgba(224,128,48,0.3);
-      font-size:11px; color:#e0a060; flex-shrink:0;
-    ">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-      <span>Lichess API 토큰이 필요합니다. &nbsp;<a href="https://lichess.org/account/oauth/token/create?scopes[]=&description=Opening+Explorer" target="_blank" style="color:#e0c080;text-decoration:underline;">여기서 무료 발급</a> 후 아래에 입력하세요.</span>
-    </div>
-    <div id="token-row" style="
-      display:flex; align-items:center; gap:6px;
-      padding:7px 14px; border-bottom:1px solid var(--border);
-      flex-shrink:0;
-    ">
-      <input id="lichess-token-input" type="password"
-        placeholder="lip_xxxxxxxxxxxxxxxxxxxx  (Lichess Personal API Token)"
-        style="flex:1;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;
-               color:var(--text-primary);font-size:11px;padding:5px 9px;outline:none;font-family:monospace;"
-        oninput="onTokenInput(this.value)"
-      />
-      <button onclick="saveToken()" style="
-        padding:5px 12px;border-radius:6px;border:none;
-        background:var(--accent-green-dark);color:#fff;
-        font-size:11px;font-weight:600;cursor:pointer;
-        font-family:var(--font-main);white-space:nowrap;
-      ">저장</button>
-      <button onclick="clearToken()" style="
-        padding:5px 10px;border-radius:6px;border:1px solid var(--border);
-        background:none;color:var(--text-muted);
-        font-size:11px;cursor:pointer;font-family:var(--font-main);
-      ">초기화</button>
-    </div>
-
-    <!-- DB filter -->
+<!-- DB filter -->
     <div id="db-filter">
       <div class="filter-group">
         <span class="filter-label">DB</span>
@@ -1194,8 +1159,6 @@ function findMoveFromSAN(board, color, castling, enPassant, legal, san) {
 let lichessToken = 'lip_IQo6W4CT7HFHG0VDyEgR';
 
 (function initToken() {
-  document.getElementById('token-banner').style.display = 'none';
-  document.getElementById('token-row').style.display    = 'none';
 })();
 
 // ===== LICHESS EXPLORER API =====
@@ -1287,7 +1250,6 @@ async function fetchExplorerData() {
         const noData = document.getElementById('no-data-msg');
         if (e.message.includes('401')) {
           noData.innerHTML = '🔑 토큰이 없거나 올바르지 않습니다.<br><span style="font-size:11px">위의 Lichess API 토큰을 입력하고 저장 버튼을 누르세요.</span>';
-          document.getElementById('token-banner').style.display = 'flex';
         } else {
           noData.innerHTML = '이 포지션에 대한 데이터가 없습니다.';
         }
