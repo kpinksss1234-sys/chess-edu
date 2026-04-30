@@ -145,7 +145,7 @@ body {
 
 #board-area {
   flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
+  align-items: flex-start; justify-content: center;
   padding: 16px; background: var(--bg-primary);
   min-width: 0; overflow: hidden;
 }
@@ -671,38 +671,15 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 }
 #opening-badge.has-variation .opening-variation-row { display: block; }
 
-/* ===== AI COACH BUTTON (보드 아래) ===== */
-#coach-open-btn {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 6px;
-  padding: 8px 18px;
-  background: var(--accent-green-dark);
-  border: 1px solid var(--accent-green);
-  border-radius: 8px;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: var(--font-main);
-  transition: background 0.15s, transform 0.1s;
-  width: min(calc(100vh - 190px), calc(100vw - 404px));
-  justify-content: center;
-}
-#coach-open-btn:hover { background: var(--accent-green); }
-#coach-open-btn:active { transform: scale(0.98); }
-#coach-open-btn.active {
-  background: var(--accent-green);
-  box-shadow: 0 0 0 2px var(--accent-green-bright);
-}
-
-/* ===== AI COACH INLINE (우측 패널: 엔진 분석과 기보 사이) ===== */
+/* ===== AI COACH INLINE (보드 아래, 기보 위) ===== */
 #coach-inline {
   display: none;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  width: min(calc(100vh - 190px), calc(100vw - 404px));
+  margin-top: 8px;
   background: var(--bg-secondary);
+  border: 1px solid var(--accent-green-dark);
+  border-radius: 10px;
+  overflow: hidden;
   flex-shrink: 0;
 }
 #coach-inline-header {
@@ -1404,11 +1381,26 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
       </button>
     </div>
 
-    <!-- AI 코치 질문 버튼 (보드 바로 아래) -->
-    <button id="coach-open-btn" onclick="toggleCoachPanel()" title="AI 코치에게 질문">
-      <span style="font-size:14px;">🧠</span>
-      AI 코치에게 질문
-    </button>
+    <!-- AI 코치 인라인 패널: 컨트롤 바 아래, 우측 패널 기보 위 -->
+    <div id="coach-inline">
+      <div id="coach-inline-header">
+        <div id="coach-inline-title">
+          <span style="font-size:15px;">🧠</span>
+          <span>AI 코치</span>
+        </div>
+        <button id="coach-inline-close" onclick="closeCoachInline()" title="닫기">✕</button>
+      </div>
+      <div id="coach-inline-body">
+        <div id="coach-response"></div>
+        <div id="coach-ask-row">
+          <textarea id="coach-input" placeholder="질문을 입력하세요... (예: 이 수의 의도가 뭐야?)" rows="2"></textarea>
+          <button id="coach-ask-btn" onclick="askCoach()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            질문
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="right-panel">
@@ -1475,27 +1467,6 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
           <!-- 설명 본문 -->
           <div id="best-explain-content">
             <div class="threat-loading">분석 중...</div>
-          </div>
-        </div>
-
-        <!-- AI 코치 인라인 패널: 엔진 분석과 기보 사이 -->
-        <div id="coach-inline">
-          <div id="coach-inline-header">
-            <div id="coach-inline-title">
-              <span style="font-size:15px;">🧠</span>
-              <span>AI 코치</span>
-            </div>
-            <button id="coach-inline-close" onclick="closeCoachInline()" title="닫기">✕</button>
-          </div>
-          <div id="coach-inline-body">
-            <div id="coach-response"></div>
-            <div id="coach-ask-row">
-              <textarea id="coach-input" placeholder="질문을 입력하세요... (예: 이 수의 의도가 뭐야?)" rows="2"></textarea>
-              <button id="coach-ask-btn" onclick="askCoach()">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                질문
-              </button>
-            </div>
           </div>
         </div>
 
