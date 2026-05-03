@@ -654,14 +654,14 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  gap: 12px;
+  padding: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
 #puzzle-board-wrap {
-  width: min(480px, calc(100vh - 220px), calc(100vw - 380px));
-  height: min(480px, calc(100vh - 220px), calc(100vw - 380px));
+  width: min(680px, calc(100vh - 160px), calc(100vw - 340px));
+  height: min(680px, calc(100vh - 160px), calc(100vw - 340px));
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1950,14 +1950,16 @@ function drawBoard() {
       sq.dataset.r = r;
       sq.dataset.c = c;
 
-      // piece
+      // piece - lichess SVG images
       const piece = state.board[r][c];
       if (piece) {
-        const span = document.createElement('span');
-        span.textContent = PIECES[piece] || piece;
-        span.style.cssText = 'font-size:clamp(16px,3.5vw,32px);line-height:1;pointer-events:none;' +
-          (piece === piece.toLowerCase() ? 'color:#1a1a1a;text-shadow:0 0 2px rgba(255,255,255,0.4);' : 'color:#fff;text-shadow:0 0 2px rgba(0,0,0,0.6);');
-        sq.appendChild(span);
+        const img = document.createElement('img');
+        const color = piece === piece.toUpperCase() ? 'w' : 'b';
+        const type = piece.toUpperCase();
+        img.src = `https://lichess1.org/assets/piece/cburnett/${color}${type}.svg`;
+        img.style.cssText = 'width:88%;height:88%;pointer-events:none;display:block;';
+        img.draggable = false;
+        sq.appendChild(img);
       }
 
       // labels
