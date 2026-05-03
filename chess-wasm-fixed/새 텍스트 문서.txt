@@ -1,4 +1,219 @@
-  chess-engine.js     ← 체스 규칙 엔진 (순수 로직)
-  chess-tactics.js    ← 전술 감지 (포크핀 정교화)
-  ui.js    ← 사용자 인터페이스(기물 이미지등)
-  coach.js    ← AI 코칭 & Grok 연동
+# 체스 분석 보드 — 파일 역할 정리
+
+> `chess-wasm-fixed.html` + `chess-wasm-fixed/` 폴더 기준
+
+---
+
+## 파일 구조 한눈에 보기
+
+```
+chess-wasm-fixed.html          ← 진입점 (HTML 껍데기 + 인라인 오버레이 스크립트)
+chess-wasm-fixed/
+├── chess.js                   ← 체스 규칙 엔진 (순수 JS 로직)
+├── engine.js                  ← Stockfish WASM 워커 관리 + 분석 파이프라인
+├── game.js                    ← ChessGame 클래스 (보드 상태·렌더링·기보)
+├── ui.js                      ← UI 이벤트 핸들러 (탭, 설정, 키보드, 사운드)
+├── coach.js                   ← AI 코치 패널 (Groq API 연동)
+├── endgame-practice.js        ← 분석 보드에서 엔드게임 연습 모드 (URL 파라미터)
+├── hints.js                   ← 연습 힌트 텍스트 데이터 모음
+└── practice-page.js           ← practice.html 전용 연습 페이지 컨트롤러
+```
+
+---
+
+## 파일별 상세 역할
+
+### `chess-wasm-fixed.html` — 진입점 · 레이아웃 · 오버레이
+
+| 항목 | 내용 |
+|------|------|
+| 역할 | 전체 앱의 HTML 뼈대. CSS 변수·테마·레이아웃 정의 |
+| 핵심 포함 | 사이드바, 보드 영역, 평가바, 기보 패널, PGN 탭, 설정 탭 |
+| 인라인 JS | **보드 SVG 오버레이** (`위협 화살표`, `최선수 화살표`) |
+| 오버레이 동작 | Null-Move 트릭으로 상대방 위협 분석 → 빨간 화살표 표시 |
+| 위협 Worker | 메인 엔진과 별도의 2번째 Stockfish Worker를 생성해 위협만 분석 |
+| 외부 JS 로드 순서 | `chess.js` → `engine.js` → `game.js` → `ui.js` → `endgame-practice.js` → `coach.js` |
+
+**인라인 스크립트가 담당하는 함수들:**
+- `buildNullMoveFen()` — 현재 FEN의 턴을 반전 (Null-Move)
+- `initThreatWorker()` — 위협 전용 Stockfish Worker 초기화
+- `triggerThreatIfNeeded()` — FEN 변경 감지 → 위협 분석 트리거
+- `_drawOverlay()` / `_drawThreatArrow()` / `_drawBestArrows()` — SVG 화살표 그리기
+- `setOverlayMode()` — 위협/최선수/off 토글
+
+---
+
+### `chess.js` — 체스 규칙 엔진 (849줄)
+
+순수 체스 로직만 담당. 서버/엔진에 의존하지 않는 독립 모듈.
+
+| 그룹 | 주요 함수 |
+|------|-----------|
+| 기물 이미지 | `pieceImg()` — Lichess CDN URL 생성 |
+| 이동 생성 | `pseudoMoves()`, `legalMoves()`, `getAllLegalMoves()` |
+| 체크 판정 | `isAttacked()`, `isInCheck()`, `findKing()` |
+| FEN 처리 | `parseFenBoard()`, `parseFenCastling()`, `parseFenEP()`, `boardToFen()`, `normFen()` |
+| SAN 변환 | `sanToMove()`, `moveToSAN()`, `uciToMove()`, `uciMovesToSan()` |
+| 수 분류 | `classifyMove()` — Brilliant/Great/Best/Excellent/Good/Inaccuracy/Mistake/Blunder 판정 |
+| 승률 계산 | `winProb()`, `lichessWinningChances()` |
+| 기보 렌더링 | `moveCellHTML()`, `updateMoveAnnotations()` |
+
+---
+
+### `engine.js` — Stockfish WASM 워커 + 분석 파이프라인 (1057줄)
+
+분석 요청·결과 수신·PV 데이터 처리를 전담.
+
+| 그룹 | 설명 |
+|------|------|
+| Worker 풀 | `createStockfishWorker()` — WASM Blob URL 생성 및 Worker 인스턴스 관리 |
+| 메인 엔진 | `connectSharedMainEngine()` — 분석용 Stockfish 연결 |
+| 메시지 처리 | `handleMainWorkerMessage()` — UCI info/bestmove 파싱 |
+| PV 처리 | `processPvData()`, `computeCp()`, `cpToStr()` — 점수를 백 기준 cp로 통일 |
+| 분석 요청 | `analyzePosition()` — 현재 포지션 분석 시작 |
+| 전체 기보 분석 | `startFullGameAnalysis()` — 백그라운드 병렬 분석 |
+| 대국용 | `executeEnginePlayMove()` — 연습 모드에서 엔진이 한 수 두게 함 |
+| 설정 | MultiPV 수, 분석 시간, 뎁스, 스레드 수 관리 |
+
+**핵심 데이터 흐름:**
+```
+analyzePosition()
+  → Stockfish Worker에 UCI 명령 전송
+  → handleMainWorkerMessage()로 info 라인 수집
+  → flushCycleToDisplay()
+  → processPvData() → pvData 객체 갱신
+  → renderTopMoves() + updateEvalBarFromCp(cp, evalStr)
+```
+
+---
+
+### `game.js` — ChessGame 클래스 + 평가바 (2122줄)
+
+앱에서 가장 큰 파일. 보드 상태 관리와 UI 렌더링을 모두 담당.
+
+| 그룹 | 설명 |
+|------|------|
+| 보드 초기화 | `reset()`, `loadFromFen()`, `flipBoard()` |
+| 이동 실행 | `makeMove()` — 이동 적용, 기보 기록, 엔진 재분석 트리거 |
+| 보드 렌더링 | `renderBoard()` — 64칸 DOM 생성, 기물 이미지 배치, 드래그/클릭 이벤트 |
+| 기보 패널 | `renderMoveList()` — 수 목록 HTML 생성, 분류 배지 표시 |
+| 기보 탐색 | `goToPly()`, `goToStart()`, `goToEnd()` — 과거 수로 이동 |
+| 최선수 패널 | `renderTopMoves()` — 엔진 추천수 1~3순위 표시 |
+| 평가바 | `updateEvalBarFromCp(cp, evalStr)` — 평가 수치 → 바 높이 + 레이블 변환 |
+| 기물 캡처 표시 | `renderCapturedPieces()` |
+| 저장/불러오기 | `saveGame()`, `loadSavedGames()` |
+
+**평가바 점수 표시 규칙:**
+- 일반 cp → `+1.3` / `-0.5` 형태
+- 메이트 → `M1`, `M3`, `-M2` 형태 (evalStr 파라미터로 직접 수신)
+- |cp| ≥ 9000이면 메이트 cp로 간주
+
+---
+
+### `ui.js` — UI 이벤트 핸들러 (491줄)
+
+HTML 버튼·키보드·설정 패널과 게임 로직을 연결하는 얇은 레이어.
+
+| 그룹 | 주요 함수 |
+|------|-----------|
+| 초기화 | `init()` — `ChessGame` 인스턴스 생성 및 앱 시작 |
+| 탭 전환 | `switchTab()` — 분석/PGN/설정 탭 |
+| PGN | `loadPGN()`, `exportPGN()`, `copyPGN()` |
+| 테마·스타일 | `setTheme()`, `setPieceStyle()`, `toggleColorMode()` |
+| 엔진 설정 | `setMultiPV()`, `setAnalysisTime()`, `setAnalysisDepth()` |
+| 토글 | `toggleCoords()`, `toggleHighlight()`, `toggleEvalBar()`, `toggleAutoAnalyze()` |
+| 키보드 | `setupKeyboard()` — ← → ↑ ↓ F 단축키 |
+| 사운드 | `playMoveSound()`, `_playSound()` |
+| 알림 | `showToast()` |
+
+---
+
+### `coach.js` — AI 코치 패널 (947줄)
+
+Groq API (Llama-3.3-70b)를 사용해 현재 포지션을 설명해주는 AI 코치.
+
+| 그룹 | 설명 |
+|------|------|
+| 패널 열기/닫기 | `openCoach()`, `closeCoach()`, `toggleCoach()` |
+| API 연동 | Groq Chat Completions API 호출 (스트리밍) |
+| 컨텍스트 생성 | 현재 FEN, 기보, 엔진 평가를 프롬프트에 포함 |
+| UI | 마크다운 렌더링, 스트리밍 타이핑 애니메이션 |
+| API 키 관리 | `localStorage`에 저장/불러오기 |
+
+---
+
+### `endgame-practice.js` — 분석 보드 엔드게임 연습 (112줄)
+
+`chess-wasm-fixed.html?practice=endgame&topic=KEY` URL로 진입 시 활성화.
+
+| 항목 | 내용 |
+|------|------|
+| 진입 방식 | URL 파라미터 `practice=endgame&topic=KEY` |
+| 포지션 데이터 | 파일 내 `POSITIONS` 객체에 FEN + 플레이어 색상 정의 |
+| 엔진 대국 | `executeEnginePlayMove()` 로 사람 수 후 엔진이 자동으로 응수 |
+| 초기화 함수 | `tryInitEndgamePractice()` — `game.js` 로드 완료 후 호출됨 |
+
+**지원 토픽:** `square_rule`, `king_pawn_vs_king`, `connected_passed`, `breakthrough`, `bar_rule`, `philidor`, `lucena`, `short_side_defense`, `mate_king_queen_vs_king`, `mate_king_rook_vs_king`
+
+---
+
+### `hints.js` — 힌트 텍스트 데이터 (140줄)
+
+연습 페이지의 힌트 패널에 표시되는 텍스트만 모아놓은 데이터 파일.
+
+| 항목 | 내용 |
+|------|------|
+| 구조 | `window.HINT_TEXT = { key: { title, body } }` |
+| 키 종류 | `opening`, `middlegame`, `endgame` + 엔드게임 토픽 키 10종 |
+| 사용처 | `practice-page.js`의 `toggleHintPanel()` 함수에서 참조 |
+| 수정 방법 | **이 파일만 편집**하면 힌트 내용 변경 가능 (로직 없음) |
+
+---
+
+### `practice-page.js` — 연습 페이지 컨트롤러 (320줄)
+
+`practice.html` 전용. 오프닝·미들게임·엔드게임 대전 연습을 관리.
+
+| 그룹 | 설명 |
+|------|------|
+| 페이즈 관리 | `opening` / `middlegame` / `endgame` 세 모드 전환 |
+| 엔드게임 토픽 | `ENDGAME_TOPICS` 객체 — `hints.js`, `endgame-practice.js`와 동일 포지션 데이터 |
+| 색상 선택 | 사람이 백/흑 선택 → 보드 자동 뒤집기 + 레이블 설정 |
+| URL 동기화 | `history.replaceState`로 현재 모드를 URL에 반영 |
+| 힌트 패널 | `toggleHintPanel()` — `hints.js`에서 텍스트 조회해 표시 |
+| 엔진 대국 | `scheduleEngineTurn()` — 사람 수 후 Stockfish 자동 응수 |
+| 새 게임 | `practiceNewGame()` — 현재 설정 그대로 포지션만 리셋 |
+
+---
+
+## 데이터 흐름 요약
+
+```
+사용자 클릭/드래그
+    ↓
+game.js (ChessGame.makeMove)
+    ↓
+engine.js (analyzePosition → Stockfish Worker)
+    ↓
+engine.js (handleMainWorkerMessage → processPvData → flushCycleToDisplay)
+    ↓
+game.js (renderTopMoves, updateEvalBarFromCp)   ← eval 표시
+chess.js (classifyMove, updateMoveAnnotations)  ← 수 분류 배지
+    ↓
+html (SVG 오버레이, 위협/최선수 화살표)
+```
+
+---
+
+## 수정 가이드
+
+| 하고 싶은 것 | 수정 파일 |
+|-------------|-----------|
+| 힌트 텍스트 변경 | `hints.js` |
+| 엔드게임 연습 포지션 추가 | `endgame-practice.js` + `practice-page.js` + `hints.js` |
+| 수 분류 기준 변경 | `chess.js` → `classifyMove()` |
+| 평가바 표시 수정 | `game.js` → `updateEvalBarFromCp()` |
+| 위협/최선수 화살표 수정 | `chess-wasm-fixed.html` 인라인 스크립트 |
+| AI 코치 프롬프트 수정 | `coach.js` |
+| 엔진 설정 기본값 변경 | `engine.js` 상단 설정 블록 |
+| 키보드 단축키 추가 | `ui.js` → `setupKeyboard()` |

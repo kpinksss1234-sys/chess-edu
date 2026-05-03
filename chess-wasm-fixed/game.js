@@ -2078,7 +2078,7 @@ class ChessGame {
 
 // ui.js 내용 (analyzePosition은 engine.js에 있음)
 // ===== EVAL BAR =====
-function updateEvalBarFromCp(cpFromWhite) {
+function updateEvalBarFromCp(cpFromWhite, evalStr) {
   const maxCp = 800;
   const clamped = Math.max(-maxCp, Math.min(maxCp, cpFromWhite));
   const pct = 50 + (clamped / maxCp) * 45;
@@ -2088,10 +2088,15 @@ function updateEvalBarFromCp(cpFromWhite) {
   document.getElementById('eval-bar-fill').style.height = whitePct + '%';
   document.getElementById('eval-bar-black').style.height = blackPct + '%';
 
-  // Format score string
+  // Format score string — evalStr(M1 등)이 있으면 그대로 사용
   let scoreStr;
-  if (typeof cpFromWhite === 'string' && cpFromWhite.startsWith('M')) {
+  if (evalStr && typeof evalStr === 'string' && (evalStr.includes('M') || evalStr.includes('m'))) {
+    scoreStr = evalStr;
+  } else if (typeof cpFromWhite === 'string' && cpFromWhite.startsWith('M')) {
     scoreStr = cpFromWhite;
+  } else if (Math.abs(cpFromWhite) >= 9000) {
+    // 메이트 cp(±9900)가 evalStr 없이 들어온 경우
+    scoreStr = cpFromWhite > 0 ? 'M?' : '-M?';
   } else {
     const val = cpFromWhite / 100;
     if (val > 0) scoreStr = '+' + val.toFixed(1);
@@ -2119,4 +2124,3 @@ function updateEvalBarFromCp(cpFromWhite) {
     whiteLabel.style.opacity = '0';
   }
 }
-

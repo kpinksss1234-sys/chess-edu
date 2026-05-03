@@ -367,7 +367,7 @@ function flushCycleToDisplay() {
     (best.nps    ? ` · ${(best.nps/1e6).toFixed(1)}Mnps` : '') +
     (best.time_ms? ` · ${(best.time_ms/1000).toFixed(1)}s` : '');
   document.getElementById('eval-score').textContent = best.eval;
-  updateEvalBarFromCp(best.cpFromWhite);
+  updateEvalBarFromCp(best.cpFromWhite, best.eval);
   renderTopMoves();
 
   // ── 엔진 라인 실시간 동기화 ──────────────────────────────
@@ -575,7 +575,7 @@ function handleMainWorkerMessage(e) {
       (b.nps    ? ` · ${(b.nps/1e6).toFixed(1)}Mnps` : '') +
       (b.time_ms? ` · ${(b.time_ms/1000).toFixed(1)}s` : '');
     document.getElementById('eval-score').textContent = b.eval;
-    updateEvalBarFromCp(b.cpFromWhite);
+    updateEvalBarFromCp(b.cpFromWhite, b.eval);
     renderTopMoves();
 
     // evalCache 저장
@@ -751,10 +751,11 @@ function analyzePosition(force) {
     const snapC  = {...game.castling};
     const snapEP = game.enPassant;
     pvData = processPvData(cachedEntry.pvs, cachedTurn, snapB, snapC, snapEP);
+    const bestEval = pvData[1] ? pvData[1].eval : null;
     const v = cachedEntry.cp / 100;
-    document.getElementById('eval-score').textContent =
-      v >= 0 ? `+${v.toFixed(2)}` : v.toFixed(2);
-    updateEvalBarFromCp(cachedEntry.cp);
+    const evalStr = bestEval || (v >= 0 ? `+${v.toFixed(2)}` : v.toFixed(2));
+    document.getElementById('eval-score').textContent = evalStr;
+    updateEvalBarFromCp(cachedEntry.cp, bestEval);
     document.getElementById('depth-info').textContent =
       `⚙ d${cachedEntry.depth} (재분석 중...)`;
     renderTopMoves();
@@ -1054,4 +1055,3 @@ function handleBgResult({ fen, turn, pvs }) {
     }, 1200);
   }
 }
-
