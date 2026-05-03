@@ -970,6 +970,9 @@ body {
 
 </style>
 
+<!-- chess.js: PGN → FEN 변환용 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
 <!-- Firebase SDK (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -1489,41 +1492,49 @@ async function fetchDailyPuzzle() {
 }
 
 function parseLichessPuzzle(raw, themeId) {
-  // raw 구조 전체 출력 (디버깅용)
-  console.log('[RAW puzzle entry]', JSON.stringify(raw).slice(0, 500));
-  // raw may be { puzzle, game } or { puzzle: { ... } }
   const puzzleData = raw.puzzle || raw;
   const gameData   = raw.game   || {};
 
-  // Lichess puzzle API 응답 구조:
-  // puzzle.fen = 퍼즐 시작 FEN (상대방 수 직전 포지션, solution[0]이 상대 수)
-  // puzzle.solution = ["상대수", "사용자수", "상대응수", ...] 전체 수순
-  const fen         = puzzleData.fen || puzzleData.initialFen || '';
+  // Lichess batch API는 FEN을 직접 주지 않고 game.pgn + puzzle.initialPly를 줌
+  // initialPly번째 수까지 적용한 포지션이 퍼즐 시작 FEN
+  const pgn        = gameData.pgn || '';
+  const initialPly = puzzleData.initialPly || 0;
   const solutionUCI = puzzleData.solution || [];
 
-  // FEN의 턴 = 사용자가 두어야 하는 턴 (이미 상대방 수가 적용된 포지션)
+  // chess.js로 PGN → FEN 변환
+  let fen = '';
+  try {
+    const chess = new Chess();
+    // PGN의 수를 공백으로 분리 (기보 표기 제거: 1. 2. 등)
+    const moves = pgn.trim().split(/\s+/).filter(t => !/^\d+\./.test(t) && t !== '');
+    // initialPly번째까지만 적용
+    for (let i = 0; i < initialPly && i < moves.length; i++) {
+      chess.move(moves[i], { sloppy: true });
+    }
+    fen = chess.fen();
+  } catch(e) {
+    console.error('[puzzle] PGN→FEN 실패:', e, pgn);
+  }
+
   const fenParts   = fen.split(' ');
   const puzzleTurn = fenParts[1] === 'w' ? 'white' : 'black';
 
   const themes = puzzleData.themes || [];
   const themeLabel = THEME_LABEL_MAP[themeId] || themes[0] || themeId;
 
-  // Lichess: puzzle.fen = 퍼즐 시작 포지션 (사용자가 바로 둬야 하는 포지션)
-  // solution = 사용자가 찾아야 할 수들 (홀수 인덱스 = 사용자, 짝수 = 엔진 응수)
-  // opponentMove 없음 — FEN 자체가 이미 상대 수 후 포지션
-  console.log('[puzzle] parsed:', puzzleData.id, '| fen:', fen, '| solution:', solutionUCI, '| turn:', puzzleTurn);
+  console.log('[puzzle]', puzzleData.id, '| ply:', initialPly, '| fen:', fen.split(' ')[0], '| solution:', solutionUCI, '| turn:', puzzleTurn);
   return {
     lichessId: puzzleData.id || '',
     title: `${themeLabel} #${puzzleData.id || '?'}`,
     rating: puzzleData.rating || 1200,
     fen,
-    opponentMove: null,         // FEN이 이미 사용자 차례 포지션
-    solution: solutionUCI,      // 사용자가 찾아야 할 전체 수순
+    opponentMove: null,
+    solution: solutionUCI,
     fullSolution: solutionUCI,
     hint: themes.length > 0 ? `전술 테마: ${themes.slice(0,3).join(', ')}` : '최선의 수를 찾으세요',
     moves: solutionUCI.length,
     themes,
-    turn: puzzleTurn,           // FEN의 턴 = 사용자 턴 (rawTurn과 동일)
+    turn: puzzleTurn,
     gameUrl: gameData.id ? `https://lichess.org/${gameData.id}` : null,
   };
 }
