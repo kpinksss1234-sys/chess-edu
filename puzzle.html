@@ -1522,25 +1522,22 @@ function parseLichessPuzzle(raw, themeId) {
   const themes = puzzleData.themes || [];
   const themeLabel = THEME_LABEL_MAP[themeId] || themes[0] || themeId;
 
-  // solution[0] = 상대방이 두는 수 (initialPly 다음 수), 사용자는 solution[1]부터
-  const opponentMove = solutionUCI[0] || null;
-  const userSolution = solutionUCI.slice(1);
-  // FEN은 initialPly까지의 포지션 → 다음 턴이 상대방 → 그 다음이 사용자
-  const puzzleTurnFinal = puzzleTurn === 'white' ? 'black' : 'white';
-
-  console.log('[puzzle]', puzzleData.id, '| ply:', initialPly, '| fen:', fen.split(' ')[0], '| opMove:', opponentMove, '| solution:', userSolution, '| userTurn:', puzzleTurnFinal);
+  // Lichess: initialPly까지 재생한 포지션 = 사용자가 바로 두는 차례
+  // solution 전체 = [사용자수, 엔진응수, 사용자수, ...] 사용자부터 시작
+  // opponentMove 없음, turn = FEN 턴 그대로
+  console.log('[puzzle]', puzzleData.id, '| ply:', initialPly, '| fen:', fen.split(' ')[0], '| solution:', solutionUCI, '| userTurn:', puzzleTurn);
   return {
     lichessId: puzzleData.id || '',
     title: `${themeLabel} #${puzzleData.id || '?'}`,
     rating: puzzleData.rating || 1200,
     fen,
-    opponentMove,
-    solution: userSolution,
+    opponentMove: null,
+    solution: solutionUCI,
     fullSolution: solutionUCI,
     hint: themes.length > 0 ? `전술 테마: ${themes.slice(0,3).join(', ')}` : '최선의 수를 찾으세요',
-    moves: userSolution.length,
+    moves: solutionUCI.length,
     themes,
-    turn: puzzleTurnFinal,
+    turn: puzzleTurn,
     gameUrl: gameData.id ? `https://lichess.org/${gameData.id}` : null,
   };
 }
