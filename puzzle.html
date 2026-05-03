@@ -939,6 +939,28 @@ body {
 }
 #back-to-themes-btn:hover { color: var(--text-primary); }
 
+/* Lichess 스피너 */
+@keyframes spin { to { transform: rotate(360deg); } }
+.lichess-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent-green);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Lichess 링크 버튼 */
+.lichess-link-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 10px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.lichess-link-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+
 /* ===== THEME LIST VIEW ===== */
 #theme-list-view {
   display: flex;
@@ -1120,6 +1142,14 @@ body {
           </div>
         </div>
 
+        <!-- 체크메이트 패턴 -->
+        <div class="section-header">
+          <h2>♟ 체크메이트 패턴</h2>
+          <div class="section-header-line"></div>
+          <div class="section-badge">6개 테마</div>
+        </div>
+        <div class="theme-grid" id="grid-mate"></div>
+
         <!-- 전술 기술 -->
         <div class="section-header">
           <h2>⚔️ 전술 기술</h2>
@@ -1241,6 +1271,11 @@ body {
           <button class="pz-btn" onclick="prevPuzzle()">← 이전</button>
           <button class="pz-btn primary" id="next-puzzle-btn" onclick="nextPuzzle()">다음 퍼즐 →</button>
         </div>
+        <div style="display:flex; justify-content:center; margin-top:2px;">
+          <a id="lichess-link" class="lichess-link-btn" href="#" target="_blank" style="display:none;">
+            ♟ Lichess에서 보기
+          </a>
+        </div>
       </div>
     </div>
   </div>
@@ -1283,6 +1318,14 @@ body {
 /* ===================== DATA ===================== */
 
 const THEMES = {
+  mate: [
+    { id:'mateIn1',   icon:'⚡', name:'1수 메이트',        desc:'단 한 수로 체크메이트! 가장 기초적이지만 빠른 판단력 훈련',        count:520, diff:'easy',   color:'#c04040' },
+    { id:'mateIn2',   icon:'🎯', name:'2수 메이트',        desc:'2수 연속으로 체크메이트를 완성하는 패턴 훈련',                   count:430, diff:'medium', color:'#e08030' },
+    { id:'mateIn3',   icon:'🧠', name:'3수 메이트',        desc:'3수 계산으로 완성하는 체크메이트. 수읽기 능력 핵심 훈련',        count:310, diff:'hard',   color:'#8855cc' },
+    { id:'backRank',  icon:'🏚️', name:'백랭크 메이트',     desc:'1랭크(8랭크)의 약점을 이용한 클래식 메이트 패턴',              count:210, diff:'medium', color:'#c04040' },
+    { id:'smothered', icon:'🕸️', name:'스모더드 메이트',   desc:'나이트가 킹을 자신의 말들로 가둬 메이트하는 화려한 패턴',        count:98,  diff:'hard',   color:'#5090d0' },
+    { id:'anastasia', icon:'🌊', name:'아나스타시아 메이트',desc:'룩과 나이트의 협력으로 킹을 가두는 아름다운 메이트',            count:72,  diff:'expert', color:'#2aada6' },
+  ],
   tactics: [
     { id:'fork',        icon:'🍴', name:'포크 (Fork)',         desc:'하나의 말로 두 개 이상의 적 말을 동시에 공격하는 전술',           count:342, diff:'medium', color:'#e08030' },
     { id:'pin',         icon:'📌', name:'핀 (Pin)',            desc:'적 말을 공격하여 뒤에 있는 더 가치 있는 말을 보호',              count:289, diff:'medium', color:'#5090d0' },
@@ -1345,36 +1388,170 @@ function generateSets(themeId) {
   return sets;
 }
 
-/* ============ SAMPLE PUZZLES (FEN + solution) ============ */
-const SAMPLE_PUZZLES = [
-  {
-    title: '포크 연습 #1',
-    rating: 1150,
-    fen: 'r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4',
-    turn: 'white',
-    solution: ['f3g5'],
-    hint: '나이트로 두 개를 동시에 공격할 수 있는 칸을 찾으세요',
-    moves: 1
-  },
-  {
-    title: '핀 전술 #1',
-    rating: 1280,
-    fen: 'rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 4 5',
-    turn: 'white',
-    solution: ['c4f7'],
-    hint: '핀을 이용해 킹과 퀸 사이의 말을 공격하세요',
-    moves: 1
-  },
-  {
-    title: '체크메이트 #1',
-    rating: 900,
-    fen: 'r1bqkbnr/pppp1ppp/8/4p3/2BnP3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1',
-    turn: 'white',
-    solution: ['f3d4'],
-    hint: '나이트를 활성화하세요',
-    moves: 1
+/* ============ LICHESS API ============ */
+
+// Lichess theme ID → API theme name 매핑
+const LICHESS_THEME_MAP = {
+  // 전술
+  fork:        'fork',
+  pin:         'pin',
+  skewer:      'skewer',
+  discovcheck: 'discoveredAttack',
+  sacrifice:   'sacrifice',
+  zwischenzug: 'zwischenzug',
+  xray:        'xRayAttack',
+  windmill:    'trappedPiece',
+  deflection:  'deflection',
+  // 메이트
+  mateIn1:     'mateIn1',
+  mateIn2:     'mateIn2',
+  mateIn3:     'mateIn3',
+  backRank:    'backRankMate',
+  smothered:   'smotheredMate',
+  anastasia:   'anastasiaMate',
+  // 오프닝 & 엔딩
+  opening_trap:'opening',
+  opening_dev: 'opening',
+  endgame_basic:'endgame',
+  endgame_rook:'rookEndgame',
+  pawn_ending: 'pawnEndgame',
+  // 포지셔널
+  outpost:     'outpost',
+  pawn_structure:'pawnStructure',
+  king_safety: 'kingsideAttack',
+  bishop_pair: 'bishopEndgame',
+  rook_open:   'rookEndgame',
+  // 특수
+  stalemate:   'stalemate',
+  promotion:   'promotion',
+  zugzwang:    'zugzwang',
+  interference:'interference',
+  // 데일리
+  daily:       null,
+};
+
+// 난이도 → 레이팅 범위
+const DIFF_RATING = {
+  beginner:     { min: 800,  max: 1200 },
+  intermediate: { min: 1200, max: 1600 },
+  advanced:     { min: 1600, max: 2000 },
+  expert:       { min: 2000, max: 2800 },
+};
+
+let _lichessToken = null;
+
+async function getLichessToken() {
+  if (_lichessToken) return _lichessToken;
+  try {
+    const res = await fetch('/api/lichess-token');
+    if (res.ok) {
+      const data = await res.json();
+      _lichessToken = data.token || null;
+    }
+  } catch(e) { _lichessToken = null; }
+  return _lichessToken;
+}
+
+// Lichess에서 퍼즐 여러 개 가져오기 (NDJSON 스트림)
+async function fetchLichessPuzzles(themeId, diff, count = 10) {
+  const token = await getLichessToken();
+  const lichessTheme = LICHESS_THEME_MAP[themeId];
+  const { min, max } = DIFF_RATING[diff] || DIFF_RATING.beginner;
+
+  // Lichess Puzzle Stream API: GET /api/puzzle/next with theme
+  // 실제 배치용: /api/puzzle/batch?nb=10&themes=fork&...
+  const params = new URLSearchParams({ nb: count });
+  if (lichessTheme) params.set('themes', lichessTheme);
+  params.set('diffMin', min);
+  params.set('diffMax', max);
+
+  const headers = { 'Accept': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`https://lichess.org/api/puzzle/batch?${params}`, { headers });
+  if (!res.ok) throw new Error(`Lichess API error: ${res.status}`);
+  const json = await res.json();
+
+  // json.puzzles = [{ puzzle: { id, rating, solution:[], themes:[] }, game: { pgn, ... } }]
+  return (json.puzzles || []).map(p => parseLichessPuzzle(p, themeId));
+}
+
+// 오늘의 퍼즐
+async function fetchDailyPuzzle() {
+  const token = await getLichessToken();
+  const headers = { 'Accept': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch('https://lichess.org/api/puzzle/daily', { headers });
+  if (!res.ok) throw new Error(`Lichess daily puzzle error: ${res.status}`);
+  const json = await res.json();
+  return parseLichessPuzzle(json, 'daily');
+}
+
+function parseLichessPuzzle(raw, themeId) {
+  // raw may be { puzzle, game } or { puzzle: { ... } }
+  const puzzleData = raw.puzzle || raw;
+  const gameData   = raw.game   || {};
+
+  // FEN: puzzle initialFen (position BEFORE the opponent's last move)
+  // solution: array of UCI moves e.g. ["e2e4","d7d5"]
+  // The first move is the opponent's "setup" move — the puzzle starts after it.
+  // So we pre-apply move[0] and the user must find move[1].
+  const fen        = puzzleData.initialFen || '';
+  const solutionUCI = puzzleData.solution  || [];
+
+  // Determine whose turn it is from the FEN (after opponent's move)
+  const fenParts  = fen.split(' ');
+  const rawTurn   = fenParts[1] === 'w' ? 'white' : 'black';
+  // After applying the opponent's first move, the turn flips
+  const puzzleTurn = rawTurn === 'white' ? 'black' : 'white';
+
+  const themes = puzzleData.themes || [];
+  const themeLabel = THEME_LABEL_MAP[themeId] || themes[0] || themeId;
+
+  return {
+    lichessId: puzzleData.id || '',
+    title: `${themeLabel} #${puzzleData.id || '?'}`,
+    rating: puzzleData.rating || 1200,
+    fen,
+    opponentMove: solutionUCI[0] || null,   // pre-play this on board
+    solution: solutionUCI.slice(1),          // user must find these
+    fullSolution: solutionUCI,
+    hint: themes.length > 0 ? `전술 테마: ${themes.slice(0,3).join(', ')}` : '최선의 수를 찾으세요',
+    moves: solutionUCI.slice(1).length,
+    themes,
+    turn: puzzleTurn,
+    gameUrl: gameData.id ? `https://lichess.org/${gameData.id}` : null,
+  };
+}
+
+const THEME_LABEL_MAP = {
+  fork:'포크', pin:'핀', skewer:'스큐어', discovcheck:'발견 어택',
+  sacrifice:'희생', zwischenzug:'즈비셴주크', xray:'X레이', windmill:'윈드밀',
+  deflection:'편향', mateIn1:'1수 메이트', mateIn2:'2수 메이트', mateIn3:'3수 메이트',
+  backRank:'백랭크 메이트', smothered:'스모더드 메이트',
+  anastasia:'아나스타시아 메이트', opening_trap:'오프닝 함정',
+  opening_dev:'오프닝 개발', endgame_basic:'기본 엔딩',
+  endgame_rook:'룩 엔딩', pawn_ending:'폰 엔딩', outpost:'아웃포스트',
+  pawn_structure:'폰 구조', king_safety:'킹 안전', bishop_pair:'비숍 쌍',
+  rook_open:'열린 파일', stalemate:'스테일메이트', promotion:'프로모션',
+  zugzwang:'추크츠방', interference:'인터피어런스', daily:'오늘의 퍼즐',
+};
+
+// 캐시 (테마+난이도 → 퍼즐 배열)
+const _puzzleCache = {};
+
+async function getPuzzles(themeId, diff) {
+  const key = `${themeId}__${diff}`;
+  if (!_puzzleCache[key]) {
+    if (themeId === 'daily') {
+      _puzzleCache[key] = [await fetchDailyPuzzle()];
+    } else {
+      _puzzleCache[key] = await fetchLichessPuzzles(themeId, diff, 10);
+    }
   }
-];
+  return _puzzleCache[key];
+}
 
 /* ============ STATE ============ */
 let state = {
@@ -1389,13 +1566,15 @@ let state = {
   totalSolved: 0,
   todaySolved: 0,
   rating: 1200,
-  board: null,          // 8x8 piece array
-  selectedSq: null,     // selected square [r,c]
+  board: null,
+  selectedSq: null,
   hintShown: false,
   solutionShown: false,
   puzzleSolved: false,
   moveHistory: [],
   currentPuzzle: null,
+  puzzles: [],           // Lichess에서 불러온 퍼즐 배열
+  solutionMoveIdx: 0,    // 멀티-무브 진행 인덱스
 };
 
 /* ============ RENDER THEME GRIDS ============ */
@@ -1415,6 +1594,7 @@ function renderThemeCard(theme) {
 }
 
 function initThemeGrids() {
+  document.getElementById('grid-mate').innerHTML       = THEMES.mate.map(renderThemeCard).join('');
   document.getElementById('grid-tactics').innerHTML    = THEMES.tactics.map(renderThemeCard).join('');
   document.getElementById('grid-phases').innerHTML     = THEMES.phases.map(renderThemeCard).join('');
   document.getElementById('grid-positional').innerHTML = THEMES.positional.map(renderThemeCard).join('');
@@ -1446,7 +1626,6 @@ function applyQueryFromUrl() {
   openTheme(themeId, preset);
 }
 
-/* ============ FIND THEME ============ */
 function findTheme(id) {
   if (id === 'daily') return DAILY;
   for (const group of Object.values(THEMES)) {
@@ -1475,21 +1654,23 @@ function openTheme(themeId, presetDiff) {
 }
 
 function renderPuzzleSets(themeId) {
-  const sets = generateSets(themeId);
-  const statusLabel = { new:'새 퍼즐', progress:'진행 중', done:'완료' };
-  const statusClass = { new:'status-new', progress:'status-progress', done:'status-done' };
-  document.getElementById('puzzle-set-list').innerHTML = sets.map((s, i) => `
-    <div class="puzzle-set-item ${state.selectedSet === s.id ? 'selected' : ''}" onclick="selectSet(this,'${s.id}')">
-      <div class="puzzle-set-num">${i+1}</div>
+  const lichessTheme = LICHESS_THEME_MAP[themeId];
+  document.getElementById('puzzle-set-list').innerHTML = `
+    <div class="puzzle-set-item" style="cursor:default;border-color:var(--accent-green-dark);">
+      <div class="puzzle-set-num" style="background:rgba(127,166,80,0.15);color:var(--accent-green-bright);">♟</div>
       <div class="puzzle-set-info">
-        <div class="puzzle-set-name">${s.name}</div>
-        <div class="puzzle-set-meta">📊 레이팅 ${s.difficulty} · ${s.count}개 퍼즐</div>
+        <div class="puzzle-set-name">Lichess 실시간 퍼즐</div>
+        <div class="puzzle-set-meta">
+          테마: <strong>${lichessTheme || '랜덤'}</strong> · 난이도에 맞는 퍼즐 10개를 실시간으로 불러옵니다
+        </div>
       </div>
-      <span class="puzzle-set-status ${statusClass[s.status]}">${statusLabel[s.status]}</span>
+      <span class="puzzle-set-status status-new">실시간</span>
     </div>
-  `).join('');
-  state.selectedSet = sets[0]?.id || null;
-  document.querySelector('.puzzle-set-item')?.classList.add('selected');
+    <div style="font-size:11px;color:var(--text-muted);padding:8px 4px;line-height:1.6;">
+      🔑 Lichess API 토큰이 설정되어 있으면 개인화된 퍼즐을 받을 수 있습니다.<br>
+      토큰 없이도 퍼즐을 불러올 수 있습니다.
+    </div>
+  `;
 }
 
 function selectSet(el, id) {
@@ -1521,19 +1702,45 @@ function startRandom() {
 }
 
 /* ============ PUZZLE VIEW ============ */
-function enterPuzzleView() {
+async function enterPuzzleView() {
   document.getElementById('theme-list-view').style.display = 'none';
   document.getElementById('puzzle-board-view').classList.add('show');
 
   const theme = state.currentTheme;
   document.getElementById('psp-theme-tag').textContent = `${theme.icon} ${theme.name}`;
-  document.getElementById('psp-puzzle-title').textContent = `${theme.name} 퍼즐`;
+  document.getElementById('psp-puzzle-title').textContent = '퍼즐 불러오는 중…';
 
   state.currentPuzzleIdx = 0;
-  state.totalPuzzles = 10;
   state.moveHistory = [];
+  state.puzzles = [];
 
-  loadPuzzle(state.currentPuzzleIdx);
+  // 로딩 표시
+  showBoardLoading(true);
+
+  try {
+    const puzzles = await getPuzzles(theme.id, state.selectedDiff);
+    state.puzzles = puzzles;
+    state.totalPuzzles = puzzles.length;
+    showBoardLoading(false);
+    loadPuzzle(0);
+  } catch(err) {
+    showBoardLoading(false);
+    document.getElementById('psp-puzzle-title').textContent = '불러오기 실패';
+    document.getElementById('psp-instruction-text').textContent =
+      `⚠️ Lichess API 오류: ${err.message}. 토큰을 확인하거나 잠시 후 다시 시도하세요.`;
+    console.error('Lichess fetch error:', err);
+  }
+}
+
+function showBoardLoading(on) {
+  const board = document.getElementById('puzzle-chessboard');
+  if (on) {
+    board.innerHTML = `
+      <div style="grid-column:1/-1;grid-row:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--text-muted);">
+        <div class="lichess-spinner"></div>
+        <div style="font-size:13px;">Lichess에서 퍼즐 불러오는 중…</div>
+      </div>`;
+  }
 }
 
 function exitPuzzleView() {
@@ -1542,12 +1749,15 @@ function exitPuzzleView() {
 }
 
 function loadPuzzle(idx) {
-  const puzzle = SAMPLE_PUZZLES[idx % SAMPLE_PUZZLES.length];
+  const puzzle = state.puzzles[idx];
+  if (!puzzle) return;
+
   state.currentPuzzle = puzzle;
   state.selectedSq = null;
   state.hintShown = false;
   state.solutionShown = false;
   state.puzzleSolved = false;
+  state.solutionMoveIdx = 0;
   state.moveHistory = [];
 
   document.getElementById('puzzle-nav-info').textContent = `퍼즐 ${idx+1} / ${state.totalPuzzles}`;
@@ -1570,7 +1780,70 @@ function loadPuzzle(idx) {
   updateMoveHistory();
   document.getElementById('retry-btn').style.display = 'none';
 
+  // FEN 파싱 후 상대방의 첫 수 자동으로 적용
   parseFenAndDraw(puzzle.fen);
+  if (puzzle.opponentMove) {
+    setTimeout(() => applyOpponentMove(puzzle.opponentMove), 400);
+  }
+
+  // Lichess 링크 표시
+  const linkEl = document.getElementById('lichess-link');
+  if (linkEl) {
+    linkEl.href = puzzle.gameUrl || `https://lichess.org/training/${puzzle.lichessId}`;
+    linkEl.style.display = puzzle.lichessId ? '' : 'none';
+  }
+}
+
+/* ============ UCI MOVE APPLICATION ============ */
+function uciToCoords(uci) {
+  // e.g. "e2e4" → { fr:6, fc:4, tr:4, tc:4 }
+  const fc = FILES.indexOf(uci[0]);
+  const fr = 8 - parseInt(uci[1]);
+  const tc = FILES.indexOf(uci[2]);
+  const tr = 8 - parseInt(uci[3]);
+  return { fr, fc, tr, tc };
+}
+
+function applyMoveToBoard(uci, isPromotion) {
+  const { fr, fc, tr, tc } = uciToCoords(uci);
+  const piece = state.board[fr][fc];
+  if (!piece) return;
+  state.board[tr][tc] = piece;
+  state.board[fr][fc] = null;
+
+  // 앙파상
+  if ((piece === 'P' || piece === 'p') && fc !== tc && !state.board[tr][tc]) {
+    state.board[fr][tc] = null;
+  }
+  // 캐슬링
+  if (piece === 'K' && Math.abs(fc - tc) === 2) {
+    if (tc === 6) { state.board[fr][7] = null; state.board[fr][5] = 'R'; }
+    else          { state.board[fr][0] = null; state.board[fr][3] = 'R'; }
+  }
+  if (piece === 'k' && Math.abs(fc - tc) === 2) {
+    if (tc === 6) { state.board[fr][7] = null; state.board[fr][5] = 'r'; }
+    else          { state.board[fr][0] = null; state.board[fr][3] = 'r'; }
+  }
+  // 프로모션 (uci 5번째 문자)
+  if (uci.length === 5) {
+    const promo = uci[4];
+    state.board[tr][tc] = piece === piece.toUpperCase() ? promo.toUpperCase() : promo.toLowerCase();
+  }
+  return { fr, fc, tr, tc };
+}
+
+function applyOpponentMove(uci) {
+  const coords = applyMoveToBoard(uci);
+  if (!coords) return;
+  const { fr, fc, tr, tc } = coords;
+  drawBoard();
+  getSquareEl(fr, fc)?.classList.add('last-move');
+  getSquareEl(tr, tc)?.classList.add('last-move');
+
+  const fromAlg = FILES[fc] + (8-fr);
+  const toAlg   = FILES[tc] + (8-tr);
+  state.moveHistory.push({ alg: fromAlg+'-'+toAlg, type:'engine' });
+  updateMoveHistory();
 }
 
 /* ============ BOARD RENDERING ============ */
@@ -1686,28 +1959,30 @@ function handleSquareClick(r, c) {
 
 function tryMove(fr, fc, tr, tc, moveStr) {
   const puzzle = state.currentPuzzle;
-  const correct = puzzle.solution[0]; // simplified: check first move
+  const expectedMove = puzzle.solution[state.solutionMoveIdx];
 
   clearHighlights();
   state.selectedSq = null;
 
-  // animate move on board
   const fromSq = getSquareEl(fr, fc);
   const toSq   = getSquareEl(tr, tc);
 
-  if (moveStr === correct || moveStr.startsWith(correct.slice(0,4))) {
-    // correct
+  // 정답 판정: uci 첫 4글자 비교 (프로모션 제외 우선)
+  const isCorrect = expectedMove && (
+    moveStr === expectedMove ||
+    moveStr.slice(0,4) === expectedMove.slice(0,4)
+  );
+
+  if (isCorrect) {
     toSq?.classList.add('correct');
     fromSq?.classList.add('last-move');
 
-    // update board state
-    state.board[tr][tc] = state.board[fr][fc];
-    state.board[fr][fc] = null;
+    applyMoveToBoard(expectedMove);
 
     const fromAlg = FILES[fc] + (8-fr);
     const toAlg   = FILES[tc] + (8-tr);
     state.moveHistory.push({ alg: fromAlg+'-'+toAlg, type:'user' });
-    updateMoveHistory();
+    state.solutionMoveIdx++;
 
     setTimeout(() => {
       drawBoard();
@@ -1715,23 +1990,33 @@ function tryMove(fr, fc, tr, tc, moveStr) {
       getSquareEl(tr, tc)?.classList.add('last-move');
     }, 200);
 
-    state.puzzleSolved = true;
-    state.streak++;
-    state.totalSolved++;
-    state.todaySolved++;
-    if (state.streak > state.bestStreak) state.bestStreak = state.streak;
-    updateStats();
-    showFeedback('correct', '✅ 정답입니다! 훌륭한 수입니다!');
-    document.getElementById('retry-btn').style.display = '';
-
-    // progress
-    state.correctCount++;
-    const pct = ((state.currentPuzzleIdx+1) / state.totalPuzzles * 100).toFixed(0);
-    document.getElementById('progress-fill').style.width = pct + '%';
-    document.getElementById('progress-label').textContent = `${state.currentPuzzleIdx+1} / ${state.totalPuzzles}`;
-
+    // 모든 정답 수를 맞췄는지 확인
+    if (state.solutionMoveIdx >= puzzle.solution.length) {
+      // 퍼즐 완료!
+      state.puzzleSolved = true;
+      state.streak++;
+      state.totalSolved++;
+      state.todaySolved++;
+      if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+      updateStats();
+      showFeedback('correct', '✅ 정답입니다! 훌륭한 수입니다!');
+      document.getElementById('retry-btn').style.display = '';
+      state.correctCount++;
+      const pct = ((state.currentPuzzleIdx+1) / state.totalPuzzles * 100).toFixed(0);
+      document.getElementById('progress-fill').style.width = pct + '%';
+      document.getElementById('progress-label').textContent = `${state.currentPuzzleIdx+1} / ${state.totalPuzzles}`;
+    } else {
+      // 엔진 응수 자동 실행
+      const engineMove = puzzle.solution[state.solutionMoveIdx];
+      state.solutionMoveIdx++;
+      setTimeout(() => {
+        applyOpponentMove(engineMove);
+        updateMoveHistory();
+        document.getElementById('psp-instruction-text').textContent = '계속하세요! 다음 최선의 수를 찾아보세요.';
+      }, 600);
+    }
+    updateMoveHistory();
   } else {
-    // wrong
     toSq?.classList.add('wrong');
     setTimeout(() => { toSq?.classList.remove('wrong'); }, 700);
     state.streak = 0;
@@ -1750,30 +2035,34 @@ function showHint() {
 
 function showSolution() {
   const puzzle = state.currentPuzzle;
-  const move = puzzle.solution[0];
-  const fc = FILES.indexOf(move[0]);
-  const fr = 8 - parseInt(move[1]);
-  const tc = FILES.indexOf(move[2]);
-  const tr = 8 - parseInt(move[3]);
+  const move = puzzle.solution[state.solutionMoveIdx] || puzzle.solution[0];
+  if (!move) return;
+  const { fr, fc, tr, tc } = uciToCoords(move);
   clearHighlights();
   getSquareEl(fr, fc)?.classList.add('hint');
   getSquareEl(tr, tc)?.classList.add('hint');
   state.solutionShown = true;
-  document.getElementById('psp-instruction-text').textContent = `정답: ${move[0]}${move[1]} → ${move[2]}${move[3]}`;
+  document.getElementById('psp-instruction-text').textContent =
+    `정답: ${FILES[fc]}${8-fr} → ${FILES[tc]}${8-tr}`;
 }
 
 function retryPuzzle() {
+  state.solutionMoveIdx = 0;
   loadPuzzle(state.currentPuzzleIdx);
 }
 
 function nextPuzzle() {
-  state.currentPuzzleIdx = Math.min(state.currentPuzzleIdx + 1, state.totalPuzzles - 1);
-  loadPuzzle(state.currentPuzzleIdx);
+  if (state.currentPuzzleIdx < state.totalPuzzles - 1) {
+    state.currentPuzzleIdx++;
+    loadPuzzle(state.currentPuzzleIdx);
+  }
 }
 
 function prevPuzzle() {
-  state.currentPuzzleIdx = Math.max(state.currentPuzzleIdx - 1, 0);
-  loadPuzzle(state.currentPuzzleIdx);
+  if (state.currentPuzzleIdx > 0) {
+    state.currentPuzzleIdx--;
+    loadPuzzle(state.currentPuzzleIdx);
+  }
 }
 
 function showFeedback(type, msg) {

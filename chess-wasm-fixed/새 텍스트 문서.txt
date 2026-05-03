@@ -216,4 +216,4 @@ html (SVG 오버레이, 위협/최선수 화살표)
 | 위협/최선수 화살표 수정 | `chess-wasm-fixed.html` 인라인 스크립트 |
 | AI 코치 프롬프트 수정 | `coach.js` |
 | 엔진 설정 기본값 변경 | `engine.js` 상단 설정 블록 |
-| 키보드 단축키 추가 | `ui.js` → `setupKeyboard()` |
+| 키보드 단축키 추가 | `ui.js` → `setupKeyboard()` |	
