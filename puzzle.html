@@ -708,6 +708,23 @@ body {
 .chess-square.last-move { background: rgba(255,200,50,0.35) !important; }
 .chess-square:hover:not(.selected) { filter: brightness(1.12); }
 
+.move-dot {
+  position: absolute;
+  width: 32%;
+  height: 32%;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.22);
+  pointer-events: none;
+  z-index: 10;
+}
+.move-dot.capture-ring {
+  width: 90%;
+  height: 90%;
+  background: transparent;
+  border: 6px solid rgba(0,0,0,0.22);
+  border-radius: 50%;
+}
+
 .sq-label-file {
   position: absolute;
   bottom: 1px; right: 2px;
@@ -1989,6 +2006,7 @@ function getSquareEl(r, c) {
 function clearHighlights() {
   document.querySelectorAll('.chess-square').forEach(sq => {
     sq.classList.remove('selected','highlight-move','hint','correct','wrong','last-move');
+    sq.querySelectorAll('.move-dot').forEach(d => d.remove());
   });
 }
 
@@ -1999,9 +2017,44 @@ function getCurrentTurn() {
   return state.currentPuzzle ? state.currentPuzzle.turn : 'white';
 }
 
+function getLegalMovesFrom(r, c) {
+  try {
+    let fen = '';
+    for (let row = 0; row < 8; row++) {
+      let empty = 0;
+      for (let col = 0; col < 8; col++) {
+        const p = state.board[row][col];
+        if (p) { if (empty) { fen += empty; empty = 0; } fen += p; }
+        else empty++;
+      }
+      if (empty) fen += empty;
+      if (row < 7) fen += '/';
+    }
+    const turn = state.currentPuzzle.turn === 'white' ? 'w' : 'b';
+    const ch = new Chess(fen + ' ' + turn + ' - - 0 1');
+    const fromSq = FILES[c] + (8 - r);
+    const moves = ch.moves({ square: fromSq, verbose: true });
+    return moves.map(m => ({
+      tr: 8 - parseInt(m.to[1]),
+      tc: FILES.indexOf(m.to[0]),
+      capture: !!m.captured
+    }));
+  } catch(e) { return []; }
+}
+
+function showMoveDots(moves) {
+  moves.forEach(({ tr, tc, capture }) => {
+    const sq = getSquareEl(tr, tc);
+    if (!sq) return;
+    const dot = document.createElement('div');
+    dot.className = capture ? 'move-dot capture-ring' : 'move-dot';
+    sq.appendChild(dot);
+  });
+}
+
 function handleSquareClick(r, c) {
   if (state.puzzleSolved || state.solutionShown) return;
-  if (state.waitingEngine) return; // 엔진 응수 대기 중
+  if (state.waitingEngine) return;
 
   const piece = state.board[r][c];
   const currentTurn = getCurrentTurn();
@@ -2032,6 +2085,7 @@ function handleSquareClick(r, c) {
       state.selectedSq = [r, c];
       clearHighlights();
       getSquareEl(r, c)?.classList.add('selected');
+      showMoveDots(getLegalMovesFrom(r, c));
       return;
     }
 
@@ -2048,6 +2102,7 @@ function handleSquareClick(r, c) {
       state.selectedSq = [r, c];
       clearHighlights();
       getSquareEl(r, c)?.classList.add('selected');
+      showMoveDots(getLegalMovesFrom(r, c));
     }
   }
 }
@@ -2155,12 +2210,7 @@ function tryMove(fr, fc, tr, tc, moveStr) {
 function showHint() {
   if (state.puzzleSolved || state.solutionShown) return;
   const puzzle = state.currentPuzzle;
-  const move = puzzle.solution[state.solutionMoveIdx] || puzzle.solution[0];
-  if (!move) return;
-  const { fr, fc } = uciToCoords(move);
-  clearHighlights();
-  getSquareEl(fr, fc)?.classList.add('hint');
-  document.getElementById('psp-instruction-text').textContent = '💡 이 기물을 사용하세요';
+  document.getElementById('psp-instruction-text').textContent = '💡 힌트: ' + puzzle.hint;
   state.hintShown = true;
 }
 
