@@ -1503,13 +1503,19 @@ function parseLichessPuzzle(raw, themeId) {
 
   // chess.js로 PGN → FEN 변환
   let fen = '';
+  let opponentLastMove = null; // 상대방의 마지막 수 (유도 수)
   try {
     const chess = new Chess();
     // PGN의 수를 공백으로 분리 (기보 표기 제거: 1. 2. 등)
     const moves = pgn.trim().split(/\s+/).filter(t => !/^\d+\./.test(t) && t !== '');
-    // initialPly번째까지만 적용
+    // initialPly번째 수까지 적용 (= 상대방의 유도 수 포함)
+    // Lichess: initialPly는 1-based index, 해당 수를 두고 난 포지션이 퍼즐 시작
     for (let i = 0; i < initialPly && i < moves.length; i++) {
-      chess.move(moves[i], { sloppy: true });
+      const result = chess.move(moves[i], { sloppy: true });
+      if (i === initialPly - 1 && result) {
+        // initialPly번째 수 = 상대방(유도 수)의 UCI 좌표 추출
+        opponentLastMove = result.from + result.to + (result.promotion || '');
+      }
     }
     fen = chess.fen();
   } catch(e) {
@@ -1522,16 +1528,16 @@ function parseLichessPuzzle(raw, themeId) {
   const themes = puzzleData.themes || [];
   const themeLabel = THEME_LABEL_MAP[themeId] || themes[0] || themeId;
 
-  // Lichess: initialPly까지 재생한 포지션 = 사용자가 바로 두는 차례
+  // Lichess: initialPly까지 재생한 포지션 = 상대방이 마지막 수를 둔 직후
+  // opponentLastMove를 로드 시 애니메이션으로 보여주고, 그 다음이 사용자 차례
   // solution 전체 = [사용자수, 엔진응수, 사용자수, ...] 사용자부터 시작
-  // opponentMove 없음, turn = FEN 턴 그대로
-  console.log('[puzzle]', puzzleData.id, '| ply:', initialPly, '| fen:', fen.split(' ')[0], '| solution:', solutionUCI, '| userTurn:', puzzleTurn);
+  console.log('[puzzle]', puzzleData.id, '| ply:', initialPly, '| fen:', fen.split(' ')[0], '| solution:', solutionUCI, '| userTurn:', puzzleTurn, '| opponentLastMove:', opponentLastMove);
   return {
     lichessId: puzzleData.id || '',
     title: `${themeLabel} #${puzzleData.id || '?'}`,
     rating: puzzleData.rating || 1200,
     fen,
-    opponentMove: null,
+    opponentMove: opponentLastMove,
     solution: solutionUCI,
     fullSolution: solutionUCI,
     hint: themes.length > 0 ? `전술 테마: ${themes.slice(0,3).join(', ')}` : '최선의 수를 찾으세요',
@@ -1816,12 +1822,18 @@ function loadPuzzle(idx) {
     const targetIdx = idx;
     const opMove = puzzle.opponentMove;
     setTimeout(() => {
-      // 같은 퍼즐이 아직 로드된 경우에만 실행
       if (state.currentPuzzleIdx === targetIdx) {
-        console.log('[puzzle] applying opponent move:', opMove);
-        applyOpponentMove(opMove);
+        // FEN에 이미 상대방 수가 반영되어 있으므로 보드 재적용 없이 하이라이트만 표시
+        console.log('[puzzle] highlighting opponent last move:', opMove);
+        const coords = uciToCoords(opMove);
+        clearHighlights();
+        getSquareEl(coords.fr, coords.fc)?.classList.add('last-move');
+        getSquareEl(coords.tr, coords.tc)?.classList.add('last-move');
+        state.lastMoveSq = [coords.fr, coords.fc, coords.tr, coords.tc];
+        state.savedBoard = state.board.map(row => [...row]);
+        state.savedMoveHistory = [];
       }
-    }, 500);
+    }, 400);
   }
 
   // Lichess 링크 표시
