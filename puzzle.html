@@ -1801,7 +1801,7 @@ function loadPuzzle(idx) {
   document.getElementById('eval-chip').textContent = `레이팅: ${puzzle.rating}`;
   document.getElementById('psp-instruction-text').textContent = '최선의 수를 찾아보세요. 말을 클릭한 후 이동할 칸을 클릭하세요.';
 
-  const turnText = puzzle.turn === 'white' ? '백이 움직입니다' : '흑이 움직입니다';
+  const turnText = puzzle.turn === 'white' ? '백 차례' : '흑 차례';
   document.getElementById('turn-text').textContent = turnText;
   document.getElementById('turn-dot').style.background = puzzle.turn === 'white' ? '#f0f0f0' : '#1a1a1a';
   document.getElementById('turn-dot').style.border = puzzle.turn === 'white' ? '1px solid #bbb' : '2px solid #666';
