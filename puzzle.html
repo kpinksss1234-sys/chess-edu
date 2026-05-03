@@ -1510,10 +1510,11 @@ function parseLichessPuzzle(raw, themeId) {
     const moves = pgn.trim().split(/\s+/).filter(t => !/^\d+\./.test(t) && t !== '');
     // initialPly번째 수까지 적용 (= 상대방의 유도 수 포함)
     // Lichess: initialPly는 1-based index, 해당 수를 두고 난 포지션이 퍼즐 시작
-    for (let i = 0; i < initialPly && i < moves.length; i++) {
+    // Lichess initialPly는 0-based 인덱스: moves[0..initialPly] 총 (initialPly+1)수 적용
+    // moves[initialPly] = 상대방의 유도 수, 그 다음이 사용자 차례
+    for (let i = 0; i <= initialPly && i < moves.length; i++) {
       const result = chess.move(moves[i], { sloppy: true });
-      if (i === initialPly - 1 && result) {
-        // initialPly번째 수 = 상대방(유도 수)의 UCI 좌표 추출
+      if (i === initialPly && result) {
         opponentLastMove = result.from + result.to + (result.promotion || '');
       }
     }
