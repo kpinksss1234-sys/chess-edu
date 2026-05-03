@@ -1657,6 +1657,7 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
       <button class="tab-btn active" onclick="switchTab('analysis')">분석</button>
       <button class="tab-btn" onclick="switchTab('pgn')">PGN</button>
       <button class="tab-btn" onclick="switchTab('settings')">설정</button>
+      <button class="tab-btn" id="tab-btn-coach-mobile" onclick="switchTab('coach-mobile')" style="display:none;">🧠 AI코치</button>
     </div>
 
     <div class="tab-panel active" id="tab-analysis">
@@ -1864,6 +1865,39 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
             <div class="settings-row-label">자동 분석</div>
             <div class="toggle on" id="autoanalyze-toggle" onclick="toggleAutoAnalyze(this)"></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 모바일 AI 코치 탭 패널 (모바일 전용) -->
+    <div class="tab-panel" id="tab-coach-mobile">
+      <div style="padding:12px;display:flex;flex-direction:column;gap:10px;height:100%;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#7fa650 0%,#5090d0 100%);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">🧠</div>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--accent-green-bright);">AI 체스 코치</div>
+            <div style="font-size:11px;color:var(--text-muted);">Groq · Llama-3.3-70b</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">API Key</span>
+          <input type="password" id="coach-api-input-mobile" placeholder="Groq API 키 (gsk_...)"
+            style="flex:1;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;padding:6px 10px;outline:none;font-family:monospace;min-width:0;"/>
+          <button onclick="saveMobileApiKey()"
+            style="padding:6px 12px;border-radius:6px;border:none;background:var(--accent-green-dark);color:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">저장</button>
+          <span id="coach-key-status-mobile" style="font-size:11px;color:var(--text-muted);width:100%;"></span>
+        </div>
+        <div id="coach-context-display-mobile" style="font-size:11px;color:var(--text-muted);background:var(--bg-tertiary);border-radius:6px;padding:6px 10px;display:none;"></div>
+        <div id="coach-response-mobile"
+          style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.7;color:var(--text-primary);min-height:100px;overflow-y:auto;word-break:break-word;display:none;"></div>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-top:auto;">
+          <textarea id="coach-input-mobile" placeholder="체스 코치에게 질문하세요..." rows="2"
+            style="flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;padding:8px 12px;outline:none;font-family:var(--font-main);resize:none;min-height:40px;max-height:80px;transition:border-color 0.15s;line-height:1.5;"></textarea>
+          <button id="coach-ask-btn-mobile" onclick="askCoachMobile()"
+            style="padding:9px 16px;border-radius:8px;border:none;background:var(--accent-green);color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            질문
+          </button>
         </div>
       </div>
     </div>
@@ -2671,7 +2705,6 @@ window.addEventListener('load', () => {
 <script>
 // ── coach.js의 openCoach / closeCoach를 패치해 #main.coach-open도 같이 토글 ──
 (function patchCoach() {
-  // coach.js 로드 후 실행되도록 DOMContentLoaded 이후 시도
   function tryPatch() {
     if (typeof openCoach !== 'function' || typeof closeCoach !== 'function') {
       setTimeout(tryPatch, 100);
@@ -2681,6 +2714,12 @@ window.addEventListener('load', () => {
     const _origClose = closeCoach;
 
     window.openCoach = function() {
+      if (window.innerWidth <= 768) {
+        // 모바일: right-panel을 열고 AI코치 탭으로 전환
+        toggleMobilePanel(true);
+        switchTab('coach-mobile');
+        return;
+      }
       _origOpen.apply(this, arguments);
       const mainEl = document.getElementById('main');
       const boardEl = document.getElementById('board-area');
@@ -2695,6 +2734,10 @@ window.addEventListener('load', () => {
     };
 
     window.closeCoach = function() {
+      if (window.innerWidth <= 768) {
+        toggleMobilePanel(false);
+        return;
+      }
       _origClose.apply(this, arguments);
       const mainEl = document.getElementById('main');
       const boardEl = document.getElementById('board-area');
@@ -2710,6 +2753,16 @@ window.addEventListener('load', () => {
 
     // toggleCoachPanel도 새 함수에 연결
     window.toggleCoachPanel = function() {
+      if (window.innerWidth <= 768) {
+        const rp = document.getElementById('right-panel');
+        if (rp && rp.classList.contains('mobile-open')) {
+          toggleMobilePanel(false);
+        } else {
+          toggleMobilePanel(true);
+          switchTab('coach-mobile');
+        }
+        return;
+      }
       const panel = document.getElementById('coach-panel');
       if (panel && panel.classList.contains('open')) {
         window.closeCoach();
@@ -2725,6 +2778,99 @@ window.addEventListener('load', () => {
     tryPatch();
   }
 })();
+
+// ── 모바일에서 AI코치 탭 버튼 표시 ──
+(function showMobileCoachTab() {
+  function apply() {
+    const btn = document.getElementById('tab-btn-coach-mobile');
+    if (!btn) return;
+    if (window.innerWidth <= 768) {
+      btn.style.display = '';
+    } else {
+      btn.style.display = 'none';
+    }
+    // 저장된 API 키 로드
+    const savedKey = localStorage.getItem('groq_api_key');
+    if (savedKey) {
+      const mobileInput = document.getElementById('coach-api-input-mobile');
+      if (mobileInput) mobileInput.value = savedKey;
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', apply);
+  } else {
+    apply();
+  }
+  window.addEventListener('resize', apply);
+})();
+
+// ── 모바일 코치 API 저장 ──
+function saveMobileApiKey() {
+  const input = document.getElementById('coach-api-input-mobile');
+  const status = document.getElementById('coach-key-status-mobile');
+  if (!input) return;
+  const key = input.value.trim();
+  if (!key) { if(status) status.textContent='키를 입력해주세요.'; return; }
+  localStorage.setItem('groq_api_key', key);
+  // 데스크탑 coach-api-input도 동기화
+  const desktopInput = document.getElementById('coach-api-input');
+  if (desktopInput) desktopInput.value = key;
+  if (status) { status.textContent = '✓ 저장됨'; status.style.color = 'var(--accent-green-bright)'; }
+  // coach.js의 saveApiKey도 호출 시도
+  if (typeof saveApiKey === 'function') saveApiKey();
+}
+
+// ── 모바일 코치 질문 ──
+async function askCoachMobile() {
+  const inputEl = document.getElementById('coach-input-mobile');
+  const responseEl = document.getElementById('coach-response-mobile');
+  const btnEl = document.getElementById('coach-ask-btn-mobile');
+  if (!inputEl || !responseEl) return;
+
+  const question = inputEl.value.trim();
+  if (!question) return;
+
+  // API 키 동기화
+  const apiKeyInput = document.getElementById('coach-api-input-mobile');
+  if (apiKeyInput && apiKeyInput.value.trim()) {
+    localStorage.setItem('groq_api_key', apiKeyInput.value.trim());
+    const desktopInput = document.getElementById('coach-api-input');
+    if (desktopInput) desktopInput.value = apiKeyInput.value.trim();
+  }
+
+  // 데스크탑 coach textarea에 내용 복사해서 askCoach() 위임
+  const desktopInput2 = document.getElementById('coach-input');
+  const desktopResponse = document.getElementById('coach-response');
+  if (desktopInput2 && typeof askCoach === 'function') {
+    desktopInput2.value = question;
+    responseEl.style.display = 'block';
+    responseEl.innerHTML = '<span style="color:var(--text-muted);font-style:italic;">🧠 분석 중...</span>';
+    if (btnEl) { btnEl.disabled = true; }
+
+    // desktopResponse를 모바일로 미러링하는 MutationObserver
+    let observer = null;
+    if (desktopResponse) {
+      observer = new MutationObserver(() => {
+        responseEl.innerHTML = desktopResponse.innerHTML;
+        responseEl.style.display = 'block';
+      });
+      observer.observe(desktopResponse, { childList: true, subtree: true, characterData: true, attributes: true });
+    }
+
+    askCoach();
+
+    // 3초 후 observer 정리 + 버튼 재활성
+    setTimeout(() => {
+      if (observer) observer.disconnect();
+      if (btnEl) { btnEl.disabled = false; }
+      if (desktopResponse) responseEl.innerHTML = desktopResponse.innerHTML;
+      inputEl.value = '';
+    }, 15000);
+  } else {
+    responseEl.style.display = 'block';
+    responseEl.textContent = 'coach.js가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.';
+  }
+}
 </script>
 
 

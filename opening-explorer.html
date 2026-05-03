@@ -512,19 +512,44 @@ body {
   }
 }
 @media (max-width: 768px) {
+  html, body { height: 100%; overflow: hidden; }
   body { padding-bottom: 56px; }
-  #main { flex-direction: column !important; }
+  #main {
+    flex-direction: column !important;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #board-area {
+    flex-shrink: 0;
+    padding: 8px !important;
+    gap: 6px !important;
+  }
   #right-panel {
-    width: 100% !important; flex-shrink: 0;
-    border-left: none !important; border-top: 1px solid var(--border);
+    width: 100% !important;
+    flex-shrink: 0;
+    border-left: none !important;
+    border-top: 1px solid var(--border);
+    /* 패널 자체도 충분히 보이도록 최소 높이 */
+    min-height: 420px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #moves-area {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 180px;
   }
   #chessboard, .chessboard {
-    width: min(90vw, 380px) !important;
-    height: min(90vw, 380px) !important;
+    width: min(90vw, 340px) !important;
+    height: min(90vw, 340px) !important;
   }
   #board-controls, #pgn-input-row {
-    width: min(90vw, 380px) !important;
+    width: min(90vw, 340px) !important;
   }
+  #pgn-input-row { display: none; } /* 모바일에선 PGN 입력창 숨김으로 공간 절약 */
 }
 
 </style>
