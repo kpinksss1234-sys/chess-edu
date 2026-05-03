@@ -1489,6 +1489,8 @@ async function fetchDailyPuzzle() {
 }
 
 function parseLichessPuzzle(raw, themeId) {
+  // raw 구조 전체 출력 (디버깅용)
+  console.log('[RAW puzzle entry]', JSON.stringify(raw).slice(0, 500));
   // raw may be { puzzle, game } or { puzzle: { ... } }
   const puzzleData = raw.puzzle || raw;
   const gameData   = raw.game   || {};
