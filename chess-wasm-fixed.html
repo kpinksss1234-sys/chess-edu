@@ -1604,7 +1604,7 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
       <div class="ctrl-spacer"></div>
       <div class="eval-score" id="eval-score" title="엔진 평가">0.0</div>
       <!-- 위협 표시 버튼 -->
-      <button id="threat-overlay-btn" class="overlay-ctrl-btn active-threat"
+      <button id="threat-overlay-btn" class="overlay-ctrl-btn"
         onclick="setOverlayMode('threat')" title="위협 표시: 상대방 최강 위협을 보드에 표시">
         🎯 위협
       </button>
@@ -2284,7 +2284,7 @@ function updateOpeningBadge(uciMoves) {
 <!-- ===== 보드 오버레이: 위협(Null-Move) & 최선수 화살표 ===== -->
 <script>
 // ── 오버레이 모드: 'threat' | 'best' | 'off' ──────────────────
-let _overlayMode = 'threat';   // 기본: 위협 표시
+let _overlayMode = 'off';   // 기본: off (버튼 클릭 시 활성화)
 
 // ── 위협 분석 상태 ────────────────────────────────────────────
 let _threatWorker   = null;    // 위협 전용 별도 Worker
@@ -2361,6 +2361,17 @@ let _threatBestMove = null;
 let _threatMyId = 0;
 
 function _handleThreatWorkerMsg(line) {
+  // info 라인에서 중간 bestmove 추출 (더 빠른 표시)
+  if (line.startsWith('info') && line.includes(' pv ')) {
+    const pvMatch = line.match(/ pv (\S+)/);
+    if (pvMatch && _threatMyId === _threatAnalysisId) {
+      const uci = pvMatch[1];
+      if (uci && uci !== '(none)' && uci.length >= 4) {
+        _currentThreatUci = uci;
+        _drawOverlay();
+      }
+    }
+  }
   if (line.startsWith('bestmove')) {
     const m = line.match(/^bestmove (\S+)/);
     const uci = (m && m[1] !== '(none)') ? m[1] : null;
@@ -2630,11 +2641,29 @@ function _getCurrentFen() {
 })();
 
 // ── 초기 위협 Worker 로드 (엔진 초기화 후) ───────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  // 메인 엔진 로드 후 약간 여유를 두고 위협 Worker 초기화
-  setTimeout(() => {
-    if (typeof getStockfishBlobUrl === 'function') initThreatWorker();
-  }, 3000);
+// engine.js 로드 완료 후 실행되도록 window.onload 사용
+window.addEventListener('load', () => {
+  // 위협 버튼 초기 상태: active-threat 클래스 제거 (off 상태와 동기화)
+  const tBtn = document.getElementById('threat-overlay-btn');
+  if (tBtn) tBtn.classList.remove('active-threat');
+
+  // 엔진 초기화 대기 후 위협 모드 자동 활성화
+  function tryActivateThreat(attempts) {
+    if (typeof getStockfishBlobUrl === 'function') {
+      // 위협 모드 자동 ON
+      _overlayMode = 'threat';
+      if (tBtn) tBtn.classList.add('active-threat');
+      initThreatWorker();
+      // 현재 FEN으로 즉시 분석 요청
+      setTimeout(() => {
+        const fen = _getCurrentFen();
+        if (fen) { _lastThreatFen = ''; triggerThreatIfNeeded(fen); }
+      }, 500);
+    } else if (attempts > 0) {
+      setTimeout(() => tryActivateThreat(attempts - 1), 500);
+    }
+  }
+  setTimeout(() => tryActivateThreat(20), 1000);
 });
 </script>
 
