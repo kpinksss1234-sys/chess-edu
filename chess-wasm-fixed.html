@@ -1544,29 +1544,29 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
              preserveAspectRatio="none"
              xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <!-- 위협(빨강) 화살촉: userSpaceOnUse → 픽셀 정확 -->
+            <!-- 화살촉: strokeWidth 단위 → 브라우저 호환성 최대화 -->
             <marker id="arr-threat"
-              markerUnits="userSpaceOnUse"
-              markerWidth="24" markerHeight="24"
-              refX="12" refY="12"
+              markerUnits="strokeWidth"
+              markerWidth="4" markerHeight="4"
+              refX="2.5" refY="2"
               orient="auto">
-              <path d="M2,4 L22,12 L2,20 L7,12 Z"
+              <path d="M0,0 L4,2 L0,4 L1,2 Z"
                     fill="rgba(220,55,55,0.95)" stroke="none"/>
             </marker>
             <marker id="arr-best"
-              markerUnits="userSpaceOnUse"
-              markerWidth="24" markerHeight="24"
-              refX="12" refY="12"
+              markerUnits="strokeWidth"
+              markerWidth="4" markerHeight="4"
+              refX="2.5" refY="2"
               orient="auto">
-              <path d="M2,4 L22,12 L2,20 L7,12 Z"
+              <path d="M0,0 L4,2 L0,4 L1,2 Z"
                     fill="rgba(70,130,200,0.95)" stroke="none"/>
             </marker>
             <marker id="arr-alt"
-              markerUnits="userSpaceOnUse"
-              markerWidth="20" markerHeight="20"
-              refX="10" refY="10"
+              markerUnits="strokeWidth"
+              markerWidth="4" markerHeight="4"
+              refX="2.5" refY="2"
               orient="auto">
-              <path d="M2,3 L18,10 L2,17 L6,10 Z"
+              <path d="M0,0 L4,2 L0,4 L1,2 Z"
                     fill="rgba(100,160,60,0.85)" stroke="none"/>
             </marker>
           </defs>
@@ -2451,15 +2451,20 @@ function _makeSVGArrow(from, to, color, markerId, sw) {
 
   const ux = dx / len, uy = dy / len;
 
-  // 출발: 기물 이미지가 44px 반경이므로 그것보다 조금 더 들어서 시작
+  // 출발: 기물 중심에서 조금 떨어져서 시작
   const startOffset = 22;
-  // 도착: 화살촉 기준점(refX=12)이 선 끝에 오도록 — userSpaceOnUse 마커
-  const endOffset = 14;
+  // 도착: strokeWidth 기반 마커(refX=2.5 * sw)만큼 뒤로 당김
+  const arrowHeadLen = (sw || 14) * 2.5;
+  const endOffset = arrowHeadLen;
 
   const sx = from.px + ux * startOffset;
   const sy = from.py + uy * startOffset;
   const ex = to.px   - ux * endOffset;
   const ey = to.py   - uy * endOffset;
+
+  // 선이 너무 짧으면 스킵
+  const segLen = Math.sqrt((ex-sx)**2 + (ey-sy)**2);
+  if (segLen < 5) return null;
 
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
   line.setAttribute('x1', sx.toFixed(2)); line.setAttribute('y1', sy.toFixed(2));
