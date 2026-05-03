@@ -689,41 +689,50 @@ function getAllLegal(board, color, castling, enPassant) {
 function renderBoard() {
   const el = document.getElementById('play-board');
   if (!el) return;
-  el.innerHTML = '';
   const flipped = _myColor === 'b';
+
+  // 최초 1회만 DOM 생성, 이후엔 클래스·이미지만 업데이트 (깜빡임 방지)
+  const isFirstRender = el.children.length === 0;
 
   for (let ri = 0; ri < 8; ri++) {
     for (let ci = 0; ci < 8; ci++) {
       const r = flipped ? 7 - ri : ri;
       const c = flipped ? 7 - ci : ci;
-      const sq = document.createElement('div');
       const isLight = (r + c) % 2 === 0;
-      sq.className = 'sq ' + (isLight ? 'light' : 'dark');
-      sq.dataset.r = r; sq.dataset.c = c;
+      const idx = ri * 8 + ci;
 
-      // 좌표
-      if (ci === 0) { const lbl = document.createElement('span'); lbl.className='rank-label'; lbl.textContent=8-r; sq.appendChild(lbl); }
-      if (ri === 7) { const lbl = document.createElement('span'); lbl.className='file-label'; lbl.textContent='abcdefgh'[c]; sq.appendChild(lbl); }
+      let sq;
+      if (isFirstRender) {
+        sq = document.createElement('div');
+        sq.dataset.r = r; sq.dataset.c = c;
+        if (ci === 0) { const lbl = document.createElement('span'); lbl.className='rank-label'; lbl.textContent=8-r; sq.appendChild(lbl); }
+        if (ri === 7) { const lbl = document.createElement('span'); lbl.className='file-label'; lbl.textContent='abcdefgh'[c]; sq.appendChild(lbl); }
+        sq.addEventListener('click', () => onSquareClick(r, c));
+        el.appendChild(sq);
+      } else {
+        sq = el.children[idx];
+        // 기물 이미지만 제거 (좌표 label은 유지)
+        const imgs = sq.querySelectorAll('.piece-img');
+        imgs.forEach(img => img.remove());
+      }
 
-      // 마지막 이동 하이라이트
+      // 클래스 재설정
+      const classes = ['sq', isLight ? 'light' : 'dark'];
       if (_lastMove) {
-        if (_lastMove.from[0]===r&&_lastMove.from[1]===c) sq.classList.add('last-from');
-        if (_lastMove.to[0]===r&&_lastMove.to[1]===c)   sq.classList.add('last-to');
+        if (_lastMove.from[0]===r && _lastMove.from[1]===c) classes.push('last-from');
+        if (_lastMove.to[0]===r   && _lastMove.to[1]===c)   classes.push('last-to');
       }
-
-      // 선택 & 가능한 수
-      if (_selected && _selected[0]===r && _selected[1]===c) sq.classList.add('selected');
-      const isPossible = _legalMoves.some(m=>m.to[0]===r&&m.to[1]===c);
+      if (_selected && _selected[0]===r && _selected[1]===c) classes.push('selected');
+      const isPossible = _legalMoves.some(m => m.to[0]===r && m.to[1]===c);
       if (isPossible) {
-        sq.classList.add('possible');
-        if (_board[r][c]) sq.classList.add('has-piece');
+        classes.push('possible');
+        if (_board[r][c]) classes.push('has-piece');
       }
-
-      // 체크
       const king = _turn + 'K';
-      if (_board[r][c] === king && isInCheck(_board, _turn)) sq.classList.add('in-check');
+      if (_board[r][c] === king && isInCheck(_board, _turn)) classes.push('in-check');
+      sq.className = classes.join(' ');
 
-      // 기물
+      // 기물 이미지
       const piece = _board[r][c];
       if (piece) {
         const img = document.createElement('img');
@@ -732,9 +741,6 @@ function renderBoard() {
         img.alt = piece; img.draggable = false;
         sq.appendChild(img);
       }
-
-      sq.addEventListener('click', () => onSquareClick(r, c));
-      el.appendChild(sq);
     }
   }
 }
