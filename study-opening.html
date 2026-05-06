@@ -291,44 +291,6 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
   </div>
 
   <div id="study-scroll">
-
-    <!-- ① 기초 원칙 -->
-    <section class="study-section">
-      <div class="sec-head">
-        <div class="sec-icon" style="background:rgba(160,192,96,.15);color:var(--accent-green-bright)">📐</div>
-        <div>
-          <h2 class="sec-title">오프닝 기초 원칙</h2>
-          <p class="sec-desc">어떤 오프닝이든 공통으로 적용되는 원칙입니다. 수순 암기에 앞서 이 원칙을 몸에 익히세요.</p>
-        </div>
-      </div>
-      <div class="card-grid">
-        <article class="study-card">
-          <h3>중앙 장악</h3>
-          <p>e4·d4·e5·d5 네 칸을 폰과 말로 지배하면 더 많은 칸에 말을 전개할 수 있습니다. 초반에는 중앙 폰 두 개를 앞으로 내세우는 것이 강력합니다.</p>
-          <div class="card-actions">
-            <a class="primary" href="/">분석 보드</a>
-            <span class="pill">필수 원칙</span>
-          </div>
-        </article>
-        <article class="study-card">
-          <h3>빠른 기물 전개</h3>
-          <p>나이트와 비숍을 먼저 전개한 뒤 캐슬링으로 킹을 안전하게 옮기세요. 같은 기물을 반복 이동하거나 퀸을 너무 일찍 내보내면 상대의 템포 공격을 받습니다.</p>
-          <div class="card-actions">
-            <a class="primary" href="/">연습하기</a>
-            <span class="pill">필수 원칙</span>
-          </div>
-        </article>
-        <article class="study-card">
-          <h3>오프닝 실수 줄이기</h3>
-          <p>"왜 이 수인가"를 스톡피시 해설과 함께 확인하는 습관을 들이세요. 수순을 외우기보다 각 수의 의도를 이해하면 변형을 만나도 당황하지 않습니다.</p>
-          <div class="card-actions">
-            <a class="primary" href="/">AI 해설 켜기</a>
-            <span class="pill">학습 팁</span>
-          </div>
-        </article>
-      </div>
-    </section>
-
     <!-- ② 1.e4 계열 -->
     <section class="study-section">
       <div class="sec-head">
@@ -414,6 +376,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>피르츠 / 모던 디펜스</h3>
           <p>1.e4 d6 (또는 g6) — 흑이 중앙을 일단 허용한 뒤 킹스 인디안 스타일로 반격합니다. 하이퍼모던 전략의 핵심입니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('pirc')">📚 학습하기</button>
             <a href="https://lichess.org/opening/Pirc_Defense" target="_blank">탐색기</a>
             <span class="pill">중급</span>
           </div>
@@ -457,6 +420,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>님조-인디안 디펜스</h3>
           <p>1.d4 Nf6 2.c4 e6 3.Nc3 Bb4 — 비숍으로 c3 나이트를 핀하며 더블드 폰을 유도합니다. 가장 인기 있는 d4 응수 중 하나입니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('nimzo')">📚 학습하기</button>
             <a href="https://lichess.org/opening/Nimzo-Indian_Defense" target="_blank">탐색기</a>
             <span class="pill">중급~고급</span>
           </div>
@@ -466,6 +430,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>그륀펠트 디펜스</h3>
           <p>1.d4 Nf6 2.c4 g6 3.Nc3 d5 — 중앙을 일단 허용한 뒤 강력한 반격을 노립니다. 백의 중앙 폰 체인을 표적으로 삼는 역동적인 오프닝입니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('grunfeld')">📚 학습하기</button>
             <a href="https://lichess.org/opening/Gr%C3%BCnfeld_Defense" target="_blank">탐색기</a>
             <span class="pill">중급~고급</span>
           </div>
@@ -485,6 +450,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>베노니 디펜스</h3>
           <p>1.d4 Nf6 2.c4 c5 — 비대칭 폰 구조로 날카로운 카운터플레이를 추구합니다. 모던 베노니는 전술적 복잡성이 높습니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('benoni')">📚 학습하기</button>
             <a href="https://lichess.org/opening/Benoni_Defense" target="_blank">탐색기</a>
             <span class="pill">공격적</span>
           </div>
@@ -494,6 +460,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>더치 디펜스</h3>
           <p>1.d4 f5 — 흑이 킹사이드 공격을 위해 즉각 f5를 돌립니다. 스톤월, 클래시컬, 레닌그라드 세 가지 주요 시스템이 있습니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('dutch')">📚 학습하기</button>
             <a href="https://lichess.org/opening/Dutch_Defense" target="_blank">탐색기</a>
             <span class="pill">공격적</span>
           </div>
@@ -517,6 +484,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>잉글리시 오프닝</h3>
           <p>1.c4 — 퀸사이드에서 중앙을 압박하는 유연한 플랑크 오프닝. 시칠리아 구조가 색 반전되어 나타나기도 합니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('english')">📚 학습하기</button>
             <a href="https://lichess.org/opening/English_Opening" target="_blank">탐색기</a>
             <span class="pill">중급</span>
           </div>
@@ -526,6 +494,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>레티 오프닝</h3>
           <p>1.Nf3 — 유연성을 최우선으로 d4나 c4로 전환하는 하이퍼모던 오프닝입니다. 킹스 인디안 어택 세팅과도 연결됩니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('reti')">📚 학습하기</button>
             <a href="https://lichess.org/opening/R%C3%A9ti_Opening" target="_blank">탐색기</a>
             <span class="pill">중급</span>
           </div>
@@ -535,6 +504,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>카탈란 오프닝</h3>
           <p>1.d4 Nf6 2.c4 e6 3.g3 — 퀸사이드 피안케토로 c8-h3 대각선을 장악하고 롱텀 포지셔널 압박을 가합니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('catalan')">📚 학습하기</button>
             <a href="https://lichess.org/opening/Catalan_Opening" target="_blank">탐색기</a>
             <span class="pill">포지셔널</span>
           </div>
@@ -544,6 +514,7 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>버드 오프닝 / 폴란드 오프닝</h3>
           <p>1.f4 (버드) 또는 1.b4 (폴란드/오랑우탄) — 독창적이고 상대를 이론에서 벗어나게 만드는 비주류 오프닝입니다.</p>
           <div class="card-actions">
+            <button class="btn-study" onclick="openStudy('bird')">📚 학습하기</button>
             <a href="https://lichess.org/opening/Bird_Opening" target="_blank">탐색기</a>
             <span class="pill">비주류</span>
           </div>
@@ -1553,6 +1524,650 @@ const STUDIES = {
           {
             type:'tip', ico:'💡', lbl:'런던의 중기 계획',
             txt:'✅ 백의 계획: e4 진격, Ne5 진출, h4-h5 킹사이드 공격<br>✅ 장점: 안정적, 이론 부담 없음, 비숍 쌍 활성화<br>❌ 단점: 결정적 이점을 주기 어렵고, 창의적인 상대에게 평등한 게임이 될 수 있음',
+            alts:[]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     님조-인디안 디펜스
+     ══════════════════════════════ */
+  nimzo:{
+    title:'님조-인디안 디펜스',
+    sub:'1.d4 Nf6 2.c4 e6 3.Nc3 Bb4 — 핀과 구조 압박',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'님조-인디안 디펜스는 아론 님조비치가 개발한 현대 클래식 오프닝입니다. 흑이 비숍으로 c3 나이트를 핀하며 더블드 폰을 유도하는 전략적 오프닝입니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq d3',
+        move:'1. d4', from:'d2', to:'d4',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'1.d4 — 클로즈드 게임 시작',
+          txt:'<span class="mn">1.d4</span> — e4보다 안정적인 중앙 장악입니다. 폰이 바로 공격받지 않아 포지셔널 플레이를 선호하는 플레이어에게 적합합니다.',
+          alts:[{type:'tip', move:'1.e4', txt:'오픈 게임으로 전환됩니다. 더 직접적인 전투가 이어집니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq -',
+        move:'1... Nf6', from:'g8', to:'f6',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'1...Nf6 — 최선의 응수',
+          txt:'<span class="mn">1...Nf6</span> — 나이트를 최적 칸에 전개하며 e4 진격을 방해합니다. 킹즈 인디안, 님조-인디안, 그륀펠트 등 다양한 오프닝으로 연결됩니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppppppp/5n2/8/2PP4/8/PP2PPPP/RNBQKBNR b KQkq c3',
+        move:'2. c4', from:'c2', to:'c4',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'2.c4 — 퀸즈 갬빗 구조',
+          txt:'<span class="mn">2.c4</span> — d5 칸에 대한 영향력을 확보하고 넓은 중앙을 구축합니다. 이제 흑의 응수에 따라 다양한 인디안 디펜스로 분기됩니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppp1ppp/4pn2/8/2PP4/8/PP2PPPP/RNBQKBNR w KQkq -',
+        move:'2... e6', from:'e7', to:'e6',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'2...e6 — 님조-인디안을 향해',
+          txt:'<span class="mn">2...e6</span> — 중앙을 지지하고 f8 비숍의 길을 엽니다. 이제 3.Nc3 Bb4가 되면 님조-인디안 디펜스가 됩니다.',
+          alts:[{type:'tip', move:'2...g6', txt:'킹즈 인디안 디펜스로 전환됩니다. 피안케토 전략입니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppp1ppp/4pn2/8/2PP4/2N5/PP2PPPP/R1BQKBNR b KQkq -',
+        move:'3. Nc3', from:'b1', to:'c3',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'3.Nc3 — 님조-인디안 초대',
+          txt:'<span class="mn">3.Nc3</span> — 나이트를 자연스럽게 전개하며 중앙을 지원합니다. 이 수로 인해 흑이 Bb4 핀을 사용할 수 있습니다.',
+          alts:[{type:'tip', move:'3.Nf3', txt:'3.Nf3이면 님조-인디안을 피할 수 있습니다. 퀸즈 인디안이나 보고-인디안으로 이어집니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqk2r/pppp1ppp/4pn2/8/1bPP4/2N5/PP2PPPP/R1BQKBNR w KQkq -',
+        move:'3... Bb4', from:'f8', to:'b4',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'님조-인디안의 정의 — 핀!',
+            txt:'<span class="mn">3...Bb4</span> — 님조-인디안의 핵심 수! 비숍이 c3 나이트를 핀합니다. 백이 나이트로 d5를 지지하기 어려워지고, Bxc3으로 더블드 폰을 유도할 수 있습니다.',
+            alts:[]
+          },
+          {
+            type:'tip', ico:'💡', lbl:'흑의 전략적 아이디어',
+            txt:'✅ Bxc3+: 더블드 폰 강요로 백의 구조 약화<br>✅ d5로 중앙 장악 시도<br>✅ 비숍 쌍 포기 대신 백 폰 구조 영구 약화<br>❌ 비숍이 b4에서 활동이 제한될 수 있음',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqk2r/pppp1ppp/4pn2/8/1bPP4/2N5/PPQ1PPPP/R1B1KBNR b KQkq -',
+        move:'4. Qc2 (클래시컬)',  from:'d1', to:'c2',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'4.Qc2 — 클래시컬 변형',
+            txt:'<span class="mn">4.Qc2</span> — 가장 인기 있는 응수. 더블드 폰을 피하기 위해 미리 Bxc3을 막습니다. 흑이 Bxc3이어도 Qxc3으로 더블드 폰 없이 받을 수 있습니다.',
+            alts:[
+              {type:'tip', move:'4.e3', txt:'루빈스타인 변형 — 느리지만 견고한 중앙 구조를 만듭니다.'},
+              {type:'tip', move:'4.a3', txt:'사미쉬 변형 — 즉시 Bxc3+을 강요해 더블드 폰을 받아들이고 비숍 쌍으로 보상받습니다.'}
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     그륀펠트 디펜스
+     ══════════════════════════════ */
+  grunfeld:{
+    title:'그륀펠트 디펜스',
+    sub:'1.d4 Nf6 2.c4 g6 3.Nc3 d5 — 중앙 반격 전략',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'그륀펠트 디펜스는 에른스트 그륀펠트가 1922년 처음 선보인 혁명적 오프닝입니다. 흑이 백의 대규모 중앙을 허용한 뒤 d5로 즉시 반격하는 하이퍼모던 전략입니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppppppp/5n2/8/2PP4/2N5/PP2PPPP/R1BQKBNR b KQkq -',
+        move:'3. Nc3', from:'b1', to:'c3',
+        commentary:[{
+          type:'info', ico:'✅', lbl:'1.d4 Nf6 2.c4 후 3.Nc3',
+          txt:'<span class="mn">1.d4 Nf6 2.c4</span> 이후 <span class="mn">3.Nc3</span> — 백이 강력한 중앙 구조를 만듭니다. 이제 흑의 선택에 따라 다양한 인디안 디펜스로 분기됩니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppppp1p/6p1/8/2PP4/2N5/PP2PPPP/R1BQKBNR w KQkq -',
+        move:'3... g6', from:'g7', to:'g6',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'3...g6 — 피안케토 준비',
+          txt:'<span class="mn">3...g6</span> — 킹사이드 피안케토를 준비합니다. 킹즈 인디안이면 ...d6, 그륀펠트라면 ...d5가 뒤따릅니다. 이 수 하나로 두 오프닝을 동시에 겨냥합니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppppp1p/6p1/8/2PPP3/2N5/PP3PPP/R1BQKBNR b KQkq e3',
+        move:'4. e4', from:'e2', to:'e4',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'4.e4 — 중앙 최대화',
+          txt:'<span class="mn">4.e4</span> — 백이 c4·d4·e4로 거대한 중앙 폰 체인을 완성합니다. 이제 흑이 ...d5로 즉시 반격해야 그륀펠트가 됩니다.',
+          alts:[{type:'tip', move:'4.Nf3', txt:'4.Nf3이면 킹즈 인디안으로 이어집니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqk2r/ppppppbp/6p1/3n4/2PPP3/2N5/PP3PPP/R1BQKBNR w KQkq -',
+        move:'4... Bg7 5. ...d5', from:'d7', to:'d5',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'그륀펠트의 핵심 — d5 반격!',
+            txt:'<span class="mn">4...Bg7</span> 이후 <span class="mn">...d5</span> — 그륀펠트의 정의적인 수! 흑이 중앙을 직접 공격합니다. 백의 e4나 c4를 공격해 중앙을 붕괴시키려 합니다.',
+            alts:[]
+          },
+          {
+            type:'tip', ico:'💡', lbl:'그륀펠트의 철학',
+            txt:'하이퍼모던 원칙: 중앙을 점령하는 대신 원거리에서 공격합니다.<br>✅ g7 비숍이 d4를 장기 압박<br>✅ d5로 중앙 구조 붕괴 시도<br>✅ 흑의 카운터어택이 매우 강력<br>❌ 백의 중앙이 강하면 흑이 수동적 방어에 빠질 수 있음',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqk2r/ppppppbp/6p1/3n4/2PPP3/2N5/PP3PPP/R1BQKBNR w KQkq -',
+        move:'5. cxd5', from:'c4', to:'d5',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'중앙 긴장 해소',
+          txt:'<span class="mn">5.cxd5</span> — 폰을 교환해 중앙 긴장을 해소합니다. 이후 Nxd5로 나이트가 중앙으로 진출하며 백의 e4를 계속 공격합니다. 익스체인지 변형의 시작입니다.',
+          alts:[
+            {type:'tip', move:'5.Qb3', txt:'러시안 시스템 — d5를 유지하며 압박합니다.'},
+            {type:'tip', move:'5.e5', txt:'5.e5는 나이트를 몰아내지만 중앙이 과도하게 뻗어 역습 대상이 됩니다.'}
+          ]
+        }]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     베노니 디펜스
+     ══════════════════════════════ */
+  benoni:{
+    title:'베노니 디펜스',
+    sub:'1.d4 Nf6 2.c4 c5 — 비대칭 날카로운 카운터플레이',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'베노니 디펜스는 흑이 c5로 d4에 즉각 도전하는 매우 날카로운 오프닝입니다. 비대칭 폰 구조로 양측 모두 날카로운 전술이 펼쳐집니다. 가스파로프가 즐겨 사용했습니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq -',
+        move:'1... Nf6', from:'g8', to:'f6',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'1.d4 Nf6 — 인디안 디펜스 시작',
+          txt:'<span class="mn">1.d4 Nf6</span> — 나이트로 e4를 방해하며 유연한 대응을 준비합니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pp1ppppp/5n2/2p5/2PP4/8/PP2PPPP/RNBQKBNR w KQkq c6',
+        move:'2... c5', from:'c7', to:'c5',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'2...c5 — 베노니의 정의',
+            txt:'<span class="mn">2...c5</span> — 베노니의 핵심 수! d4를 즉시 공격합니다. 백이 d5로 전진하면 비대칭 구조가 만들어집니다.',
+            alts:[{type:'tip', move:'2...e6', txt:'2...e6이면 님조-인디안이나 퀸즈 인디안으로 이어집니다.'}]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkb1r/pp1ppppp/5n2/2pP4/2P5/8/PP2PPPP/RNBQKBNR b KQkq -',
+        move:'3. d5', from:'d4', to:'d5',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'3.d5 — 공간 장악',
+          txt:'<span class="mn">3.d5</span> — 베노니 구조를 만드는 핵심 수. d5로 전진하면 흑의 e6 칸이 약해지고 백이 강력한 공간 우위를 갖습니다. 하지만 흑은 킹사이드 반격을 준비합니다.',
+          alts:[{type:'tip', move:'3.dxc5', txt:'3.dxc5는 폰을 잡지만 흑이 쉽게 되찾으며 활성화됩니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pp1p1ppp/4pn2/2pP4/2P5/2N5/PP2PPPP/R1BQKBNR b KQkq -',
+        move:'3... e6', from:'e7', to:'e6',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'3...e6 — 모던 베노니',
+          txt:'<span class="mn">3...e6</span> — 모던 베노니의 시작. 흑이 d5 폰에 도전합니다. 이후 exd5 cxd5로 비대칭 폰 구조가 완성되고 흑은 킹사이드 공격을, 백은 퀸사이드 공격을 추진합니다.',
+          alts:[{type:'tip', move:'3...g6', txt:'3...g6는 킹즈 인디안 스타일의 베노니입니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pp3ppp/3p1n2/2pPp3/2P1P3/2N5/PP3PPP/R1BQKBNR w KQkq -',
+        move:'4. e4 — 4기사 변형', from:'e2', to:'e4',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'4기사 중앙 — 최대 공간',
+            txt:'<span class="mn">4.e4</span> — 4기사 변형으로 백이 최대 공간을 차지합니다. c4·d5·e4의 강력한 폰 체인을 구축합니다.',
+            alts:[]
+          },
+          {
+            type:'tip', ico:'💡', lbl:'양쪽의 계획',
+            txt:'백의 계획: 퀸사이드 공격, c4-c5, Nb5 침투<br>흑의 계획: 킹사이드 공격, ...f5-f4, 나이트 e5 전진<br>결과: 날카로운 양날 게임! 양측 모두 기회가 풍부합니다.',
+            alts:[]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     더치 디펜스
+     ══════════════════════════════ */
+  dutch:{
+    title:'더치 디펜스',
+    sub:'1.d4 f5 — 킹사이드 공격 의지',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'더치 디펜스는 흑이 첫 수부터 킹사이드 공격 의지를 보이는 야심찬 오프닝입니다. e5를 목표로 킹사이드 폰 다수를 형성합니다. 스톤월, 클래시컬, 레닌그라드 세 가지 주요 변형이 있습니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/ppppp1pp/8/5p2/3P4/8/PPP1PPPP/RNBQKBNR w KQkq f6',
+        move:'1... f5', from:'f7', to:'f5',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'1...f5 — 더치의 선언',
+            txt:'<span class="mn">1...f5</span> — 더치 디펜스의 정의적인 수! e4를 막으며 킹사이드 공격을 준비합니다. 즉시 공격적인 플레이를 원하는 흑에게 최적입니다.',
+            alts:[
+              {type:'bad', move:'주의', txt:'흑의 킹이 다소 약해집니다. 백의 e4 돌파나 대각선 공격에 주의해야 합니다.'}
+            ]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkb1r/ppppp1pp/5n2/5p2/3PP3/8/PPP2PPP/RNBQKBNR b KQkq e3',
+        move:'2. g3 / e4 시도', from:'e2', to:'e4',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'백의 핵심 반격 — e4 돌파',
+          txt:'<span class="mn">2.e4!?</span> — 스타운톤 갬빗! 즉시 e4로 중앙을 열어 더치 구조를 공격합니다. 흑이 fxe4 이후 백은 Nc3-f3으로 강력한 발전을 도모합니다.',
+          alts:[
+            {type:'tip', move:'2.g3', txt:'2.g3 — 피안케토로 대각선 압박을 준비합니다. 가장 포지셔널한 응수입니다.'},
+            {type:'tip', move:'2.Nf3', txt:'2.Nf3 — 자연스러운 전개로 상황을 지켜봅니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/ppppp1pp/5n2/8/3Pp3/2N5/PPP2PPP/R1BQKBNR w KQkq -',
+        move:'스톤월 변형 준비', from:'', to:'',
+        commentary:[
+          {
+            type:'info', ico:'💡', lbl:'세 가지 주요 시스템',
+            txt:'✅ <strong>스톤월</strong> (...d5, ...e6, ...c6): 견고한 방어 구조, 장기전 지향<br>✅ <strong>클래시컬</strong> (...e6, ...Be7, ...0-0): 균형 잡힌 전개<br>✅ <strong>레닌그라드</strong> (...g6, ...Bg7): 킹인디안 스타일, 역동적 플레이',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkb1r/ppppp1pp/5n2/3p1p2/3P4/5N2/PPP1PPPP/RNBQKB1R w KQkq -',
+        move:'스톤월: ...d5', from:'d7', to:'d5',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'스톤월 구조 완성',
+          txt:'<span class="mn">...d5</span> — 스톤월의 핵심! f5+e6+d5+c6 폰 구조로 견고한 벽을 형성합니다. e4 칸에 나이트를 배치하는 것이 흑의 주된 계획입니다.',
+          alts:[]
+        }]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     잉글리시 오프닝
+     ══════════════════════════════ */
+  english:{
+    title:'잉글리시 오프닝',
+    sub:'1.c4 — 유연한 퀸사이드 플랑크',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'잉글리시 오프닝은 하워드 스타운톤이 발전시킨 유연한 플랑크 오프닝입니다. 직접적인 중앙 폰 전진 대신 c4로 d5를 간접 통제합니다. 시칠리아 디펜스와 구조가 유사합니다(색 반전).',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR b KQkq c3',
+        move:'1. c4', from:'c2', to:'c4',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'1.c4 — 플랑크 전략',
+            txt:'<span class="mn">1.c4</span> — d5 칸을 간접 통제하면서 퀸사이드 압박을 시작합니다. d4를 두지 않아 상대가 예상된 이론에서 벗어나게 됩니다.',
+            alts:[{type:'tip', move:'1.e4', txt:'1.e4로 오픈 게임을 선택하면 더 직접적인 전투가 시작됩니다.'}]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/2P5/8/PP1PPPPP/RNBQKBNR w KQkq e6',
+        move:'1... e5', from:'e7', to:'e5',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'1...e5 — 대칭 잉글리시',
+          txt:'<span class="mn">1...e5</span> — 대칭 잉글리시. 흑도 중앙을 점령합니다. 이후 Nc3·Nf3·g3 등 유연한 전개가 이어집니다.',
+          alts:[
+            {type:'tip', move:'1...c5', txt:'1...c5는 시메트리컬 잉글리시. 완전히 대칭 구조로 복잡한 포지셔널 게임이 됩니다.'},
+            {type:'tip', move:'1...Nf6', txt:'1...Nf6는 인디안 스타일로 킹즈 인디안이나 님조로 전환 가능합니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/2P5/2N5/PP1PPPPP/R1BQKBNR b KQkq -',
+        move:'2. Nc3', from:'b1', to:'c3',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'2.Nc3 — 자연스러운 전개',
+          txt:'<span class="mn">2.Nc3</span> — 나이트를 중앙으로 전개하며 e4 칸을 지원합니다. 이제 백은 g3·Bg2로 피안케토하거나 Nf3·d4로 중앙을 열 수 있습니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'r1bqkbnr/pppp1ppp/2n5/4p3/2P5/2N3P1/PP1PPP1P/R1BQKBNR b KQkq -',
+        move:'3. g3 — 피안케토', from:'g2', to:'g3',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'3.g3 — 비숍 피안케토 준비',
+            txt:'<span class="mn">3.g3</span> — 잉글리시의 가장 인기 있는 전개! g2 비숍이 긴 대각선을 장악하며 d5를 간접 통제합니다. 캐슬링 후 안전하고 견고한 포지션이 됩니다.',
+            alts:[{type:'tip', move:'3.Nf3', txt:'3.Nf3으로 빠른 전개를 선택할 수도 있습니다.'}]
+          },
+          {
+            type:'tip', ico:'💡', lbl:'잉글리시의 장점',
+            txt:'✅ 이론 부담이 적어 유연한 게임<br>✅ 시칠리아 구조(색 반전)에 익숙하면 쉽게 적응<br>✅ 포지셔널 복잡성으로 전술만 아는 상대에게 유리<br>❌ 즉각적인 공격 기회 적음',
+            alts:[]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     레티 오프닝
+     ══════════════════════════════ */
+  reti:{
+    title:'레티 오프닝',
+    sub:'1.Nf3 — 유연한 하이퍼모던',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'레티 오프닝은 리하르트 레티가 1920년대 개발한 하이퍼모던 오프닝입니다. 중앙을 직접 점령하는 대신 Nf3으로 e5·d4를 간접 통제합니다. c4와 g3으로 이어지는 것이 전형적입니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq -',
+        move:'1. Nf3', from:'g1', to:'f3',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'1.Nf3 — 최강의 첫 수',
+            txt:'<span class="mn">1.Nf3</span> — e5를 방해하며 나이트를 최적 칸에 배치합니다. 잉글리시, 카탈란, 킹즈 인디안 어택 등 다양한 시스템으로 전환 가능한 최대 유연성을 제공합니다.',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/8/5N2/PPPPPPPP/RNBQKB1R w KQkq e6',
+        move:'1... d5 or e5', from:'d7', to:'d5',
+        commentary:[{
+          type:'info', ico:'💡', lbl:'흑의 다양한 응수',
+          txt:'<span class="mn">1...d5</span>: 가장 직접적인 중앙 장악 — 레티의 전형적인 상대<br><span class="mn">1...Nf6</span>: 인디안 스타일로 킹즈 인디안이나 님조로 전환<br><span class="mn">1...c5</span>: 잉글리시 스타일로 전환',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/ppp1pppp/8/3p4/2P5/5N2/PP1PPPPP/RNBQKB1R b KQkq c3',
+        move:'2. c4', from:'c2', to:'c4',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'2.c4 — 레티의 핵심',
+          txt:'<span class="mn">2.c4</span> — 레티 오프닝의 주요 수. d5를 c4로 측면에서 공격합니다. 흑이 d4로 전진하면 백은 e3으로 지지하며 포지셔널 게임을 추구합니다.',
+          alts:[{type:'tip', move:'2.g3', txt:'2.g3으로 피안케토를 선택하면 KIA(킹즈 인디안 어택) 구조가 됩니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/ppp1pppp/8/3p4/2P5/5NP1/PP1PPP1P/RNBQKB1R b KQkq -',
+        move:'3. g3', from:'g2', to:'g3',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'3.g3 — 카탈란 구조로',
+            txt:'<span class="mn">3.g3</span> — 비숍 피안케토를 준비합니다. 이후 Bg2·0-0으로 견고한 포지션을 갖추고 d5를 장기 압박합니다. 카탈란 오프닝과 유사한 구조가 됩니다.',
+            alts:[]
+          },
+          {
+            type:'tip', ico:'💡', lbl:'레티의 유연성',
+            txt:'레티의 핵심 장점은 유연성입니다:<br>✅ c4+g3: 카탈란 스타일<br>✅ c4+Nc3: 잉글리시 스타일<br>✅ g3+d3: 킹즈 인디안 어택<br>어떤 시스템으로도 전환 가능합니다.',
+            alts:[]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     카탈란 오프닝
+     ══════════════════════════════ */
+  catalan:{
+    title:'카탈란 오프닝',
+    sub:'1.d4 Nf6 2.c4 e6 3.g3 — 피안케토 압박',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'카탈란 오프닝은 퀸즈 갬빗과 레티 오프닝을 결합한 포지셔널 마스터피스입니다. g2 비숍이 긴 대각선을 장악하며 장기적 압박을 가합니다. 크람니크, 카스파로프가 즐겨 사용했습니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppppppp/5n2/8/2PP4/8/PP2PPPP/RNBQKBNR b KQkq -',
+        move:'1.d4 Nf6 2.c4', from:'c2', to:'c4',
+        commentary:[{
+          type:'info', ico:'✅', lbl:'퀸즈 갬빗 시작',
+          txt:'<span class="mn">1.d4 Nf6 2.c4</span> — 퀸즈 갬빗 구조에서 시작합니다. 이제 흑의 응수에 따라 님조, 킹즈 인디안, 카탈란 등 다양한 오프닝으로 분기됩니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppp1ppp/4pn2/8/2PP4/8/PP2PPPP/RNBQKBNR w KQkq -',
+        move:'2... e6', from:'e7', to:'e6',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'2...e6 — 카탈란으로',
+          txt:'<span class="mn">2...e6</span> — 중앙을 지지하며 f8 비숍의 길을 엽니다. 이제 3.g3으로 백이 카탈란을 선택할 수 있습니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppp1ppp/4pn2/8/2PP4/6P1/PP2PP1P/RNBQKBNR b KQkq -',
+        move:'3. g3', from:'g2', to:'g3',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'3.g3 — 카탈란의 정의',
+            txt:'<span class="mn">3.g3</span> — 카탈란 오프닝의 핵심! g2 비숍 피안케토를 준비합니다. 비숍이 g2에 자리잡으면 d5 칸과 퀸사이드 전체를 장기 압박합니다.',
+            alts:[{type:'tip', move:'3.Nc3', txt:'3.Nc3이면 님조-인디안의 가능성을 허용합니다.'}]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkb1r/pppp1ppp/4pn2/8/2PP4/6P1/PP2PPBP/RNBQK1NR b KQkq -',
+        move:'4. Bg2', from:'f1', to:'g2',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'4.Bg2 — 카탈란 완성',
+            txt:'<span class="mn">4.Bg2</span> — 비숍이 g2에서 c8-h3 대각선 전체를 장악합니다. 특히 c6·d5·e4 칸에 압박을 줍니다. 이후 Nf3·0-0으로 안전하게 캐슬링합니다.',
+            alts:[]
+          },
+          {
+            type:'tip', ico:'💡', lbl:'오픈 vs 클로즈드 카탈란',
+            txt:'✅ <strong>오픈 카탈란</strong>: 흑이 dxc4로 폰을 잡음 — 백이 비숍으로 c4를 되찾으며 압박<br>✅ <strong>클로즈드 카탈란</strong>: 흑이 d5 유지 — 장기전 포지셔널 게임<br>양쪽 모두 백의 g2 비숍이 핵심입니다.',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqk2r/ppp2ppp/4pn2/3p4/2PP4/5NP1/PP2PPBP/RNBQK2R b KQkq -',
+        move:'5. Nf3', from:'g1', to:'f3',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'5.Nf3 — 전개 완성',
+          txt:'<span class="mn">5.Nf3</span> — 나이트를 전개하고 0-0 캐슬링을 준비합니다. 백의 구조는 매우 안정적이며 장기적으로 c4·d4의 중앙 우위를 활용합니다.',
+          alts:[]
+        }]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     피르츠 디펜스
+     ══════════════════════════════ */
+  pirc:{
+    title:'피르츠 / 모던 디펜스',
+    sub:'1.e4 d6 / g6 — 하이퍼모던 반격',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'피르츠 디펜스(1.e4 d6)와 모던 디펜스(1.e4 g6)는 하이퍼모던 전략의 대표 오프닝입니다. 흑이 중앙을 허용한 뒤 킹인디안 스타일로 반격합니다. 바비 피셔도 즐겨 사용했습니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/ppp1pppp/3p4/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -',
+        move:'1... d6', from:'d7', to:'d6',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'1...d6 — 피르츠 디펜스',
+            txt:'<span class="mn">1...d6</span> — 중앙을 바로 장악하지 않고 방어적으로 대응합니다. 백의 중앙 구축을 허용하고 나중에 반격합니다.',
+            alts:[{type:'tip', move:'1...g6', txt:'1...g6는 모던 디펜스. 피안케토를 즉시 시작합니다.'}]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/ppp1pppp/3p4/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq d3',
+        move:'2. d4', from:'d2', to:'d4',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'2.d4 — 중앙 최대화',
+          txt:'<span class="mn">2.d4</span> — 백이 중앙에 e4+d4 폰을 구축합니다. 흑은 이 대규모 중앙을 나중에 무너뜨리는 것이 목표입니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/ppp1pp1p/3p1np1/8/3PP3/2N5/PPP2PPP/R1BQKBNR w KQkq -',
+        move:'2... Nf6 3... g6', from:'g7', to:'g6',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'피르츠 핵심: Nf6 + g6',
+            txt:'<span class="mn">2...Nf6</span> 후 <span class="mn">3...g6</span> — 피르츠의 전형적인 구성. 나이트가 e4를 공격하며 동시에 킹사이드 피안케토를 준비합니다.',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqk2r/ppp1ppbp/3p1np1/8/3PPP2/2N5/PPP3PP/R1BQKBNR b KQkq f3',
+        move:'4. f4 (오스트리안 어택)', from:'f2', to:'f4',
+        commentary:[
+          {
+            type:'info', ico:'⚔️', lbl:'4.f4 — 오스트리안 어택',
+            txt:'<span class="mn">4.f4</span> — 백의 가장 공격적인 응수! e5·f5로 킹사이드 전진을 준비합니다. 흑은 빠른 카운터플레이(c5 또는 e5)로 대응해야 합니다.',
+            alts:[
+              {type:'tip', move:'4.Be3', txt:'4.Be3 — 클래시컬 변형. 안정적으로 전개하며 0-0 후 공격을 준비합니다.'},
+              {type:'tip', move:'4.Bg5', txt:'4.Bg5 — 150어택. 0-0-0 후 킹사이드 폰 전진으로 맹공격합니다.'}
+            ]
+          },
+          {
+            type:'tip', ico:'💡', lbl:'흑의 전략',
+            txt:'✅ ...c5로 d4 공격 — 퀸즈 갬빗 스타일 반격<br>✅ ...e5로 중앙 긴장 만들기<br>✅ g7 비숍으로 d4를 장기 압박<br>❌ 백의 e5 진격에 주의해야 함',
+            alts:[]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ══════════════════════════════
+     버드 오프닝
+     ══════════════════════════════ */
+  bird:{
+    title:'버드 오프닝',
+    sub:'1.f4 — 킹사이드 공격 의지',
+    steps:[
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작', from:'', to:'',
+        commentary:[{
+          type:'info', ico:'📖', lbl:'오프닝 소개',
+          txt:'버드 오프닝은 헨리 버드(1829-1908)가 즐겨 사용한 비주류 오프닝입니다. f4로 킹사이드 공격을 선언하지만, 킹 안전이 다소 약해지는 양날의 전략입니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/5P2/8/PPPPP1PP/RNBQKBNR b KQkq f3',
+        move:'1. f4', from:'f2', to:'f4',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'1.f4 — 버드의 선언',
+            txt:'<span class="mn">1.f4</span> — 킹사이드 공격을 즉시 선언합니다. e5를 막고 킹사이드 폰 전진을 준비하지만, f2-f4로 백의 킹이 다소 약해집니다.',
+            alts:[{type:'bad', move:'위험', txt:'흑이 1...e5(프롬 갬빗)로 즉각 도전하면 날카로운 전술 게임이 됩니다!'}]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/5P2/8/PPPPP1PP/RNBQKBNR w KQkq e6',
+        move:'1... e5?! (프롬 갬빗)', from:'e7', to:'e5',
+        commentary:[
+          {
+            type:'bad', ico:'⚠️', lbl:'프롬 갬빗 — 위험한 도전',
+            txt:'<span class="mn">1...e5!?</span> — 프롬 갬빗! 흑이 폰을 희생하며 날카로운 공격을 시작합니다. 2.fxe5 d6 3.exd6 Bxd6으로 흑이 강력한 발전과 공격권을 얻습니다.',
+            alts:[{type:'tip', move:'1...d5', txt:'1...d5가 가장 자연스러운 응수입니다. 중앙을 장악하며 안정적인 게임을 추구합니다.'}]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/5P2/5N2/PPPPP1PP/RNBQKB1R b KQkq -',
+        move:'2. Nf3', from:'g1', to:'f3',
+        commentary:[{
+          type:'good', ico:'✅', lbl:'2.Nf3 — 프롬 갬빗 방어',
+          txt:'<span class="mn">2.Nf3</span> — e5를 잡지 않고 나이트를 전개해 프롬 갬빗을 피합니다. 이후 e3·d4로 중앙을 지지하는 견고한 플레이가 가능합니다.',
+          alts:[{type:'bad', move:'2.fxe5??', txt:'프롬 갬빗을 받아들이면 날카로운 공격에 노출됩니다. 준비 없이는 피하는 것이 좋습니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqkb1r/pppp1ppp/5n2/4p3/5P2/5N2/PPPPPBPP/RNBQK2R b KQkq -',
+        move:'3. e3 + Be2', from:'f1', to:'e2',
+        commentary:[
+          {
+            type:'good', ico:'✅', lbl:'포지셔널 플레이',
+            txt:'<span class="mn">3.e3·Be2</span> — 견고한 구조로 캐슬링을 준비합니다. 이후 d4로 중앙을 강화하거나 g4-g5 킹사이드 공격을 추진할 수 있습니다.',
+            alts:[]
+          },
+          {
+            type:'tip', ico:'💡', lbl:'버드의 전략',
+            txt:'✅ e5 칸 통제 후 Ne5 진출<br>✅ 킹사이드 폰 전진: f4-f5-g4<br>✅ 더치 디펜스와 유사한 구조(색 반전)<br>❌ 비주류라 상대가 기습으로 활용할 수 있음',
             alts:[]
           }
         ]
