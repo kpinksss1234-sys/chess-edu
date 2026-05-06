@@ -72,6 +72,72 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
 .card-actions span.pill{cursor:default;opacity:.85}
 @media(max-width:640px){.study-top{padding:16px 16px 0}#study-scroll{padding:16px 16px 32px}}
 
+/* ── 학습 버튼 ── */
+.btn-study{font-size:11px;font-weight:700;padding:5px 12px;border-radius:8px;text-decoration:none;border:none;cursor:pointer;background:rgba(127,166,80,.18);border:1px solid rgba(127,166,80,.45);color:var(--accent-green-bright);transition:all .12s}
+.btn-study:hover{background:rgba(127,166,80,.32)}
+
+/* ── 모달 오버레이 ── */
+#om-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;display:none;align-items:center;justify-content:center;padding:16px}
+#om-overlay.open{display:flex}
+#om-modal{background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:20px;width:100%;max-width:940px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.7)}
+#om-header{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+#om-title{font-family:var(--font-display);font-size:1.2rem;font-weight:900;flex:1}
+#om-close{width:32px;height:32px;border-radius:8px;border:1px solid var(--border-light);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+#om-close:hover{background:var(--bg-hover);color:var(--text-primary)}
+#om-body{display:flex;flex:1;min-height:0;overflow:hidden}
+#om-board-col{flex-shrink:0;padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+#om-board{display:grid;grid-template-columns:repeat(8,1fr);width:360px;height:360px;border:2px solid var(--border-light);border-radius:4px;overflow:hidden}
+.sq{width:45px;height:45px;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:default;position:relative;transition:background .15s}
+.sq.light{background:#f0d9b5}.sq.dark{background:#b58863}
+.sq.hl-from{background:#f6f669 !important;opacity:.85}
+.sq.hl-to{background:#cdd16f !important;opacity:.9}
+.piece{pointer-events:none;line-height:1;user-select:none}
+#om-coords-files{display:flex;width:360px;padding:2px 0 0}
+#om-coords-ranks{display:flex;flex-direction:column;height:360px;margin-right:4px}
+.coord{font-size:10px;color:var(--text-muted);width:45px;text-align:center}
+.coord-r{font-size:10px;color:var(--text-muted);height:45px;display:flex;align-items:center;justify-content:center;width:14px}
+#om-controls{display:flex;gap:8px;align-items:center}
+.om-btn{padding:6px 14px;border-radius:8px;border:1px solid var(--border-light);background:var(--bg-tertiary);color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;transition:all .12s}
+.om-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+.om-btn:disabled{opacity:.3;cursor:default}
+#om-step-info{font-size:12px;color:var(--text-muted)}
+#om-panel{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;padding:20px 20px 20px 0}
+#om-moves-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.move-chip{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border-light);color:var(--text-secondary);background:var(--bg-card);transition:all .12s;font-family:monospace}
+.move-chip:hover{border-color:var(--accent-blue);color:var(--accent-blue)}
+.move-chip.active{background:rgba(80,144,208,.18);border-color:var(--accent-blue);color:var(--accent-blue)}
+#om-commentary{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+#om-commentary::-webkit-scrollbar{width:4px}
+#om-commentary::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:2px}
+.cb{border-radius:12px;padding:14px 16px}
+.cb.good{background:rgba(92,184,92,.08);border:1px solid rgba(92,184,92,.25)}
+.cb.bad{background:rgba(217,83,79,.08);border:1px solid rgba(217,83,79,.25)}
+.cb.neutral{background:rgba(80,144,208,.08);border:1px solid rgba(80,144,208,.2)}
+.cb.warning{background:rgba(224,128,48,.08);border:1px solid rgba(224,128,48,.25)}
+.cb-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cb-icon{font-size:16px}
+.cb-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.cb.good .cb-label{color:#5cb85c}.cb.bad .cb-label{color:#d9534f}
+.cb.neutral .cb-label{color:var(--accent-blue)}.cb.warning .cb-label{color:var(--accent-orange)}
+.cb-text{font-size:13px;color:var(--text-secondary);line-height:1.7}
+.cb-mn{font-family:monospace;font-weight:700;color:var(--text-primary);background:var(--bg-tertiary);padding:1px 6px;border-radius:4px}
+.alt-list{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.alt-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border)}
+.alt-badge{font-family:monospace;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px}
+.alt-badge.good{background:rgba(92,184,92,.18);color:#5cb85c}
+.alt-badge.bad{background:rgba(217,83,79,.18);color:#d9534f}
+.alt-badge.warning{background:rgba(224,128,48,.18);color:var(--accent-orange)}
+.alt-text{font-size:12px;color:var(--text-secondary);line-height:1.55}
+@media(max-width:768px){
+  #om-body{flex-direction:column;overflow-y:auto}
+  #om-board-col{padding:14px 14px 8px}
+  #om-board{width:300px;height:300px}
+  .sq{width:37.5px;height:37.5px;font-size:22px}
+  #om-coords-files{width:300px}.coord{width:37.5px}
+  #om-coords-ranks{height:300px}.coord-r{height:37.5px}
+  #om-panel{padding:0 14px 20px}
+}
+
 /* ========================================
    반응형 공통: 모바일 하단 내비 + 사이드바
    ======================================== */
@@ -232,7 +298,8 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>이탈리안 게임</h3>
           <p>1.e4 e5 2.Nf3 Nc6 3.Bc4 — 비숍을 f7 방향으로 겨냥하며 중앙을 압박합니다. 주코토, 에반스 갬빗, 클래시컬이 주요 변형입니다.</p>
           <div class="card-actions">
-            <a class="primary" href="https://lichess.org/opening/Italian_Game" target="_blank">오프닝 탐색기</a>
+            <button class="btn-study" onclick="openStudy('italian')">📚 학습하기</button>
+            <a class="primary" href="https://lichess.org/opening/Italian_Game" target="_blank">탐색기</a>
             <span class="pill">초급~중급</span>
           </div>
         </article>
@@ -240,7 +307,8 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>루이 로페즈 (스패니시)</h3>
           <p>1.e4 e5 2.Nf3 Nc6 3.Bb5 — 상대 나이트를 핀하며 e5 폰의 지지를 장기적으로 약화시킵니다. 베를린, 마샬 어택, 클로즈드 등 방대한 이론이 있습니다.</p>
           <div class="card-actions">
-            <a class="primary" href="https://lichess.org/opening/Ruy_Lopez" target="_blank">오프닝 탐색기</a>
+            <button class="btn-study" onclick="openStudy('ruy')">📚 학습하기</button>
+            <a class="primary" href="https://lichess.org/opening/Ruy_Lopez" target="_blank">탐색기</a>
             <a href="/puzzle.html">전술 퍼즐</a>
             <span class="pill">중급~고급</span>
           </div>
@@ -257,7 +325,8 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>시칠리아 디펜스</h3>
           <p>1.e4 c5 — 흑이 비대칭 폰 구조로 맞서는 가장 날카로운 응수. 드래곤, 나이도르프, 클라센트, 카로 등 수많은 변형이 있습니다.</p>
           <div class="card-actions">
-            <a class="primary" href="https://lichess.org/opening/Sicilian_Defense" target="_blank">오프닝 탐색기</a>
+            <button class="btn-study" onclick="openStudy('sicilian')">📚 학습하기</button>
+            <a class="primary" href="https://lichess.org/opening/Sicilian_Defense" target="_blank">탐색기</a>
             <a href="/puzzle.html">전술 퍼즐</a>
             <span class="pill">중급~고급</span>
           </div>
@@ -311,7 +380,8 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
           <h3>퀸즈 갬빗</h3>
           <p>1.d4 d5 2.c4 — 폰을 제공해 중앙 지배권을 얻습니다. 어셉티드(QGA)와 디클라인드(QGD)로 나뉘며, 슬라브·세미-슬라브가 대표적입니다.</p>
           <div class="card-actions">
-            <a class="primary" href="https://lichess.org/opening/Queen%27s_Gambit" target="_blank">오프닝 탐색기</a>
+            <button class="btn-study" onclick="openStudy('qg')">📚 학습하기</button>
+            <a class="primary" href="https://lichess.org/opening/Queen%27s_Gambit" target="_blank">탐색기</a>
             <a href="/puzzle.html">전술 퍼즐</a>
             <span class="pill">중급~고급</span>
           </div>
@@ -424,7 +494,511 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
 </div>
 
 <script>
-firebase.initializeApp({
+/* =====================================================
+   체스 오프닝 학습 모달 — 보드 렌더러 + 학습 데이터
+   ===================================================== */
+
+/* ── 유니코드 기물 ── */
+const PIECES = {
+  K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',
+  k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'
+};
+
+/* ── FEN 파서 ── */
+function fenToBoard(fen){
+  const ranks = fen.split(' ')[0].split('/');
+  const board = [];
+  for(const rank of ranks){
+    const row = [];
+    for(const ch of rank){
+      if(isNaN(ch)) row.push(ch);
+      else for(let i=0;i<+ch;i++) row.push('');
+    }
+    board.push(row);
+  }
+  return board; // board[0]=rank8, board[7]=rank1
+}
+
+/* ── 보드 렌더링 ── */
+function renderBoard(board, fromSq, toSq){
+  const el = document.getElementById('om-board');
+  el.innerHTML = '';
+  const files = ['a','b','c','d','e','f','g','h'];
+  for(let r=0;r<8;r++){
+    for(let f=0;f<8;f++){
+      const sq = document.createElement('div');
+      const isLight = (r+f)%2===0;
+      sq.className = 'sq ' + (isLight?'light':'dark');
+      // highlight
+      const sqName = files[f]+(8-r);
+      if(sqName===fromSq) sq.classList.add('hl-from');
+      if(sqName===toSq)   sq.classList.add('hl-to');
+      const piece = board[r][f];
+      if(piece) sq.innerHTML = `<span class="piece">${PIECES[piece]||''}</span>`;
+      el.appendChild(sq);
+    }
+  }
+  // 좌표
+  const ranksEl = document.getElementById('om-coords-ranks');
+  const filesEl = document.getElementById('om-coords-files');
+  ranksEl.innerHTML = '';
+  filesEl.innerHTML = '';
+  for(let i=8;i>=1;i--){
+    const d=document.createElement('div'); d.className='coord-r'; d.textContent=i; ranksEl.appendChild(d);
+  }
+  files.forEach(f=>{
+    const d=document.createElement('div'); d.className='coord'; d.textContent=f; filesEl.appendChild(d);
+  });
+}
+
+/* ── 오프닝 학습 데이터 ── */
+/* 각 step: { fen, move, from, to, commentary: [{type,icon,label,text,alts}] } */
+const STUDY_DATA = {
+
+  /* ════════════════════════════════
+     이탈리안 게임
+     ════════════════════════════════ */
+  italian: {
+    title: '이탈리안 게임 (1.e4 e5 2.Nf3 Nc6 3.Bc4)',
+    steps: [
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작 위치', from:'', to:'',
+        commentary:[{
+          type:'neutral',icon:'♟',label:'시작',
+          text:'이탈리안 게임은 <span class="cb-mn">1.e4</span>로 시작합니다. 중앙을 직접 장악하고 비숍과 퀸의 대각선을 열어주는 가장 고전적인 첫 수입니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3',
+        move:'1. e4', from:'e2', to:'e4',
+        commentary:[{
+          type:'good',icon:'✅',label:'왜 좋은가',
+          text:'<span class="cb-mn">1.e4</span> — 중앙을 즉시 점령합니다. e4 폰은 d5·f5를 통제하고, f1 비숍과 d1 퀸의 대각선을 동시에 엽니다.',
+          alts:[
+            {type:'warning',move:'1.d4',text:'클로즈드 게임으로 이어집니다. 좋은 수지만 이탈리안으로 가려면 1.e4가 필요합니다.'},
+            {type:'bad',move:'1.e3',text:'너무 소극적입니다. d4 칸을 지지하지만 중앙 영향력이 약합니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6',
+        move:'1... e5', from:'e7', to:'e5',
+        commentary:[{
+          type:'good',icon:'✅',label:'흑의 응수',
+          text:'흑도 <span class="cb-mn">1...e5</span>로 중앙을 대칭 점령합니다. 오픈 게임이 됩니다. 이 수는 중앙 균형을 유지하고 d8 퀸과 f8 비숍을 활성화할 준비를 합니다.',
+          alts:[
+            {type:'warning',move:'1...c5',text:'시칠리아 디펜스로, 비대칭 구조를 선택하는 날카로운 응수입니다.'},
+            {type:'warning',move:'1...e6',text:'프렌치 디펜스로 이어집니다. 견고하지만 c8 비숍이 갇히는 단점이 있습니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq -',
+        move:'2. Nf3', from:'g1', to:'f3',
+        commentary:[{
+          type:'good',icon:'✅',label:'왜 좋은가',
+          text:'<span class="cb-mn">2.Nf3</span> — 나이트를 전개하면서 e5 폰을 공격합니다. 빠른 기물 전개와 압박을 동시에 달성합니다. g1 나이트는 f3이 최적 위치입니다.',
+          alts:[
+            {type:'bad',move:'2.Qh5?',text:'퀸을 너무 일찍 내보내는 실수! 흑이 Nc6으로 퀸을 몰면 백은 템포를 잃습니다.'},
+            {type:'warning',move:'2.d4',text:'스코치 게임으로 전환됩니다. 나쁘지 않지만 이탈리안과 다른 라인입니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq -',
+        move:'2... Nc6', from:'b8', to:'c6',
+        commentary:[{
+          type:'good',icon:'✅',label:'흑의 응수',
+          text:'<span class="cb-mn">2...Nc6</span> — 나이트가 e5를 방어하면서 중앙을 지지합니다. 동시에 흑의 기물을 전개하는 자연스러운 수입니다.',
+          alts:[
+            {type:'warning',move:'2...Nf6',text:'페트로프 디펜스로 전환됩니다. 매우 견고하지만 이탈리안이 아닌 다른 오프닝입니다.'},
+            {type:'bad',move:'2...d6?',text:'방어적이지만 느립니다. 백이 중앙에서 압도적 우위를 가져갑니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq -',
+        move:'3. Bc4', from:'f1', to:'c4',
+        commentary:[{
+          type:'good',icon:'✅',label:'이탈리안의 핵심',
+          text:'<span class="cb-mn">3.Bc4</span> — 이탈리안 게임의 핵심 수! 비숍이 f7을 직접 겨냥합니다. f7은 킹이 지키는 유일한 약점이라 흑이 매우 조심해야 합니다.',
+          alts:[
+            {type:'warning',move:'3.Bb5',text:'루이 로페즈(스패니시)로 전환됩니다. 더 복잡하고 이론이 방대합니다.'},
+            {type:'bad',move:'3.d3?',text:'너무 소극적입니다. 비숍이 갇히고 공격적 잠재력을 낭비합니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'r1bqk1nr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq -',
+        move:'3... Bc5', from:'f8', to:'c5',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'주코토 변형',
+            text:'<span class="cb-mn">3...Bc5</span> — 흑도 백의 f2를 노리는 비숍을 전개합니다. 이것이 주코토(Giuoco Piano) 변형입니다. 양측 모두 중앙을 지배하고 기물을 전개했습니다.',
+            alts:[]
+          },
+          {
+            type:'neutral',icon:'💡',label:'다음 계획',
+            text:'여기서 백의 주요 선택지:<br>• <span class="cb-mn">4.c3</span> — 주코토 피아노: d4 중앙 진격 준비<br>• <span class="cb-mn">4.b4</span> — 에반스 갬빗: 폰 희생으로 강력한 공격<br>• <span class="cb-mn">4.Nc3</span> — 3기사 변형: 빠른 기물 전개',
+            alts:[]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ════════════════════════════════
+     루이 로페즈 (스패니시)
+     ════════════════════════════════ */
+  ruy: {
+    title: '루이 로페즈 / 스패니시 (1.e4 e5 2.Nf3 Nc6 3.Bb5)',
+    steps: [
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작 위치', from:'', to:'',
+        commentary:[{type:'neutral',icon:'♟',label:'시작',text:'루이 로페즈는 체스 역사상 가장 철저히 연구된 오프닝 중 하나입니다. 16세기 스페인 사제 루이 로페즈가 체계화했습니다.',alts:[]}]
+      },
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3',
+        move:'1. e4', from:'e2', to:'e4',
+        commentary:[{type:'good',icon:'✅',label:'왜 좋은가',text:'<span class="cb-mn">1.e4</span> — 중앙 점령. d5·f5 칸 통제, 비숍·퀸 대각선 개방.',alts:[]}]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq -',
+        move:'2. Nf3', from:'g1', to:'f3',
+        commentary:[{type:'good',icon:'✅',label:'2.Nf3',text:'<span class="cb-mn">2.Nf3</span> — 나이트 전개와 동시에 e5 폰 공격. 템포를 얻으면서 자연스럽게 발전합니다.',alts:[]}]
+      },
+      {
+        fen:'r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq -',
+        move:'3. Bb5', from:'f1', to:'b5',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'루이 로페즈의 핵심',
+            text:'<span class="cb-mn">3.Bb5</span> — 이탈리안의 Bc4와 다르게 비숍이 b5로 갑니다! c6 나이트를 핀(pin)하여 e5 폰의 지지자를 위협합니다.',
+            alts:[
+              {type:'warning',move:'3.Bc4',text:'이탈리안 게임으로 전환됩니다. 좋은 수이나 루이 로페즈가 이론적으로 더 깊습니다.'}
+            ]
+          },
+          {
+            type:'neutral',icon:'💡',label:'핀의 원리',
+            text:'Bb5의 핵심: 나이트가 움직이면 e5 폰이 무방비 상태가 됩니다. 하지만 즉각적으로 나이트를 잡을 수는 없습니다. 이것이 장기적 압박의 시작입니다.',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'r1bqkbnr/1ppp1ppp/p1n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq -',
+        move:'3... a6', from:'a7', to:'a6',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'모팔 디펜스',
+            text:'<span class="cb-mn">3...a6</span> (모팔/Morphy 디펜스) — 비숍을 당장 몰아내어 핀을 해제합니다. 가장 인기 있는 응수입니다.',
+            alts:[
+              {type:'warning',move:'3...Nf6',text:'베를린 디펜스로 매우 견고합니다. 현대 탑레벨에서 자주 나옵니다.'},
+              {type:'warning',move:'3...Bc5',text:'클래시컬 디펜스로 중앙 비숍을 발전시킵니다.'},
+              {type:'bad',move:'3...Nxe4??',text:'폰을 잡으면 안 됩니다! 4.0-0 후 흑의 나이트가 위험해집니다.'}
+            ]
+          }
+        ]
+      },
+      {
+        fen:'r1bqkbnr/1ppp1ppp/p1n5/4p3/1b2P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq -',
+        move:'4. Ba4', from:'b5', to:'a4',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'비숍 후퇴',
+            text:'<span class="cb-mn">4.Ba4</span> — 비숍이 a4로 후퇴해 압박을 유지합니다. 잡히지 않으면서 c6 나이트를 계속 겨냥합니다.',
+            alts:[
+              {type:'warning',move:'4.Bxc6',text:'비숍을 교환하면 흑에게 더블드 폰을 줄 수 있지만, 반면 흑의 폰 구조가 강해집니다. 익스체인지 변형입니다.'}
+            ]
+          }
+        ]
+      },
+      {
+        fen:'r1bqkb1r/1ppp1ppp/p1n2n2/4p3/B3P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq -',
+        move:'4... Nf6', from:'g8', to:'f6',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'오픈 변형',
+            text:'<span class="cb-mn">4...Nf6</span> — 오픈 루이 로페즈 변형. 나이트를 전개하면서 e4 폰을 공격합니다. 여기서 <span class="cb-mn">5.0-0</span>으로 킹을 안전하게 한 후 흑이 5...Nxe4를 시도하면 복잡한 전투가 시작됩니다.',
+            alts:[
+              {type:'neutral',move:'4...Be7',text:'클로즈드 루이 로페즈로, 더 안정적이고 단계적인 플레이를 선호할 때 선택합니다.'}
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ════════════════════════════════
+     시칠리아 디펜스
+     ════════════════════════════════ */
+  sicilian: {
+    title: '시칠리아 디펜스 (1.e4 c5)',
+    steps: [
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작 위치', from:'', to:'',
+        commentary:[{type:'neutral',icon:'♟',label:'시작',text:'시칠리아 디펜스는 통계적으로 흑이 가장 높은 승률을 가진 1.e4 대응 오프닝입니다. 비대칭 구조로 양측 모두 공격 기회가 있습니다.',alts:[]}]
+      },
+      {
+        fen:'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq -',
+        move:'1... c5', from:'c7', to:'c5',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'왜 c5인가',
+            text:'<span class="cb-mn">1...c5</span> — 중앙을 d4로 통제하지만 d5는 통제하지 않습니다. 비대칭 구조로 흑이 퀸사이드에서, 백이 킹사이드에서 공격하는 역동적 게임이 됩니다.',
+            alts:[
+              {type:'warning',move:'1...e5',text:'대칭적 오픈 게임으로 이탈리안, 루이 로페즈 등으로 이어집니다.'},
+              {type:'warning',move:'1...e6',text:'프렌치 디펜스. 견고하지만 c8 비숍이 갇힐 수 있습니다.'}
+            ]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq -',
+        move:'2. Nf3', from:'g1', to:'f3',
+        commentary:[{
+          type:'good',icon:'✅',label:'2.Nf3',
+          text:'<span class="cb-mn">2.Nf3</span> — 가장 주류적인 응수. 나이트를 전개하고 d4 진격을 준비합니다. 2.Nc3도 가능하지만 Nf3가 더 유연합니다.',
+          alts:[
+            {type:'warning',move:'2.c3',text:'알라핀 변형으로 d4를 확실히 준비합니다. 이론이 적어 초급자에게 유용합니다.'},
+            {type:'bad',move:'2.d4?!',text:'Smith-Morra 갬빗. 폰을 희생해 공격을 추구하지만 이론적으로 불리합니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pp1ppppp/8/2p5/3PP3/5N2/PPP2PPP/RNBQKB1R b KQkq d3',
+        move:'3. d4', from:'d2', to:'d4',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'중앙 개방',
+            text:'<span class="cb-mn">3.d4</span> — 중앙을 열어 c5 폰과 교환합니다. 이후 백은 강력한 중앙 폰 구조를 가집니다.',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/pp1ppppp/8/8/3pP3/5N2/PPP2PPP/RNBQKB1R w KQkq -',
+        move:'3... cxd4', from:'c5', to:'d4',
+        commentary:[{
+          type:'good',icon:'✅',label:'폰 교환',
+          text:'<span class="cb-mn">3...cxd4</span> — 흑이 d4 폰을 잡습니다. 백은 반드시 Nxd4로 되찾아야 합니다.',
+          alts:[]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/pp1ppppp/8/8/3NP3/8/PPP2PPP/RNBQKB1R b KQkq -',
+        move:'4. Nxd4', from:'f3', to:'d4',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'나이트 중앙 진출',
+            text:'<span class="cb-mn">4.Nxd4</span> — 나이트가 강력한 d4 중앙에 자리 잡습니다. 백은 강력한 중앙과 공간 우위를 가집니다.',
+            alts:[]
+          },
+          {
+            type:'neutral',icon:'💡',label:'분기점',
+            text:'여기서 흑의 주요 선택:<br>• <span class="cb-mn">4...Nf6</span> — 오픈 시칠리아 (나이도르프: 5...a6, 드래곤: ...g6)<br>• <span class="cb-mn">4...e6</span> — 클라센트/슈베닝겐<br>• <span class="cb-mn">4...Nc6</span> — 클래시컬',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkb1r/pp1ppppp/5n2/8/3NP3/8/PPP2PPP/RNBQKB1R w KQkq -',
+        move:'4... Nf6', from:'g8', to:'f6',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'오픈 시칠리아',
+            text:'<span class="cb-mn">4...Nf6</span> — 나이트를 전개하면서 e4를 공격합니다. 백은 5.Nc3으로 응수 후 나이도르프(5...a6), 드래곤(5...g6) 등 수많은 변형으로 이어집니다.',
+            alts:[
+              {type:'warning',move:'4...e6',text:'클라센트 변형으로 흑이 견고한 구조를 선택합니다.'},
+              {type:'warning',move:'4...g6',text:'악켈마르 변형으로 킹사이드 피안케토를 일찍 시작합니다.'}
+            ]
+          }
+        ]
+      }
+    ]
+  },
+
+  /* ════════════════════════════════
+     퀸즈 갬빗
+     ════════════════════════════════ */
+  qg: {
+    title: '퀸즈 갬빗 (1.d4 d5 2.c4)',
+    steps: [
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -',
+        move:'시작 위치', from:'', to:'',
+        commentary:[{type:'neutral',icon:'♟',label:'시작',text:'퀸즈 갬빗은 1.e4보다 느리지만 더 포지셔널한 클로즈드 게임의 대표 오프닝입니다. 중앙 구조와 기물 배치가 핵심입니다.',alts:[]}]
+      },
+      {
+        fen:'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq d3',
+        move:'1. d4', from:'d2', to:'d4',
+        commentary:[{
+          type:'good',icon:'✅',label:'1.d4',
+          text:'<span class="cb-mn">1.d4</span> — 퀸사이드에서 중앙을 점령합니다. 1.e4보다 상대의 역습이 적고 안정적인 오프닝을 유도합니다.',
+          alts:[{type:'warning',move:'1.e4',text:'오픈 게임으로 전환됩니다. 더 날카롭고 전술적입니다.'}]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq d6',
+        move:'1... d5', from:'d7', to:'d5',
+        commentary:[{
+          type:'good',icon:'✅',label:'흑의 중앙 대응',
+          text:'<span class="cb-mn">1...d5</span> — 흑도 중앙을 점령합니다. 이 대칭적 응수가 퀸즈 갬빗으로 이어집니다.',
+          alts:[
+            {type:'warning',move:'1...Nf6',text:'인디안 디펜스 계열로, 님조-인디안, 킹즈 인디안 등으로 이어집니다.'},
+            {type:'warning',move:'1...f5',text:'더치 디펜스로 킹사이드 공격을 준비합니다.'}
+          ]
+        }]
+      },
+      {
+        fen:'rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq c3',
+        move:'2. c4', from:'c2', to:'c4',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'갬빗의 핵심',
+            text:'<span class="cb-mn">2.c4</span> — 퀸즈 갬빗! c4 폰으로 d5를 공격합니다. 흑이 dxc4로 잡으면 백이 나중에 폰을 되찾으며 완벽한 중앙을 얻습니다.',
+            alts:[]
+          },
+          {
+            type:'neutral',icon:'💡',label:'갬빗이 아닌 이유',
+            text:'퀸즈 갬빗은 사실 진짜 갬빗이 아닙니다! 흑이 2...dxc4로 잡아도 백은 3.e3이나 3.Qa4+로 폰을 반드시 되찾습니다.',
+            alts:[]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/ppp1pppp/8/8/2pP4/8/PP2PPPP/RNBQKBNR w KQkq -',
+        move:'2... dxc4 (QGA)', from:'d5', to:'c4',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'퀸즈 갬빗 어셉티드',
+            text:'<span class="cb-mn">2...dxc4</span> (QGA) — 폰을 잡습니다! 흑이 중앙에서 물러나 c4 폰을 가지지만, 백이 e4로 강력한 중앙을 형성합니다.',
+            alts:[
+              {type:'warning',move:'2...e6 (QGD)',text:'퀸즈 갬빗 디클라인드(QGD). 폰을 지키고 견고한 구조를 유지합니다. 더 인기 있습니다.'},
+              {type:'warning',move:'2...c6 (슬라브)',text:'슬라브 디펜스. c6으로 d5를 지키며 c8 비숍 활로를 유지합니다.'}
+            ]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkbnr/ppp1pppp/8/8/2pPP3/8/PP3PPP/RNBQKBNR b KQkq e3',
+        move:'3. e4', from:'e2', to:'e4',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'중앙 장악',
+            text:'<span class="cb-mn">3.e4</span> — QGA에서 백의 최강 응수! d4·e4로 이상적인 폰 센터를 형성합니다. 흑은 이 중앙을 반격해야 합니다.',
+            alts:[
+              {type:'warning',move:'3.Nf3',text:'더 차분한 전개로 나중에 e3·Bxc4로 폰을 되찾습니다.'}
+            ]
+          }
+        ]
+      },
+      {
+        fen:'rnbqkb1r/ppp1pppp/5n2/8/2pPP3/8/PP3PPP/RNBQKBNR w KQkq -',
+        move:'3... Nf6', from:'g8', to:'f6',
+        commentary:[
+          {
+            type:'good',icon:'✅',label:'흑의 대응',
+            text:'<span class="cb-mn">3...Nf6</span> — e4 폰을 공격하며 기물을 전개합니다. 이제 <span class="cb-mn">4.Nc3</span>으로 이어지며 복잡한 QGA 이론이 시작됩니다.',
+            alts:[
+              {type:'bad',move:'3...b5?!',text:'c4 폰을 지키려는 시도이지만 4.a4 b4 5.a5로 흑의 퀸사이드가 약해집니다.'}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+};
+
+/* ════════════════════════════════
+   모달 컨트롤러
+   ════════════════════════════════ */
+let currentStudy = null;
+let currentStep = 0;
+
+function openStudy(key){
+  currentStudy = STUDY_DATA[key];
+  currentStep = 0;
+  document.getElementById('om-title').textContent = currentStudy.title;
+  buildMoveList();
+  renderStep(0);
+  document.getElementById('om-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeStudy(){
+  document.getElementById('om-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function overlayClick(e){
+  if(e.target === document.getElementById('om-overlay')) closeStudy();
+}
+
+function buildMoveList(){
+  const el = document.getElementById('om-moves-list');
+  el.innerHTML = '';
+  currentStudy.steps.forEach((step, i)=>{
+    const chip = document.createElement('button');
+    chip.className = 'move-chip' + (i===0?' active':'');
+    chip.textContent = step.move;
+    chip.onclick = ()=>{ renderStep(i); };
+    el.appendChild(chip);
+  });
+}
+
+function renderStep(idx){
+  currentStep = idx;
+  const step = currentStudy.steps[idx];
+  // 보드
+  const board = fenToBoard(step.fen);
+  renderBoard(board, step.from, step.to);
+  // 수순 칩 active
+  document.querySelectorAll('.move-chip').forEach((c,i)=>{
+    c.classList.toggle('active', i===idx);
+  });
+  // 해설
+  const comm = document.getElementById('om-commentary');
+  comm.innerHTML = '';
+  step.commentary.forEach(c=>{
+    const box = document.createElement('div');
+    box.className = 'cb ' + c.type;
+    let altsHtml = '';
+    if(c.alts && c.alts.length){
+      altsHtml = '<div class="alt-list">';
+      c.alts.forEach(a=>{
+        altsHtml += `<div class="alt-item"><span class="alt-badge ${a.type}">${a.move}</span><span class="alt-text">${a.text}</span></div>`;
+      });
+      altsHtml += '</div>';
+    }
+    box.innerHTML = `<div class="cb-head"><span class="cb-icon">${c.icon}</span><span class="cb-label">${c.label}</span></div><div class="cb-text">${c.text}</div>${altsHtml}`;
+    comm.appendChild(box);
+  });
+  // 버튼 상태
+  document.getElementById('btn-prev').disabled = idx===0;
+  document.getElementById('btn-next').disabled = idx===currentStudy.steps.length-1;
+  document.getElementById('om-step-info').textContent = `${idx+1} / ${currentStudy.steps.length}`;
+}
+
+function goStep(dir){
+  const next = currentStep + dir;
+  if(next>=0 && next<currentStudy.steps.length) renderStep(next);
+}
+
+// 키보드 지원
+document.addEventListener('keydown', e=>{
+  if(!document.getElementById('om-overlay').classList.contains('open')) return;
+  if(e.key==='ArrowRight') goStep(1);
+  if(e.key==='ArrowLeft') goStep(-1);
+  if(e.key==='Escape') closeStudy();
+});
+</script>
+
+
   apiKey:"AIzaSyDiBFoUf2QVG9QXO34Xny0bSslFYaiwozg",
   authDomain:"chess-education-464fc.firebaseapp.com",
   projectId:"chess-education-464fc",
@@ -448,6 +1022,38 @@ function showToast(msg){
   _toastTimer=setTimeout(function(){el.style.opacity='0';},2800);
 }
 </script>
+
+<!-- ═══════════════════════════════════════
+     오프닝 학습 모달
+     ═══════════════════════════════════════ -->
+<div id="om-overlay" onclick="overlayClick(event)">
+  <div id="om-modal">
+    <div id="om-header">
+      <div id="om-title">오프닝 학습</div>
+      <button id="om-close" onclick="closeStudy()">✕</button>
+    </div>
+    <div id="om-body">
+      <div id="om-board-col">
+        <div style="display:flex;gap:4px">
+          <div id="om-coords-ranks"></div>
+          <div id="om-board-wrap">
+            <div id="om-board"></div>
+          </div>
+        </div>
+        <div id="om-coords-files"></div>
+        <div id="om-controls">
+          <button class="om-btn" id="btn-prev" onclick="goStep(-1)">◀ 이전</button>
+          <span id="om-step-info">0 / 0</span>
+          <button class="om-btn" id="btn-next" onclick="goStep(1)">다음 ▶</button>
+        </div>
+      </div>
+      <div id="om-panel">
+        <div id="om-moves-list"></div>
+        <div id="om-commentary"></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- 모바일 하단 내비게이션 -->
 <nav id="mobile-bottom-nav">
