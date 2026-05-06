@@ -731,8 +731,7 @@ async function runThreatAnalysis() {
         `**핵심 계획:** ${mover}은 ${ctx.bestMove}로 즉각 체크메이트를 만들 수 있습니다.`,
         `**문제점:** 즉각적인 체크메이트가 있어 문제점 없음.`,
         `**최선책:** ${ctx.bestMove}를 바로 두어 게임을 끝내세요.`,
-      ].join('
-');
+      ].join('\n');
       renderThreatPanel(mateText);
       return;
     }
