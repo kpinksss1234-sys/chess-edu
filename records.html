@@ -618,13 +618,15 @@ firebase.initializeApp({
 });
 const _auth=firebase.auth(), _fbDb=firebase.firestore();
 let _user=null;
+let _authInitialized=false;
 _auth.onAuthStateChanged(u=>{
   if(!u){window.location.href='/auth.html';return;}
   _user=u;
   const name=u.displayName||u.email.split('@')[0];
   document.getElementById('sidebar-avatar-letter').textContent=name[0].toUpperCase();
   document.getElementById('sidebar-username').textContent=name;
-  // chess-wasm-fixed.html에서 ?tab=stats로 링크한 경우 통계 탭을 바로 열기
+  if(_authInitialized)return; // 중복 발화 방지
+  _authInitialized=true;
   const params=new URLSearchParams(window.location.search);
   const initialTab=params.get('tab');
   if(initialTab==='stats'){switchTab('stats');}
@@ -640,14 +642,46 @@ let _states=[],_viewIdx=0,_viewMyColor='w',_currentRecord=null;
 // ════════════════════════════════════════
 // 기록 목록
 // ════════════════════════════════════════
+// Firestore 쿼리에 타임아웃 래퍼
+function withTimeout(promise, ms=10000){
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error('요청 시간 초과 ('+ms/1000+'초)')),ms))
+  ]);
+}
+
+let _loadingRecords=false;
 async function loadRecords(){
+  if(_loadingRecords)return; // 중복 실행 방지
+  _loadingRecords=true;
   const listEl=document.getElementById('records-list'),subEl=document.getElementById('list-sub');
   listEl.innerHTML='<div class="empty-state"><div class="empty-icon">⏳</div><div>불러오는 중...</div></div>';
   try{
-    let snap;
-    try{snap=await _fbDb.collection('game_records').where('uid','==',_user.uid).orderBy('playedAt','desc').limit(50).get();}
-    catch(e){snap=await _fbDb.collection('game_records').where('uid','==',_user.uid).limit(50).get();}
+    let snap=null;
+    // 1차 시도: orderBy 포함 (인덱스 있는 경우)
+    try{
+      snap=await withTimeout(
+        _fbDb.collection('game_records').where('uid','==',_user.uid).orderBy('playedAt','desc').limit(50).get()
+      );
+    }catch(e1){
+      console.warn('[loadRecords] 1차 쿼리 실패, 재시도:', e1.message);
+      // 2차 시도: orderBy 없이 (인덱스 미생성 or 타임아웃 후 재시도)
+      try{
+        snap=await withTimeout(
+          _fbDb.collection('game_records').where('uid','==',_user.uid).limit(50).get()
+        );
+      }catch(e2){
+        throw new Error('데이터 로드 실패: '+e2.message);
+      }
+    }
+    if(!snap){throw new Error('응답 없음');}
     const docs=[];snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    // orderBy 없이 가져온 경우 클라이언트 측 정렬
+    docs.sort((a,b)=>{
+      const ta=a.playedAt?a.playedAt.seconds:0;
+      const tb=b.playedAt?b.playedAt.seconds:0;
+      return tb-ta;
+    });
     subEl.textContent=`총 ${docs.length}게임`;
     if(!docs.length){listEl.innerHTML='<div class="empty-state"><div class="empty-icon">♟</div><div>아직 기록이 없습니다<br>온라인 대국을 플레이해보세요!</div></div>';return;}
     listEl.innerHTML='';
@@ -662,7 +696,16 @@ async function loadRecords(){
       item.addEventListener('click',()=>openRecord(doc,item));
       listEl.appendChild(item);
     });
-  }catch(e){console.error(e);listEl.innerHTML='<div class="empty-state"><div class="empty-icon">⚠️</div><div>불러오기 실패<br>'+e.message+'</div></div>';}
+  }catch(e){
+    console.error('[loadRecords] 최종 실패:', e);
+    listEl.innerHTML=`<div class="empty-state"><div class="empty-icon">⚠️</div><div>불러오기 실패<br><small style="font-size:10px;color:var(--text-muted)">${e.message}</small><br><button onclick="retryLoadRecords()" style="margin-top:12px;padding:7px 16px;border-radius:8px;border:1px solid var(--border-light);background:var(--bg-tertiary);color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font-main)">🔄 다시 시도</button></div></div>`;
+  }finally{
+    _loadingRecords=false;
+  }
+}
+
+function retryLoadRecords(){
+  loadRecords();
 }
 
 // ════════════════════════════════════════
