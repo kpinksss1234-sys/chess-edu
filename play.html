@@ -1031,7 +1031,9 @@ function toggleEtOnGame() {
   document.getElementById('et-game-switch').classList.toggle('on', etUseOnGame);
   if (etUseOnGame) {
     document.getElementById('et-panel').classList.remove('collapsed');
-    showToast('대국 시작 시 Eye Tracker가 활성화됩니다.');
+    showToast('Eye Tracker 활성화됨. 카메라 버튼을 눌러 시작하세요.');
+    // 패널 보드 초기화
+    setTimeout(()=>{ resizeEtBoard(); }, 100);
   } else {
     document.getElementById('et-panel').classList.add('collapsed');
   }
@@ -1041,10 +1043,14 @@ function toggleEtOnGame() {
 function toggleEtPanel() {
   const panel = document.getElementById('et-panel');
   panel.classList.toggle('collapsed');
+  if (!panel.classList.contains('collapsed')) {
+    // 패널이 열릴 때 캔버스 크기 재조정 (transition 후)
+    setTimeout(() => resizeEtBoard(), 320);
+  }
 }
 
-// ── ET 패널 초기 상태 ──
-document.getElementById('et-panel').classList.add('collapsed');
+// ── ET 패널 초기 상태 ── (로비에서는 숨김, 대국 시작 시 토글 가능)
+// collapsed 클래스는 toggleEtOnGame()과 toggleEtPanel()로만 제어
 
 // ── MediaPipe 초기화 ──
 async function initEtMediaPipe() {
@@ -1057,11 +1063,30 @@ async function initEtMediaPipe() {
     minDetectionConfidence: 0.5, minTrackingConfidence: 0.5,
   });
   etFaceMesh.onResults(onEtFaceMeshResults);
-  etMpCamera = new Camera(etVideo, {
-    onFrame: async () => { if (etFaceMesh) await etFaceMesh.send({ image: etVideo }); },
-    width: 640, height: 480,
-  });
-  await etMpCamera.start();
+
+  // Camera 클래스 사용 가능 여부 확인, 없으면 getUserMedia 직접 사용
+  if (typeof Camera !== 'undefined') {
+    etMpCamera = new Camera(etVideo, {
+      onFrame: async () => { if (etFaceMesh) await etFaceMesh.send({ image: etVideo }); },
+      width: 640, height: 480,
+    });
+    await etMpCamera.start();
+  } else {
+    // fallback: getUserMedia 직접 사용
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    etVideo.srcObject = stream;
+    await new Promise(res => { etVideo.onloadedmetadata = res; });
+    etVideo.play();
+    // requestAnimationFrame 루프로 FaceMesh에 프레임 공급
+    const sendFrame = async () => {
+      if (etFaceMesh && etVideo.readyState >= 2) {
+        await etFaceMesh.send({ image: etVideo });
+      }
+      requestAnimationFrame(sendFrame);
+    };
+    requestAnimationFrame(sendFrame);
+  }
+
   etState.camReady = true;
   document.getElementById('btn-et-calib').disabled = false;
   setEtStatus('cam', '웹캠 준비됨');
@@ -1238,7 +1263,8 @@ function drawEtBoard(){
 
 function resizeEtBoard(){
   const wrap=document.getElementById('et-board-wrap');
-  const size=wrap.clientWidth||240;
+  const size=wrap.clientWidth||288; // 패널 width(320) - padding(32) fallback
+  if(size < 10) return; // 패널이 완전히 숨겨진 상태면 스킵
   etBoardCanvas.width=size; etBoardCanvas.height=size;
   etHeatCanvas.width=size;  etHeatCanvas.height=size;
   drawEtBoard(); renderEtHeatmap();
