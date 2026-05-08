@@ -1530,7 +1530,7 @@ function setEtStatusDot(type){
 function resetEtData(){
   etState.gazeData={};
   etState.currentSquare=null; etState.squareEnteredAt=null;
-  etState.sessionStart=null;
+  etState.sessionStart=null; etState.sessionEnd=null;
   etState.moveSnapshots=[];
   etState.prevMoveGaze={};
   renderEtHeatmap(); updateEtStats(); renderMoveLog();
@@ -1548,7 +1548,7 @@ function downloadGazeData(){
 function buildGazeExport() {
   return {
     timestamp: new Date().toISOString(),
-    sessionDuration: etState.sessionStart ? Math.floor((Date.now()-etState.sessionStart)/1000) : 0,
+    sessionDuration: etState.sessionStart ? Math.floor(((etState.sessionEnd||Date.now())-etState.sessionStart)/1000) : 0,
     gazeData: etState.gazeData,
     topSquares: Object.entries(etState.gazeData)
       .sort((a,b)=>b[1]-a[1]).slice(0,10)
@@ -1936,15 +1936,15 @@ function joinGame(gameId,myColor,gameData){
     panel.classList.remove('collapsed');
     panel.style.display = 'flex';
     setTimeout(() => resizeEtBoard(), 50);
-    if (etState.calibrated && !etState.tracking) {
-      // 캘리브레이션이 이미 됐으면 자동 추적 시작
-      etState.tracking=true; etState.sessionStart=Date.now();
-      etGazeDot.style.display='block';
-      document.getElementById('btn-et-track').disabled=true;
-      document.getElementById('btn-et-stop').disabled=false;
-      setEtStatusDot('active');
-      showToast('시선 추적 자동 시작됨!');
-    }
+  }
+  // 캘리브레이션이 완료된 상태면 항상 자동 추적 시작 (etUseOnGame 무관)
+  if (etState.calibrated && !etState.tracking) {
+    etState.tracking=true; etState.sessionStart=Date.now(); etState.sessionEnd=null;
+    etGazeDot.style.display='block';
+    document.getElementById('btn-et-track').disabled=true;
+    document.getElementById('btn-et-stop').disabled=false;
+    setEtStatusDot('active');
+    showToast('시선 추적 자동 시작됨!');
   }
 
   _firstMoveDone=false;
@@ -2014,6 +2014,7 @@ function endGame(status){
       const d=Date.now()-etState.squareEnteredAt;
       if(d>=etSettings.minDwell)etState.gazeData[etState.currentSquare]=(etState.gazeData[etState.currentSquare]||0)+d;
     }
+    etState.sessionEnd=Date.now(); // sessionDuration 계산용으로 종료 시각 보존
     etState.tracking=false;
     etGazeDot.style.display='none';
     document.getElementById('btn-et-track').disabled=false;
