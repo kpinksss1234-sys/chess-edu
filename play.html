@@ -92,11 +92,10 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: width 0.3s ease, min-width 0.3s ease;
+  transition: width 0.3s ease, min-width 0.3s ease, opacity 0.3s ease;
 }
 #et-panel.collapsed {
-  width: 0;
-  min-width: 0;
+  display: none;
 }
 
 /* ET 패널 토글 버튼 */
@@ -1031,28 +1030,34 @@ const etCalibCtx = etCalibCanvas.getContext('2d');
 function toggleEtOnGame() {
   etUseOnGame = !etUseOnGame;
   document.getElementById('et-game-switch').classList.toggle('on', etUseOnGame);
+  const panel = document.getElementById('et-panel');
   if (etUseOnGame) {
-    document.getElementById('et-panel').classList.remove('collapsed');
+    panel.classList.remove('collapsed');
+    panel.style.display = 'flex';
     showToast('Eye Tracker 활성화됨. 카메라 버튼을 눌러 시작하세요.');
-    // 패널 보드 초기화
     setTimeout(()=>{ resizeEtBoard(); }, 100);
   } else {
-    document.getElementById('et-panel').classList.add('collapsed');
+    panel.classList.add('collapsed');
+    panel.style.display = '';
   }
 }
 
 // ── 대국 중 ET 패널 토글 ──
 function toggleEtPanel() {
   const panel = document.getElementById('et-panel');
-  panel.classList.toggle('collapsed');
-  if (!panel.classList.contains('collapsed')) {
-    // 패널이 열릴 때 캔버스 크기 재조정 (transition 후)
-    setTimeout(() => resizeEtBoard(), 320);
+  const isCollapsed = panel.classList.contains('collapsed');
+  if (isCollapsed) {
+    panel.classList.remove('collapsed');
+    panel.style.display = 'flex';
+    setTimeout(() => resizeEtBoard(), 50);
+  } else {
+    panel.classList.add('collapsed');
+    panel.style.display = '';
   }
 }
 
-// ── ET 패널 초기 상태 ── (로비에서는 숨김, 대국 시작 시 토글 가능)
-// collapsed 클래스는 toggleEtOnGame()과 toggleEtPanel()로만 제어
+// ── ET 패널 초기 상태 ── 로비에서는 숨김
+document.getElementById('et-panel').classList.add('collapsed');
 
 // ── 디버그 로그 ──
 let _etFrameLoop = null;
@@ -1712,21 +1717,36 @@ function getAllLegal(board,color,castling,enPassant){
 }
 
 // ── 보드 렌더링 ──
+let _lastFlipped = null;
 function renderBoard(){
   const el=document.getElementById('play-board');if(!el)return;
-  const flipped=_myColor==='b', isFirst=el.children.length===0;
+  const flipped=_myColor==='b';
+
+  // 플립 상태 바뀌면 보드 셀 전체 재생성
+  if(_lastFlipped !== flipped){
+    el.innerHTML = '';
+    _lastFlipped = flipped;
+  }
+  const isFirst = el.children.length === 0;
+
   for(let ri=0;ri<8;ri++){for(let ci=0;ci<8;ci++){
-    const r=flipped?7-ri:ri,c=flipped?7-ci:ci;
+    const r=flipped?7-ri:ri, c=flipped?7-ci:ci;
     const isLight=(r+c)%2===0, idx=ri*8+ci, piece=_board[r][c];
     let sq;
     if(isFirst){
-      sq=document.createElement('div');sq.dataset.r=r;sq.dataset.c=c;
+      sq=document.createElement('div');
       if(ci===0){const lbl=document.createElement('span');lbl.className='rank-label';lbl.textContent=8-r;sq.appendChild(lbl);}
       if(ri===7){const lbl=document.createElement('span');lbl.className='file-label';lbl.textContent='abcdefgh'[c];sq.appendChild(lbl);}
       const img=document.createElement('img');img.className='piece-img';img.draggable=false;img.style.display='none';sq.appendChild(img);
-      sq.addEventListener('click',()=>onSquareClick(Number(sq.dataset.r),Number(sq.dataset.c)));
       el.appendChild(sq);
-    }else{sq=el.children[idx];}
+    }else{
+      sq=el.children[idx];
+    }
+    // 매 렌더마다 dataset 갱신 (플립 고려한 실제 보드 좌표)
+    sq.dataset.r=r; sq.dataset.c=c;
+    sq.onclick=null;
+    sq.onclick=()=>onSquareClick(Number(sq.dataset.r),Number(sq.dataset.c));
+
     const classes=['sq',isLight?'light':'dark'];
     if(_lastMove){if(_lastMove.from[0]===r&&_lastMove.from[1]===c)classes.push('last-from');if(_lastMove.to[0]===r&&_lastMove.to[1]===c)classes.push('last-to');}
     if(_selected&&_selected[0]===r&&_selected[1]===c)classes.push('selected');
@@ -1735,7 +1755,7 @@ function renderBoard(){
     if(piece===_turn+'K'&&isInCheck(_board,_turn))classes.push('in-check');
     sq.className=classes.join(' ');
     const img=sq.querySelector('.piece-img');
-    if(img){if(piece){const ns=pieceImg(piece);if(img.src!==ns)img.src=ns;const nc='piece-img'+(piece.startsWith('b')?' black-piece':'');if(img.className!==nc)img.className=nc;img.alt=piece;img.style.display='';}else{img.style.display='none';img.src='';}}
+    if(img){if(piece){const ns=pieceImg(piece);if(img.src!==ns)img.src=ns;const nc='piece-img'+(piece[0]==='b'?' black-piece':'');if(img.className!==nc)img.className=nc;img.alt=piece;img.style.display='';}else{img.style.display='none';img.src='';}}
   }}
 }
 
@@ -1910,7 +1930,10 @@ function joinGame(gameId,myColor,gameData){
 
   // Eye Tracker 자동 활성화 (로비에서 켠 경우)
   if (etUseOnGame) {
-    document.getElementById('et-panel').classList.remove('collapsed');
+    const panel = document.getElementById('et-panel');
+    panel.classList.remove('collapsed');
+    panel.style.display = 'flex';
+    setTimeout(() => resizeEtBoard(), 50);
     if (etState.calibrated && !etState.tracking) {
       // 캘리브레이션이 이미 됐으면 자동 추적 시작
       etState.tracking=true; etState.sessionStart=Date.now();
