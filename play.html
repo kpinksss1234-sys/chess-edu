@@ -13,10 +13,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-<!-- MediaPipe -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<!-- MediaPipe - 고정 버전 사용 -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js" crossorigin="anonymous" onerror="window._mpLoadError=true"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js" crossorigin="anonymous" onerror="window._mpLoadError=true"></script>
 
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -234,7 +234,7 @@ body {
 #et-board-wrap {
   position: relative;
   width: 100%;
-  padding-bottom: 100%;
+  aspect-ratio: 1 / 1;
 }
 #et-board-canvas, #et-heat-canvas {
   position: absolute; inset: 0;
@@ -1053,44 +1053,84 @@ function toggleEtPanel() {
 // collapsed 클래스는 toggleEtOnGame()과 toggleEtPanel()로만 제어
 
 // ── MediaPipe 초기화 ──
+let _etFrameLoop = null;
+
 async function initEtMediaPipe() {
-  setEtStatus('loading', 'MediaPipe 로딩 중...');
-  etFaceMesh = new FaceMesh({
-    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
-  });
-  etFaceMesh.setOptions({
-    maxNumFaces: 1, refineLandmarks: true,
-    minDetectionConfidence: 0.5, minTrackingConfidence: 0.5,
-  });
-  etFaceMesh.onResults(onEtFaceMeshResults);
+  setEtStatus('loading', '⏳ 로딩 중...');
+  const btn = document.getElementById('btn-et-cam');
+  btn.disabled = true; btn.textContent = '로딩...';
 
-  // Camera 클래스 사용 가능 여부 확인, 없으면 getUserMedia 직접 사용
-  if (typeof Camera !== 'undefined') {
-    etMpCamera = new Camera(etVideo, {
-      onFrame: async () => { if (etFaceMesh) await etFaceMesh.send({ image: etVideo }); },
-      width: 640, height: 480,
+  try {
+    // 1) FaceMesh 객체 존재 확인
+    if (window._mpLoadError || typeof FaceMesh === 'undefined') {
+      throw new Error('MediaPipe 라이브러리 로딩 실패. 네트워크 연결을 확인하고 페이지를 새로고침해 주세요.');
+    }
+
+    // 2) FaceMesh 초기화
+    etFaceMesh = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`
     });
-    await etMpCamera.start();
-  } else {
-    // fallback: getUserMedia 직접 사용
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
-    etVideo.srcObject = stream;
-    await new Promise(res => { etVideo.onloadedmetadata = res; });
-    etVideo.play();
-    // requestAnimationFrame 루프로 FaceMesh에 프레임 공급
-    const sendFrame = async () => {
-      if (etFaceMesh && etVideo.readyState >= 2) {
-        await etFaceMesh.send({ image: etVideo });
-      }
-      requestAnimationFrame(sendFrame);
-    };
-    requestAnimationFrame(sendFrame);
-  }
+    etFaceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+    etFaceMesh.onResults(onEtFaceMeshResults);
 
-  etState.camReady = true;
-  document.getElementById('btn-et-calib').disabled = false;
-  setEtStatus('cam', '웹캠 준비됨');
-  showToast('카메라 연결됨. 캘리브레이션을 진행하세요.');
+    // 3) 카메라 스트림 획득
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+    });
+    etVideo.srcObject = stream;
+    await new Promise((res, rej) => {
+      etVideo.onloadedmetadata = res;
+      setTimeout(() => rej(new Error('카메라 타임아웃')), 8000);
+    });
+    await etVideo.play();
+
+    // 4) Camera 클래스 사용 가능하면 우선 사용, 아니면 rAF 루프
+    if (typeof Camera !== 'undefined') {
+      etMpCamera = new Camera(etVideo, {
+        onFrame: async () => {
+          if (etFaceMesh && etVideo.readyState >= 2) {
+            await etFaceMesh.send({ image: etVideo });
+          }
+        },
+        width: 640, height: 480,
+      });
+      await etMpCamera.start();
+    } else {
+      // rAF 기반 루프 (Camera 클래스 없을 때)
+      let _sending = false;
+      const sendFrame = async () => {
+        if (!etFaceMesh) return;
+        if (!_sending && etVideo.readyState >= 2) {
+          _sending = true;
+          try { await etFaceMesh.send({ image: etVideo }); } catch(e) {}
+          _sending = false;
+        }
+        _etFrameLoop = requestAnimationFrame(sendFrame);
+      };
+      _etFrameLoop = requestAnimationFrame(sendFrame);
+    }
+
+    // 5) 완료
+    etState.camReady = true;
+    document.getElementById('btn-et-calib').disabled = false;
+    btn.textContent = '✓ 연결됨';
+    setEtStatus('cam', '✅ 웹캠 준비됨 — 캘리브 버튼을 누르세요');
+    showToast('카메라 연결됨! 캘리브레이션을 진행하세요.');
+
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '▶ 카메라';
+    const msg = e.name === 'NotAllowedError' ? '카메라 권한이 거부됐습니다. 브라우저 설정에서 허용해 주세요.'
+               : e.name === 'NotFoundError'  ? '카메라를 찾을 수 없습니다.'
+               : e.message || '카메라 오류';
+    setEtStatus('error', '❌ ' + msg);
+    showToast('카메라 오류: ' + msg);
+    console.error('[ET] initEtMediaPipe 실패:', e);
+  }
 }
 
 function getIrisCenter(landmarks, indices) {
@@ -1489,12 +1529,7 @@ window.addEventListener('resize',()=>{
 });
 
 // ── 버튼 이벤트 ──
-document.getElementById('btn-et-cam').addEventListener('click',async()=>{
-  const btn=document.getElementById('btn-et-cam');
-  btn.disabled=true; btn.textContent='로딩...';
-  try{ await initEtMediaPipe(); btn.textContent='✓ 연결됨'; }
-  catch(e){ btn.disabled=false; btn.textContent='▶ 카메라'; showToast('카메라 오류: '+e.message); }
-});
+document.getElementById('btn-et-cam').addEventListener('click', () => { initEtMediaPipe(); });
 document.getElementById('btn-et-calib').addEventListener('click',()=>{ startEtCalibration(); });
 document.getElementById('btn-et-track').addEventListener('click',()=>{
   etState.tracking=true; etState.sessionStart=Date.now();
