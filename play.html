@@ -1206,7 +1206,7 @@ function onEtFaceMeshResults(results) {
   document.getElementById('et-gaze-indicator').classList.add('on');
 
   if (etState.tracking && etState.calibrated) {
-    const sc = etEyeToScreen(etLastEyeRaw.x*window.innerWidth, etLastEyeRaw.y*window.innerHeight);
+    const sc = etEyeToScreen(etLastEyeRaw.x, etLastEyeRaw.y);
     if (!sc) return;
     const a = 1/etSettings.smoothing;
     etState.smoothX = etState.smoothX*(1-a)+sc.x*a;
@@ -1386,7 +1386,7 @@ function updateEtStats(){
 // 수별 시선 스냅샷 저장 (체스 수가 발생할 때 호출)
 // ════════════════════════════════════════════════
 function captureGazeSnapshot(moveNum, san, color) {
-  if (!etState.tracking && !etState.calibrated) return;
+  if (!etState.tracking || !etState.calibrated) return;
   // 이전 수 이후 누적된 시선 데이터 (전체 누적에서 이전 스냅까지의 차이)
   const currentGaze = {...etState.gazeData};
   if (etState.currentSquare && etState.squareEnteredAt) {
