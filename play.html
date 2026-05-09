@@ -16,8 +16,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
-<!-- WebGazer.js (npm 2.0.1 — TFFacemesh + MediaPipe assets bundled via jsDelivr) -->
-<script src="https://cdn.jsdelivr.net/npm/webgazer@2.0.1/dist/webgazer.min.js"></script>
 
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,14 +40,6 @@ html, body { height: 100%; overflow: hidden; }
   --sidebar-width: 72px;
   --font-main: 'Noto Sans KR', sans-serif;
   --font-display: 'Playfair Display', serif;
-
-  /* Eye Tracker colors */
-  --et-bg: #1a2035;
-  --et-accent: #4f8ef7;
-  --et-accent2: #7f5af0;
-  --et-success: #2cb67d;
-  --et-warn: #f4c430;
-  --et-danger: #e05a5a;
 }
 
 body {
@@ -59,382 +49,6 @@ body {
   display: block;
   height: 100vh;
 }
-
-/* ══════════════════════════════════════
-   EYE TRACKER OVERLAY
-══════════════════════════════════════ */
-
-/* 메인 아이트래커 패널 (우측 하단 고정) */
-#et-panel {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 220px;
-  background: rgba(18, 22, 38, 0.95);
-  border: 1px solid rgba(79, 142, 247, 0.35);
-  border-radius: 16px;
-  backdrop-filter: blur(12px);
-  z-index: 800;
-  overflow: hidden;
-  transition: width 0.3s ease, height 0.3s ease, opacity 0.3s;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(79,142,247,0.1);
-}
-#et-panel.collapsed {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-}
-
-#et-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(79,142,247,0.15);
-  cursor: pointer;
-  user-select: none;
-}
-.et-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--et-accent);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.et-eye-icon {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-#et-panel.collapsed .et-panel-title span { display: none; }
-#et-panel.collapsed #et-panel-header { border-bottom: none; padding: 12px; }
-
-.et-toggle-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 2px;
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-  transition: color 0.2s;
-}
-.et-toggle-btn:hover { color: var(--et-accent); }
-#et-panel.collapsed .et-toggle-btn { display: none; }
-
-#et-panel-body {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-#et-panel.collapsed #et-panel-body { display: none; }
-
-/* 상태 표시기 */
-.et-status-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.et-status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  flex-shrink: 0;
-  transition: background 0.3s;
-}
-.et-status-dot.active { background: var(--et-success); box-shadow: 0 0 6px var(--et-success); animation: pulse-dot 2s infinite; }
-.et-status-dot.warning { background: var(--et-warn); box-shadow: 0 0 6px var(--et-warn); }
-.et-status-dot.error   { background: var(--et-danger); box-shadow: 0 0 6px var(--et-danger); }
-@keyframes pulse-dot {
-  0%,100% { opacity: 1; } 50% { opacity: 0.5; }
-}
-.et-status-text {
-  font-size: 11px;
-  color: var(--text-secondary);
-  line-height: 1.3;
-}
-
-/* 캘리브레이션 바 */
-.et-calib-section { display: flex; flex-direction: column; gap: 6px; }
-.et-section-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-}
-.et-calib-bar {
-  height: 5px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.et-calib-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--et-accent2), var(--et-accent));
-  border-radius: 3px;
-  transition: width 0.4s ease;
-  width: 0%;
-}
-
-/* 시선 정확도 */
-.et-accuracy-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.et-acc-val {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--et-accent);
-  font-family: monospace;
-}
-.et-acc-label { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
-
-/* 히트맵 미니 뷰 */
-.et-heatmap-section { display: flex; flex-direction: column; gap: 6px; }
-#et-mini-heatmap {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 8px;
-  border: 1px solid rgba(79,142,247,0.2);
-  background: rgba(0,0,0,0.3);
-  position: relative;
-  overflow: hidden;
-}
-#et-mini-heatmap canvas { width: 100% !important; height: 100% !important; }
-
-/* 버튼들 */
-.et-btn-row { display: flex; gap: 6px; }
-.et-btn {
-  flex: 1;
-  padding: 7px 4px;
-  border-radius: 8px;
-  border: 1px solid rgba(79,142,247,0.25);
-  background: rgba(79,142,247,0.08);
-  color: var(--et-accent);
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: var(--font-main);
-  transition: all 0.2s;
-  text-align: center;
-  letter-spacing: 0.04em;
-}
-.et-btn:hover { background: rgba(79,142,247,0.18); border-color: var(--et-accent); }
-.et-btn.danger { color: var(--et-danger); border-color: rgba(224,90,90,0.25); background: rgba(224,90,90,0.06); }
-.et-btn.danger:hover { background: rgba(224,90,90,0.15); }
-.et-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* ── 디버그 패널 ── */
-#et-debug-panel {
-  position: fixed;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.88);
-  border: 1px solid #f55;
-  border-radius: 10px;
-  padding: 8px 14px;
-  font-size: 11px;
-  font-family: monospace;
-  color: #fff;
-  z-index: 99999;
-  display: none;
-  min-width: 320px;
-  max-width: 600px;
-  line-height: 1.7;
-  pointer-events: none;
-}
-#et-debug-panel.show { display: block; }
-#et-debug-panel .dbg-row { display: flex; justify-content: space-between; gap: 12px; }
-#et-debug-panel .dbg-key { color: #facc15; }
-#et-debug-panel .dbg-ok  { color: #4ade80; }
-#et-debug-panel .dbg-err { color: #f87171; }
-#et-debug-panel .dbg-warn { color: #fb923c; }
-#et-debug-panel h4 { color: #f55; margin-bottom: 4px; font-size: 12px; letter-spacing:.05em; }
-
-/* ── 시선 커서 (화면 위 빨간 점) ── */
-#et-gaze-dot {
-  position: fixed;
-  width: 24px; height: 24px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,80,80,1) 0%, rgba(255,80,80,0.6) 40%, transparent 100%);
-  border: 2px solid rgba(255,140,140,0.9);
-  pointer-events: none;
-  z-index: 9999;
-  transform: translate(-50%, -50%);
-  display: none;
-  /* transition 제거 - EMA 스무딩으로 대체 */
-  box-shadow: 0 0 12px rgba(255,60,60,0.8), 0 0 24px rgba(255,60,60,0.3);
-  animation: gaze-pulse 1.2s ease-in-out infinite;
-}
-@keyframes gaze-pulse {
-  0%,100% { transform: translate(-50%,-50%) scale(1); opacity: 1; }
-  50%      { transform: translate(-50%,-50%) scale(1.3); opacity: 0.75; }
-}
-
-/* ── 캘리브레이션 오버레이 ── */
-#et-calib-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(10, 12, 24, 0.93);
-  z-index: 1000;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  backdrop-filter: blur(4px);
-}
-#et-calib-overlay.show { display: flex; }
-
-.calib-overlay-title {
-  font-family: var(--font-display);
-  font-size: 1.6rem;
-  font-weight: 900;
-  color: var(--text-primary);
-  text-align: center;
-}
-.calib-overlay-sub {
-  font-size: 13px;
-  color: var(--text-muted);
-  text-align: center;
-  max-width: 360px;
-  line-height: 1.6;
-}
-
-/* 캘리브레이션 포인트 */
-.calib-point {
-  position: fixed;
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  background: var(--et-accent);
-  border: 3px solid rgba(255,255,255,0.8);
-  cursor: crosshair;
-  transform: translate(-50%, -50%);
-  transition: transform 0.15s, background 0.2s, box-shadow 0.2s;
-  box-shadow: 0 0 0 0 rgba(79,142,247,0.5);
-  z-index: 1001;
-}
-.calib-point:hover {
-  transform: translate(-50%, -50%) scale(1.2);
-  box-shadow: 0 0 0 8px rgba(79,142,247,0.2);
-}
-.calib-point.clicked {
-  background: var(--et-success);
-  transform: translate(-50%, -50%) scale(0.7);
-  box-shadow: 0 0 0 12px rgba(44,182,125,0.15);
-}
-.calib-point.done { display: none; }
-
-/* 캘리브레이션 진행률 */
-#calib-progress-bar {
-  width: 280px; height: 4px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 2px;
-  overflow: hidden;
-}
-#calib-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--et-accent2), var(--et-accent));
-  border-radius: 2px;
-  transition: width 0.4s ease;
-  width: 0%;
-}
-#calib-progress-text {
-  font-size: 12px;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-/* ── 시선 히트맵 (대국 중 보드 오버레이) ── */
-#et-heatmap-canvas {
-  position: fixed;
-  pointer-events: none;
-  z-index: 500;
-  opacity: 0;
-  transition: opacity 0.5s;
-}
-#et-heatmap-canvas.show { opacity: 1; }
-
-/* ── 집중도 게이지 (대국 중 상단 표시) ── */
-#et-focus-bar {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  z-index: 600;
-  background: rgba(0,0,0,0.3);
-}
-#et-focus-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--et-accent2), var(--et-accent), var(--et-success));
-  transition: width 0.8s ease;
-  width: 0%;
-}
-#et-focus-bar.show { display: block; }
-
-/* ── 시선 방향 경고 (화면 이탈) ── */
-#et-away-alert {
-  display: none;
-  position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(240, 80, 80, 0.92);
-  color: #fff;
-  border-radius: 20px;
-  padding: 8px 18px;
-  font-size: 12px;
-  font-weight: 700;
-  z-index: 700;
-  pointer-events: none;
-  letter-spacing: 0.04em;
-  box-shadow: 0 4px 16px rgba(224,90,90,0.4);
-  animation: fadeUp 0.3s ease;
-}
-#et-away-alert.show { display: block; }
-
-/* ── 통계 뱃지 (결과화면에 추가) ── */
-.et-stats-card {
-  background: rgba(18, 22, 38, 0.95);
-  border: 1px solid rgba(79,142,247,0.3);
-  border-radius: 14px;
-  padding: 16px;
-  margin-top: 12px;
-  text-align: left;
-}
-.et-stats-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--et-accent);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.et-stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.et-stat-item { display: flex; flex-direction: column; gap: 2px; }
-.et-stat-val { font-size: 18px; font-weight: 700; color: var(--text-primary); font-family: monospace; }
-.et-stat-lbl { font-size: 10px; color: var(--text-muted); }
-
-/* ══════════════════════════════════════
-   기존 CSS 그대로
-══════════════════════════════════════ */
 
 /* ── 사이드바 ── */
 #sidebar {
@@ -544,46 +158,6 @@ body {
 .time-badge-main { font-size: 15px; font-weight: 700; color: var(--text-primary); }
 .time-badge-sub  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
 
-/* 로비 아이트래커 토글 */
-.et-lobby-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(18,22,38,0.7);
-  border: 1px solid rgba(79,142,247,0.25);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
-  gap: 10px;
-}
-.et-lobby-toggle-info { display: flex; flex-direction: column; gap: 2px; }
-.et-lobby-toggle-title {
-  font-size: 13px; font-weight: 600; color: var(--et-accent);
-  display: flex; align-items: center; gap: 6px;
-}
-.et-lobby-toggle-sub { font-size: 10px; color: var(--text-muted); }
-/* 토글 스위치 */
-.et-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
-.et-switch input { opacity: 0; width: 0; height: 0; }
-.et-slider {
-  position: absolute; inset: 0;
-  background: var(--bg-hover);
-  border-radius: 11px;
-  cursor: pointer;
-  transition: background 0.25s;
-  border: 1px solid var(--border);
-}
-.et-slider::before {
-  content: '';
-  position: absolute;
-  width: 16px; height: 16px;
-  left: 2px; top: 2px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  transition: transform 0.25s, background 0.25s;
-}
-.et-switch input:checked + .et-slider { background: rgba(79,142,247,0.25); border-color: rgba(79,142,247,0.5); }
-.et-switch input:checked + .et-slider::before { transform: translateX(16px); background: var(--et-accent); }
 
 .btn-find {
   width: 100%; padding: 14px;
@@ -688,8 +262,6 @@ body {
 .sq.last-to   { background: rgba(205,210,106,0.7) !important; }
 .sq.in-check  { background: rgba(220,50,50,0.55) !important; }
 
-/* 시선 응시 하이라이트 */
-.sq.gaze-focus { outline: 3px solid rgba(255,80,80,0.85); outline-offset: -3px; background-color: rgba(255,80,80,0.18) !important; }
 
 .sq .piece { pointer-events: none; line-height: 1; }
 .sq {
@@ -856,7 +428,6 @@ body {
     justify-content: space-around;
     padding: 0 4px;
   }
-  #et-panel { bottom: 72px; }
 }
 
 @media (max-width: 1100px) and (min-width: 769px) {
@@ -876,6 +447,28 @@ body {
     width: min(calc(100vw - 16px), calc(100vh - 200px)) !important;
   }
 }
+
+/* ── 우클릭 화살표 오버레이 ── */
+.board-arrow-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 20;
+  overflow: visible;
+}
+
+
+/* ── 우클릭 화살표 오버레이 ── */
+.board-arrow-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 20;
+  overflow: visible;
+}
+
 </style>
 </head>
 <body>
@@ -898,20 +491,6 @@ body {
           <div class="time-badge-main">10분</div>
           <div class="time-badge-sub">증가분 없음 · 래피드</div>
         </div>
-      </div>
-      <!-- 아이트래커 토글 -->
-      <div class="et-lobby-toggle">
-        <div class="et-lobby-toggle-info">
-          <div class="et-lobby-toggle-title">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-            시선 추적 활성화
-          </div>
-          <div class="et-lobby-toggle-sub">WebGazer · 카메라 필요</div>
-        </div>
-        <label class="et-switch">
-          <input type="checkbox" id="et-enable-toggle" onchange="onEyeTrackerToggle(this.checked)">
-          <span class="et-slider"></span>
-        </label>
       </div>
       <button class="btn-find" onclick="startMatchmaking()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
@@ -992,153 +571,11 @@ body {
       </div>
       <button class="btn-again" onclick="showScreen('lobby')">다시 찾기</button>
       <a class="btn-analysis" href="/">분석 보드로 이동</a>
-
-      <!-- 아이트래커 통계 (게임 후) -->
-      <div id="et-result-stats" class="et-stats-card" style="display:none;">
-        <div class="et-stats-title">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-          시선 분석
-        </div>
-        <div class="et-stats-grid">
-          <div class="et-stat-item">
-            <div class="et-stat-val" id="et-stat-focus">—</div>
-            <div class="et-stat-lbl">평균 집중도</div>
-          </div>
-          <div class="et-stat-item">
-            <div class="et-stat-val" id="et-stat-away">—</div>
-            <div class="et-stat-lbl">시선 이탈 횟수</div>
-          </div>
-          <div class="et-stat-item">
-            <div class="et-stat-val" id="et-stat-board">—</div>
-            <div class="et-stat-lbl">보드 응시 비율</div>
-          </div>
-          <div class="et-stat-item">
-            <div class="et-stat-val" id="et-stat-hotzone">—</div>
-            <div class="et-stat-lbl">가장 많이 본 칸</div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
 
 </div><!-- /#main -->
-
-<!-- ══════════════════════════
-     EYE TRACKER UI ELEMENTS
-══════════════════════════ -->
-
-<!-- 시선 커서 -->
-<div id="et-gaze-dot"></div>
-
-<!-- 디버그 패널 -->
-<div id="et-debug-panel">
-  <h4>🔍 WebGazer 디버그</h4>
-  <div class="dbg-row"><span class="dbg-key">webgazer 로드</span><span id="dbg-wg-loaded">확인중...</span></div>
-  <div class="dbg-row"><span class="dbg-key">begin() 호출</span><span id="dbg-begin">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">begin() 결과</span><span id="dbg-begin-result">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">GazeListener 등록</span><span id="dbg-listener">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">onGaze 호출 횟수</span><span id="dbg-gaze-count">0</span></div>
-  <div class="dbg-row"><span class="dbg-key">마지막 gaze x,y (스무딩)</span><span id="dbg-gaze-xy">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">스무딩 α</span><span id="dbg-smooth-alpha">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">gaze-dot display</span><span id="dbg-dot-display">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">gaze-dot z-index</span><span id="dbg-dot-z">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">WG video element</span><span id="dbg-wg-video">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">video srcObject</span><span id="dbg-video-src">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">WG canvas z-index</span><span id="dbg-wg-canvas-z">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">ET.running</span><span id="dbg-running">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">ET.enabled</span><span id="dbg-enabled">-</span></div>
-  <div class="dbg-row"><span class="dbg-key">마지막 오류</span><span id="dbg-last-err" class="dbg-err">-</span></div>
-</div>
-
-<!-- 상단 집중도 바 -->
-<div id="et-focus-bar"><div id="et-focus-fill"></div></div>
-
-<!-- 화면 이탈 경고 -->
-<div id="et-away-alert">👁 시선이 화면을 벗어났습니다</div>
-
-<!-- 히트맵 캔버스 -->
-<canvas id="et-heatmap-canvas"></canvas>
-
-<!-- 아이트래커 컨트롤 패널 -->
-<div id="et-panel">
-  <div id="et-panel-header" onclick="toggleEtPanel()">
-    <div class="et-panel-title">
-      <div class="et-eye-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-      </div>
-      <span>시선 추적</span>
-    </div>
-    <button class="et-toggle-btn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-    </button>
-  </div>
-  <div id="et-panel-body">
-    <!-- 상태 -->
-    <div class="et-status-row">
-      <div class="et-status-dot" id="et-status-dot"></div>
-      <div class="et-status-text" id="et-status-text">비활성화됨</div>
-    </div>
-
-    <!-- 캘리브레이션 진행도 -->
-    <div class="et-calib-section">
-      <div class="et-section-label">캘리브레이션</div>
-      <div class="et-calib-bar"><div class="et-calib-fill" id="et-calib-fill"></div></div>
-    </div>
-
-    <!-- 정확도 -->
-    <div class="et-accuracy-row">
-      <div>
-        <div class="et-acc-val" id="et-acc-val">—</div>
-        <div class="et-acc-label">추적 정확도</div>
-      </div>
-      <div style="text-align:right;">
-        <div class="et-acc-val" id="et-focus-val">—</div>
-        <div class="et-acc-label">집중도</div>
-      </div>
-    </div>
-
-    <!-- 현재 시선 위치 -->
-    <div class="et-accuracy-row" id="et-gaze-pos-row" style="display:none;">
-      <div>
-        <div class="et-acc-val" id="et-gaze-square" style="font-size:14px;letter-spacing:0.05em;">—</div>
-        <div class="et-acc-label">현재 바라보는 칸</div>
-      </div>
-      <div style="text-align:right;">
-        <div class="et-acc-val" id="et-gaze-xy" style="font-size:11px;color:var(--text-muted);">—</div>
-        <div class="et-acc-label">화면 좌표</div>
-      </div>
-    </div>
-
-    <!-- 미니 히트맵 -->
-    <div class="et-heatmap-section">
-      <div class="et-section-label">시선 히트맵</div>
-      <div id="et-mini-heatmap">
-        <canvas id="et-mini-canvas" width="196" height="196"></canvas>
-      </div>
-    </div>
-
-    <!-- 버튼 -->
-    <div class="et-btn-row">
-      <button class="et-btn" id="et-btn-calib" onclick="startCalibration()">캘리브레이션</button>
-      <button class="et-btn" id="et-btn-heatmap" onclick="toggleHeatmap()">히트맵</button>
-    </div>
-    <div class="et-btn-row">
-      <button class="et-btn danger" id="et-btn-stop" onclick="stopEyeTracker()">추적 중지</button>
-    </div>
-  </div>
-</div>
-
-<!-- 캘리브레이션 오버레이 -->
-<div id="et-calib-overlay">
-  <div class="calib-overlay-title">시선 캘리브레이션</div>
-  <div class="calib-overlay-sub" id="et-calib-instruction">
-    화면에 나타나는 <strong style="color:var(--et-accent)">파란 점</strong>을 순서대로 클릭해 주세요.<br>
-    각 점을 바라보면서 클릭하면 더 정확합니다.
-  </div>
-  <div id="calib-progress-bar"><div id="calib-progress-fill"></div></div>
-  <div id="calib-progress-text">0 / 9 완료</div>
-  <button class="et-btn" style="margin-top:8px;width:120px;" onclick="skipCalibration()">건너뛰기</button>
-</div>
 
 <!-- 토스트 -->
 <div id="toast"></div>
@@ -1182,701 +619,6 @@ _auth.onAuthStateChanged(u => {
 });
 function handleLogout() {
   _auth.signOut().then(() => window.location.href = '/auth.html');
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  아이트래커 모듈
-// ══════════════════════════════════════════════════════════════════
-const ET = {
-  enabled: false,
-  running: false,
-  calibrated: false,
-  calibProgress: 0,        // 0~9
-  showHeatmap: false,
-  showDot: true,
-
-  // 통계 수집
-  gazeHistory: [],          // [{x,y,t}]
-
-  // 시선 스무딩 (EMA)
-  _smoothX: null,
-  _smoothY: null,
-  // α값: 0에 가까울수록 부드럽고 느림, 1이면 raw 그대로
-  // 0.10 ≈ 10프레임 평균 효과 → 자연스럽게 부드러움
-  _smoothAlpha: 0.10,
-  boardHits: Array(64).fill(0),  // 각 칸 시선 횟수
-  awayCount: 0,             // 화면 이탈 횟수
-  awayTotal: 0,             // 총 이탈 샘플 수
-  totalSamples: 0,
-
-  // 인터벌
-  _awayTimer: null,
-  _focusInt: null,
-  _miniHeatInt: null,
-  _lastGazeX: null,
-  _lastGazeY: null,
-  _awayConsecutive: 0,
-
-  // 히트맵 데이터 (풀 해상도)
-  heatData: [],
-
-  // 최근 시선이 보드 위에 있는지 여부
-  _onBoard: false,
-
-  // 집중도 (0~100)
-  focusScore: 0,
-
-  // 정확도
-  accuracy: 0,
-
-  // ── 디버그 유틸 ──
-  _dbgCount: 0,
-  _dbgVisible: false,
-
-  toggleDebug() {
-    this._dbgVisible = !this._dbgVisible;
-    const panel = document.getElementById('et-debug-panel');
-    if (panel) panel.classList.toggle('show', this._dbgVisible);
-    if (this._dbgVisible) this._refreshDebug();
-  },
-
-  _dbg(id, val, cls) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = val;
-    el.className = cls || '';
-  },
-
-  _refreshDebug() {
-    // webgazer 로드 여부
-    const wgLoaded = typeof webgazer !== 'undefined';
-    this._dbg('dbg-wg-loaded', wgLoaded ? '✓ 로드됨' : '✗ 없음', wgLoaded ? 'dbg-ok' : 'dbg-err');
-
-    // gaze dot 상태
-    const dot = document.getElementById('et-gaze-dot');
-    if (dot) {
-      const cs = window.getComputedStyle(dot);
-      this._dbg('dbg-dot-display', cs.display + ' / visibility:' + cs.visibility,
-        cs.display === 'none' ? 'dbg-err' : 'dbg-ok');
-      this._dbg('dbg-dot-z', 'z-index:' + cs.zIndex);
-    }
-
-    // WebGazer 생성 요소 확인
-    const wgVideo = document.getElementById('webgazerVideoFeed')
-      || document.querySelector('#webgazerVideoContainer video')
-      || document.querySelector('video');
-    if (wgVideo) {
-      this._dbg('dbg-wg-video', `✓ video (readyState=${wgVideo.readyState})`, wgVideo.readyState >= 2 ? 'dbg-ok' : 'dbg-warn');
-      const hasSrc = !!(wgVideo.srcObject || wgVideo.src);
-      this._dbg('dbg-video-src', hasSrc ? `✓ srcObject:${!!wgVideo.srcObject} src:${!!wgVideo.src}` : '✗ 소스 없음!',
-        hasSrc ? 'dbg-ok' : 'dbg-err');
-    } else {
-      this._dbg('dbg-wg-video', '✗ video 없음', 'dbg-err');
-      this._dbg('dbg-video-src', '-', 'dbg-err');
-    }
-
-    // WebGazer canvas z-index 확인
-    const wgCanvases = document.querySelectorAll('canvas[id^="webgazer"], #webgazerFaceFeedbackBox, #webgazerVideoContainer canvas');
-    let canvasZInfo = '';
-    wgCanvases.forEach(c => {
-      const cs2 = window.getComputedStyle(c);
-      canvasZInfo += (c.id || 'canvas') + ':z' + cs2.zIndex + ' ';
-    });
-    this._dbg('dbg-wg-canvas-z', canvasZInfo || '없음');
-
-    // ET 상태
-    this._dbg('dbg-running', String(ET.running), ET.running ? 'dbg-ok' : 'dbg-warn');
-    this._dbg('dbg-enabled', String(ET.enabled), ET.enabled ? 'dbg-ok' : 'dbg-warn');
-    this._dbg('dbg-gaze-count', String(this._dbgCount));
-  },
-
-  init() {
-    // showVideoPreview는 반드시 true여야 WebGazer가 video 스트림을 생성함
-    // 시각적으로 숨기는 건 CSS로 처리
-    try {
-      webgazer.params.showVideoPreview     = true;  // ← false면 video 스트림 안 만들어짐!
-      webgazer.params.showFaceOverlay      = false;
-      webgazer.params.showFaceFeedbackBox  = false;
-      webgazer.params.saveDataAcrossSessions = false;
-    } catch(e) {}
-  },
-
-  async start() {
-    if (this.running) return;
-    setEtStatus('warning', '카메라 초기화 중...');
-    // 디버그 패널 자동 표시
-    this._dbgVisible = true;
-    const dbgPanel = document.getElementById('et-debug-panel');
-    if (dbgPanel) dbgPanel.classList.add('show');
-    this._dbg('dbg-begin', '시작 전...', 'dbg-warn');
-    this._dbg('dbg-listener', '등록 전...', 'dbg-warn');
-    this._dbg('dbg-begin-result', '대기 중...', 'dbg-warn');
-    this._dbg('dbg-last-err', '-');
-    try {
-      // WebGazer 2.x: 체이닝 미지원, 각각 개별 호출 필요
-      webgazer.setRegression('ridge');
-      webgazer.setTracker('TFFacemesh');
-      // showVideoPreview=true 필수: false면 내부 video 스트림을 아예 안 만듦
-      webgazer.params.showVideoPreview    = true;
-      webgazer.params.showFaceOverlay     = false;
-      webgazer.params.showFaceFeedbackBox = false;
-      webgazer.params.saveDataAcrossSessions = false;
-
-      // GazeListener는 begin() 이후에 등록하는 것이 더 안전 (2.x)
-      this._dbg('dbg-begin', '호출 중...', 'dbg-warn');
-      await webgazer.begin();
-      this._dbg('dbg-begin', '✓ 완료', 'dbg-ok');
-      this._dbg('dbg-begin-result', '성공');
-
-      // begin() 이후 listener 등록
-      webgazer.setGazeListener((data, elapsedTime) => {
-        if (!data) {
-          ET._dbg('dbg-gaze-xy', 'null data 수신', 'dbg-warn');
-          return;
-        }
-        ET._dbgCount++;
-        if (ET._dbgCount <= 5 || ET._dbgCount % 30 === 0) {
-          ET._dbg('dbg-gaze-count', String(ET._dbgCount), 'dbg-ok');
-          ET._dbg('dbg-gaze-xy', Math.round(ET._smoothX||data.x) + ', ' + Math.round(ET._smoothY||data.y) + ' (raw:' + Math.round(data.x) + ',' + Math.round(data.y) + ')', 'dbg-ok');
-          ET._dbg('dbg-smooth-alpha', 'α=' + ET._smoothAlpha + ' (낮을수록 부드러움)');
-          ET._refreshDebug();
-        }
-        ET.onGaze(data.x, data.y, elapsedTime);
-      });
-      this._dbg('dbg-listener', '✓ 등록됨', 'dbg-ok');
-
-      // 내장 비디오 컨테이너가 생성됐으면 직접 스타일 적용
-      // 또한 WebGazer가 생성하는 canvas가 gaze-dot 위를 덮지 않도록 z-index 강제 조정
-      const styleVideo = () => {
-        // webgazerVideoContainer: 카메라 피드가 살아있어야 추적 작동
-        // 화면 좌상단에 작게 표시 (숨기면 추적 안 됨)
-        const vid = document.getElementById('webgazerVideoContainer');
-        if (vid) {
-          vid.style.cssText = `
-            position:fixed!important; top:8px!important; left:8px!important;
-            width:120px!important; height:90px!important;
-            border-radius:8px!important; overflow:hidden!important;
-            border:2px solid rgba(79,142,247,0.5)!important;
-            opacity:1!important; z-index:780!important;
-            box-shadow:0 4px 16px rgba(0,0,0,0.5)!important;
-            display:block!important; visibility:visible!important;
-          `;
-        }
-        // video 요소 자체도 보이게 유지
-        const videoEl = document.getElementById('webgazerVideoFeed')
-          || document.querySelector('#webgazerVideoContainer video');
-        if (videoEl) {
-          videoEl.style.cssText = `
-            display:block!important; visibility:visible!important;
-            width:120px!important; height:90px!important;
-            position:relative!important; z-index:1!important;
-          `;
-          ET._dbg('dbg-wg-video', '✓ video 있음 (readyState=' + videoEl.readyState + ')', 'dbg-ok');
-        }
-        // WebGazer 추가 오버레이는 숨기되 video 자체는 살림
-        ['webgazerFaceOverlay','webgazerFaceFeedbackBox','webgazerGazeDot'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) { el.style.display = 'none'; }
-        });
-        // WebGazer 캔버스 z-index를 gaze-dot(9999)보다 낮게
-        document.querySelectorAll('canvas').forEach(c => {
-          if (c.id === 'et-heatmap-canvas' || c.id === 'et-mini-canvas') return;
-          const cz = parseInt(window.getComputedStyle(c).zIndex) || 0;
-          if (cz > 1000) {
-            c.style.zIndex = '200';
-            c.style.pointerEvents = 'none';
-          }
-        });
-        ET._refreshDebug();
-      };
-      styleVideo();
-      setTimeout(styleVideo, 500);
-      setTimeout(styleVideo, 1500);
-
-      // 3초 후에도 gaze가 0이면 경고 + 상세 진단
-      setTimeout(() => {
-        if (ET._dbgCount === 0 && ET.running) {
-          const videoEl = document.getElementById('webgazerVideoFeed')
-            || document.querySelector('#webgazerVideoContainer video')
-            || document.querySelector('video');
-          const hasVideo = !!videoEl;
-          const readyState = videoEl ? videoEl.readyState : -1;
-          const hasSrcObj = videoEl ? !!videoEl.srcObject : false;
-          const diagMsg = `video:${hasVideo} ready:${readyState} srcObj:${hasSrcObj}`;
-          ET._dbg('dbg-last-err', '3초 후에도 gaze=0. ' + diagMsg, 'dbg-err');
-          ET._dbg('dbg-wg-video', hasVideo ? `video readyState=${readyState} srcObj=${hasSrcObj}` : '✗ video 없음!',
-            hasVideo && readyState >= 2 ? 'dbg-ok' : 'dbg-err');
-          console.warn('[ET] No gaze data after 3s. Video diag:', diagMsg);
-          // 마지막 시도: 리스너 재등록
-          console.log('[ET] Re-registering gaze listener...');
-          webgazer.setGazeListener((data, elapsedTime) => {
-            if (!data) return;
-            ET._dbgCount++;
-            if (ET._dbgCount <= 5 || ET._dbgCount % 30 === 0) {
-              ET._dbg('dbg-gaze-count', String(ET._dbgCount), 'dbg-ok');
-              ET._dbg('dbg-gaze-xy', Math.round(data.x) + ', ' + Math.round(data.y), 'dbg-ok');
-              ET._refreshDebug();
-            }
-            ET.onGaze(data.x, data.y, elapsedTime);
-          });
-          ET._dbg('dbg-listener', '✓ 재등록됨', 'dbg-ok');
-        }
-      }, 3000);
-
-      this.running = true;
-      setEtStatus('active', '시선 추적 중');
-      const gazeDotEl = document.getElementById('et-gaze-dot');
-      gazeDotEl.style.display = 'block';
-      // 강제로 화면 중앙에 테스트 위치 (gaze data 오기 전 보임 확인용)
-      gazeDotEl.style.left = (window.innerWidth/2) + 'px';
-      gazeDotEl.style.top  = (window.innerHeight/2) + 'px';
-      this._dbg('dbg-dot-display', '✓ block (중앙 배치됨)', 'dbg-ok');
-      console.log('[ET Debug] gaze dot shown, element:', gazeDotEl, 'computed:', window.getComputedStyle(gazeDotEl).display);
-      document.getElementById('et-focus-bar').classList.add('show');
-
-      this._startFocusTracking();
-      this._startMiniHeatmap();
-    } catch(e) {
-      const msg = e && e.message ? e.message : String(e);
-      setEtStatus('error', '시작 실패 — 콘솔 확인');
-      this._dbg('dbg-begin-result', '✗ 오류: ' + msg.slice(0,60), 'dbg-err');
-      this._dbg('dbg-last-err', msg.slice(0,80), 'dbg-err');
-      if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('notallowed')) {
-        showToast('카메라 권한을 허용해 주세요 🎥');
-      } else if (msg.toLowerCase().includes('notfound') || msg.toLowerCase().includes('no stream')) {
-        showToast('카메라를 찾을 수 없습니다');
-      } else {
-        showToast('시선 추적 시작 실패: ' + msg.slice(0, 40));
-      }
-      console.error('WebGazer error:', e);
-      // 토글 원상복구
-      const tog = document.getElementById('et-enable-toggle');
-      if (tog) tog.checked = false;
-      ET.enabled = false;
-    }
-  },
-
-  stop() {
-    if (!this.running) return;
-    try { webgazer.end(); } catch(e) {}
-    this.running = false;
-    this.enabled = false;
-    this._smoothX = null;
-    this._smoothY = null;
-    document.getElementById('et-enable-toggle').checked = false;
-    document.getElementById('et-gaze-dot').style.display = 'none';
-    document.getElementById('et-focus-bar').classList.remove('show');
-    document.getElementById('et-away-alert').classList.remove('show');
-    clearInterval(this._focusInt);
-    clearInterval(this._miniHeatInt);
-    clearTimeout(this._awayTimer);
-    setEtStatus('', '비활성화됨');
-    document.getElementById('et-acc-val').textContent  = '—';
-    document.getElementById('et-focus-val').textContent = '—';
-    document.getElementById('et-panel').classList.remove('collapsed');
-    // 비디오 컨테이너 숨기기
-    const vid = document.getElementById('webgazerVideoContainer');
-    if (vid) vid.style.display = 'none';
-  },
-
-  onGaze(rawX, rawY, t) {
-    // ── EMA 스무딩 ──
-    const α = this._smoothAlpha;
-    if (this._smoothX === null) { this._smoothX = rawX; this._smoothY = rawY; }
-    else {
-      this._smoothX = α * rawX + (1 - α) * this._smoothX;
-      this._smoothY = α * rawY + (1 - α) * this._smoothY;
-    }
-    const x = this._smoothX;
-    const y = this._smoothY;
-
-    this._lastGazeX = x;
-    this._lastGazeY = y;
-    this.totalSamples++;
-
-    // 시선 커서 이동 (CSS transition 제거 - 스무딩으로 대체)
-    const dot = document.getElementById('et-gaze-dot');
-    if (dot) {
-      dot.style.left = x + 'px';
-      dot.style.top  = y + 'px';
-    }
-
-    // 패널 좌표 표시 업데이트
-    const xyEl = document.getElementById('et-gaze-xy');
-    if (xyEl) xyEl.textContent = Math.round(x) + ', ' + Math.round(y);
-    const posRow = document.getElementById('et-gaze-pos-row');
-    if (posRow) posRow.style.display = '';
-
-    // 히트맵 데이터
-    this.heatData.push({x, y});
-    if (this.heatData.length > 3000) this.heatData.shift();
-
-    // 화면 이탈 감지 (화면 밖 or 대폭 벗어남)
-    const margin = -40;
-    const outX = x < margin || x > window.innerWidth  - margin;
-    const outY = y < margin || y > window.innerHeight - margin;
-    const away = outX || outY;
-
-    if (away) {
-      this._awayConsecutive++;
-      this.awayTotal++;
-      if (this._awayConsecutive === 5) {
-        this.awayCount++;
-        document.getElementById('et-away-alert').classList.add('show');
-        clearTimeout(this._awayTimer);
-        this._awayTimer = setTimeout(() => {
-          document.getElementById('et-away-alert').classList.remove('show');
-        }, 2000);
-      }
-    } else {
-      this._awayConsecutive = 0;
-    }
-
-    // 보드 히트 체크
-    const bw = document.getElementById('play-board-wrap');
-    if (bw && _gameActive) {
-      const r = bw.getBoundingClientRect();
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
-        this._onBoard = true;
-        const sqW = r.width  / 8;
-        const sqH = r.height / 8;
-        const flipped = _myColor === 'b';
-        let ci = Math.floor((x - r.left)  / sqW);
-        let ri = Math.floor((y - r.top)   / sqH);
-        ci = Math.max(0, Math.min(7, ci));
-        ri = Math.max(0, Math.min(7, ri));
-        const c = flipped ? 7 - ci : ci;
-        const rr = flipped ? 7 - ri : ri;
-        const idx = rr * 8 + c;
-        if (idx >= 0 && idx < 64) this.boardHits[idx]++;
-
-        // 시선 칸 하이라이트
-        this._highlightGazeSquare(rr, c);
-      } else {
-        this._onBoard = false;
-        this._clearGazeHighlight();
-      }
-    }
-
-    // 히스토리
-    this.gazeHistory.push({x, y, t: Date.now()});
-    if (this.gazeHistory.length > 500) this.gazeHistory.shift();
-
-    // 집중도: 보드 위 비율 (최근 60샘플 기준)
-    const recent = this.gazeHistory.slice(-60);
-    if (recent.length > 10) {
-      const bwEl = document.getElementById('play-board-wrap');
-      if (bwEl) {
-        const br = bwEl.getBoundingClientRect();
-        const boardCount = recent.filter(p =>
-          p.x >= br.left && p.x <= br.right && p.y >= br.top && p.y <= br.bottom
-        ).length;
-        this.focusScore = Math.round((boardCount / recent.length) * 100);
-        const fill = document.getElementById('et-focus-fill');
-        if (fill) fill.style.width = this.focusScore + '%';
-        document.getElementById('et-focus-val').textContent = this.focusScore + '%';
-      }
-    }
-
-    // 가상 정확도 (캘리브레이션 포인트 수 기반)
-    if (this.calibProgress > 0) {
-      this.accuracy = Math.min(95, 50 + this.calibProgress * 5);
-      document.getElementById('et-acc-val').textContent = this.accuracy + '%';
-    }
-  },
-
-  _gazeSquare: null,
-  _highlightGazeSquare(r, c) {
-    const key = r + ',' + c;
-    if (this._gazeSquare === key) return;
-    this._clearGazeHighlight();
-    this._gazeSquare = key;
-    const boardEl = document.getElementById('play-board');
-    if (!boardEl) return;
-    for (const sq of boardEl.children) {
-      if (Number(sq.dataset.r) === r && Number(sq.dataset.c) === c) {
-        sq.classList.add('gaze-focus');
-        break;
-      }
-    }
-    // 패널에 현재 칸 표시 (예: e4, d5 등 체스 표기)
-    const file = 'abcdefgh'[c];
-    const rank = 8 - r;
-    const sqEl = document.getElementById('et-gaze-square');
-    if (sqEl) sqEl.textContent = file + rank;
-  },
-  _clearGazeHighlight() {
-    if (!this._gazeSquare) return;
-    const boardEl = document.getElementById('play-board');
-    if (!boardEl) return;
-    for (const sq of boardEl.children) {
-      sq.classList.remove('gaze-focus');
-    }
-    this._gazeSquare = null;
-    const sqEl = document.getElementById('et-gaze-square');
-    if (sqEl) sqEl.textContent = '—';
-  },
-
-  _startFocusTracking() {
-    clearInterval(this._focusInt);
-    this._focusInt = setInterval(() => {
-      if (!this.running) return;
-      updateMiniHeatmap();
-    }, 2000);
-  },
-
-  _startMiniHeatmap() {
-    clearInterval(this._miniHeatInt);
-    this._miniHeatInt = setInterval(() => {
-      if (!this.running) return;
-      drawMiniHeatmap();
-    }, 500);
-  },
-
-  getStats() {
-    const total = this.totalSamples || 1;
-    const boardTotal = this.boardHits.reduce((a,b)=>a+b,0);
-    const boardPct = Math.round((boardTotal / total) * 100);
-    const focusAvg = this.focusScore;
-    const maxHit = this.boardHits.indexOf(Math.max(...this.boardHits));
-    const files = 'abcdefgh';
-    const hotRow = 7 - Math.floor(maxHit / 8);
-    const hotCol = maxHit % 8;
-    const hotZone = files[hotCol] + (hotRow + 1);
-    return {
-      focusAvg,
-      awayCount: this.awayCount,
-      boardPct,
-      hotZone: this.totalSamples > 50 ? hotZone : '—',
-    };
-  },
-
-  reset() {
-    this.gazeHistory   = [];
-    this.boardHits     = Array(64).fill(0);
-    this.awayCount     = 0;
-    this.awayTotal     = 0;
-    this.totalSamples  = 0;
-    this.heatData      = [];
-    this.focusScore    = 0;
-    this._awayConsecutive = 0;
-    const canvas = document.getElementById('et-heatmap-canvas');
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  },
-};
-
-// ── 패널 토글 ──
-function toggleEtPanel() {
-  const panel = document.getElementById('et-panel');
-  panel.classList.toggle('collapsed');
-}
-
-// ── 상태 표시 ──
-function setEtStatus(type, text) {
-  const dot  = document.getElementById('et-status-dot');
-  const txt  = document.getElementById('et-status-text');
-  dot.className = 'et-status-dot' + (type ? ' ' + type : '');
-  txt.textContent = text;
-}
-
-// ── 토글 이벤트 ──
-async function onEyeTrackerToggle(checked) {
-  if (checked) {
-    ET.enabled = true;
-    ET.init();
-    await ET.start();
-    if (ET.running && !ET.calibrated) {
-      // 자동 캘리브레이션 안내
-      showToast('💡 캘리브레이션을 하면 정확도가 높아집니다');
-    }
-  } else {
-    ET.stop();
-  }
-}
-
-// ── 추적 중지 ──
-function stopEyeTracker() {
-  ET.stop();
-  showToast('시선 추적이 중지되었습니다');
-}
-
-// ── 히트맵 토글 ──
-function toggleHeatmap() {
-  ET.showHeatmap = !ET.showHeatmap;
-  const canvas = document.getElementById('et-heatmap-canvas');
-  const btn    = document.getElementById('et-btn-heatmap');
-  if (ET.showHeatmap) {
-    canvas.classList.add('show');
-    btn.textContent = '히트맵 끄기';
-    drawFullHeatmap();
-  } else {
-    canvas.classList.remove('show');
-    btn.textContent = '히트맵';
-  }
-}
-
-// ── 풀 히트맵 그리기 ──
-function drawFullHeatmap() {
-  const canvas = document.getElementById('et-heatmap-canvas');
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
-  canvas.style.left = '0';
-  canvas.style.top  = '0';
-  canvas.style.width  = window.innerWidth  + 'px';
-  canvas.style.height = window.innerHeight + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const radius = 40;
-  ET.heatData.forEach(({x, y}) => {
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-    grad.addColorStop(0,   'rgba(79, 142, 247, 0.04)');
-    grad.addColorStop(0.4, 'rgba(127, 90, 240, 0.025)');
-    grad.addColorStop(1,   'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-  });
-}
-
-// ── 미니 히트맵 ──
-function drawMiniHeatmap() {
-  const canvas = document.getElementById('et-mini-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
-
-  // 보드 배경 그리기
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      ctx.fillStyle = (r + c) % 2 === 0 ? '#f0d9b5' : '#b58863';
-      ctx.globalAlpha = 0.3;
-      ctx.fillRect(c * (W/8), r * (H/8), W/8, H/8);
-    }
-  }
-  ctx.globalAlpha = 1;
-
-  // 보드 위 시선만 미니맵에 투영
-  const bwEl = document.getElementById('play-board-wrap');
-  if (!bwEl || ET.heatData.length === 0) return;
-  const br = bwEl.getBoundingClientRect();
-  if (br.width === 0) return;
-
-  const recent = ET.heatData.slice(-200);
-  recent.forEach(({x, y}) => {
-    const nx = ((x - br.left) / br.width)  * W;
-    const ny = ((y - br.top)  / br.height) * H;
-    if (nx < 0 || ny < 0 || nx > W || ny > H) return;
-    const grad = ctx.createRadialGradient(nx, ny, 0, nx, ny, 14);
-    grad.addColorStop(0, 'rgba(79, 142, 247, 0.35)');
-    grad.addColorStop(1, 'rgba(79, 142, 247, 0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(nx - 14, ny - 14, 28, 28);
-  });
-}
-function updateMiniHeatmap() { drawMiniHeatmap(); }
-
-// ══════════════════════════════════════════
-//  캘리브레이션
-// ══════════════════════════════════════════
-const CALIB_POINTS = [
-  [0.05, 0.05], [0.5, 0.05], [0.95, 0.05],
-  [0.05, 0.5 ], [0.5, 0.5 ], [0.95, 0.5 ],
-  [0.05, 0.95], [0.5, 0.95], [0.95, 0.95],
-];
-let _calibIdx = 0;
-let _calibPoints = [];
-
-function startCalibration() {
-  if (!ET.running) {
-    showToast('먼저 시선 추적을 활성화하세요');
-    return;
-  }
-  _calibIdx = 0;
-  ET.calibProgress = 0;
-  updateCalibProgress(0);
-
-  // 기존 포인트 제거
-  _calibPoints.forEach(p => p.remove());
-  _calibPoints = [];
-
-  // 오버레이 표시
-  document.getElementById('et-calib-overlay').classList.add('show');
-  document.getElementById('et-calib-instruction').innerHTML =
-    '화면에 나타나는 <strong style="color:var(--et-accent)">파란 점</strong>을 순서대로 클릭해 주세요.<br>각 점을 바라보면서 클릭하면 더 정확합니다.';
-
-  // 포인트 생성
-  CALIB_POINTS.forEach((pos, i) => {
-    const dot = document.createElement('div');
-    dot.className = 'calib-point';
-    dot.style.left = (pos[0] * 100) + '%';
-    dot.style.top  = (pos[1] * 100) + '%';
-    dot.dataset.idx = i;
-    dot.style.opacity = i === 0 ? '1' : '0.25';
-    dot.style.pointerEvents = i === 0 ? 'auto' : 'none';
-    dot.onclick = () => onCalibPointClick(i, dot);
-    document.body.appendChild(dot);
-    _calibPoints.push(dot);
-  });
-}
-
-function onCalibPointClick(i, dot) {
-  if (i !== _calibIdx) return;
-  dot.classList.add('clicked');
-  // WebGazer에 클릭 좌표를 학습 데이터로 등록
-  const x = parseFloat(dot.style.left) / 100 * window.innerWidth;
-  const y = parseFloat(dot.style.top)  / 100 * window.innerHeight;
-  try { webgazer.recordScreenPosition(x, y, 'click'); } catch(e) {}
-
-  _calibIdx++;
-  ET.calibProgress = _calibIdx;
-  updateCalibProgress(_calibIdx);
-
-  setTimeout(() => {
-    dot.classList.add('done');
-    if (_calibIdx < CALIB_POINTS.length) {
-      const next = _calibPoints[_calibIdx];
-      if (next) {
-        next.style.opacity = '1';
-        next.style.pointerEvents = 'auto';
-      }
-    } else {
-      finishCalibration();
-    }
-  }, 300);
-}
-
-function updateCalibProgress(n) {
-  const fill = document.getElementById('calib-progress-fill');
-  const text = document.getElementById('calib-progress-text');
-  if (fill) fill.style.width = (n / CALIB_POINTS.length * 100) + '%';
-  if (text) text.textContent = `${n} / ${CALIB_POINTS.length} 완료`;
-  // 패널 바 업데이트
-  const panelFill = document.getElementById('et-calib-fill');
-  if (panelFill) panelFill.style.width = (n / CALIB_POINTS.length * 100) + '%';
-}
-
-function finishCalibration() {
-  ET.calibrated = true;
-  document.getElementById('et-calib-instruction').innerHTML =
-    '✅ <strong style="color:var(--et-success)">캘리브레이션 완료!</strong><br>정확한 시선 추적이 시작됩니다.';
-  setTimeout(() => {
-    document.getElementById('et-calib-overlay').classList.remove('show');
-    _calibPoints.forEach(p => p.remove());
-    _calibPoints = [];
-    setEtStatus('active', '캘리브레이션 완료 · 추적 중');
-    showToast('👁 시선 캘리브레이션이 완료되었습니다!');
-  }, 1200);
-}
-
-function skipCalibration() {
-  document.getElementById('et-calib-overlay').classList.remove('show');
-  _calibPoints.forEach(p => p.remove());
-  _calibPoints = [];
-  showToast('캘리브레이션을 건너뛰었습니다');
 }
 
 // ══════════════════════════════════════════
@@ -2099,8 +841,6 @@ function renderBoard() {
     }
   }
 
-  // 히트맵 업데이트
-  if (ET.showHeatmap) drawFullHeatmap();
 }
 
 // ══════════════════════════════════════════
@@ -2292,8 +1032,6 @@ let _queueRef = null, _searchInt = null;
 
 async function startMatchmaking() {
   if (!_user || _gameActive) return;
-  // 아이트래커가 켜져 있으면 게임 시작 시 리셋
-  if (ET.running) { ET.reset(); }
   showScreen('searching');
   let elapsed = 0;
   _searchInt = setInterval(() => {
@@ -2552,15 +1290,6 @@ function endGame(status) {
   document.getElementById('result-title').textContent = title;
   document.getElementById('result-reason').textContent = reason;
 
-  // ── 아이트래커 결과 통계 표시 ──
-  if (ET.running && ET.totalSamples > 30) {
-    const stats = ET.getStats();
-    document.getElementById('et-result-stats').style.display = 'block';
-    document.getElementById('et-stat-focus').textContent  = stats.focusAvg + '%';
-    document.getElementById('et-stat-away').textContent   = stats.awayCount + '회';
-    document.getElementById('et-stat-board').textContent  = stats.boardPct + '%';
-    document.getElementById('et-stat-hotzone').textContent = stats.hotZone;
-  }
 
   showScreen('result');
 }
@@ -2593,18 +1322,11 @@ async function saveRecord(result) {
     const today = new Date().toISOString().slice(0,10);
     const fullPgn = `[White "${whiteName}"]\n[Black "${blackName}"]\n[Result "${resultStr}"]\n[Date "${today}"]\n\n${pgn} ${resultStr}`;
 
-    // 아이트래커 통계도 함께 저장
-    let etData = null;
-    if (ET.running && ET.totalSamples > 30) {
-      etData = ET.getStats();
-    }
-
     await _fbDb.collection('game_records').add({
       uid: _user.uid, playerName: myName, gameId: _gameId || '',
       myColor: _myColor, whiteName, blackName,
       result: resultStr, resultRaw: result,
       moveCount: _sanMoves.length, pgn: fullPgn,
-      eyeTracking: etData,
       playedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   } catch(e) { console.warn('기보 저장 실패', e); }
@@ -2622,17 +1344,6 @@ function showScreen(name) {
     document.body.classList.add('playing');
   } else {
     document.body.classList.remove('playing');
-    // 히트맵 숨기기
-    const canvas = document.getElementById('et-heatmap-canvas');
-    if (canvas) canvas.classList.remove('show');
-    ET.showHeatmap = false;
-    const btn = document.getElementById('et-btn-heatmap');
-    if (btn) btn.textContent = '히트맵';
-  }
-  // ET 패널: 로비에선 숨기고 그 외엔 표시
-  const etPanel = document.getElementById('et-panel');
-  if (etPanel) {
-    etPanel.style.display = (name === 'lobby') ? 'none' : (ET.enabled ? 'block' : 'none');
   }
 }
 
@@ -2644,31 +1355,353 @@ function showToast(msg, duration=2500) {
 }
 
 // ── 초기화 ──
-window.addEventListener('resize', () => {
-  if (ET.showHeatmap) drawFullHeatmap();
-});
 
-// ET 패널 초기 숨기기
-document.getElementById('et-panel').style.display = 'none';
 
-// 키보드 단축키: D 키로 디버그 패널 토글
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'd' || e.key === 'D') {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    ET.toggleDebug();
+
+</script>
+<script>
+// ══════════════════════════════════════════════════════
+//  우클릭 화살표 그리기
+// ══════════════════════════════════════════════════════
+(function() {
+  const ARROW_COLOR = 'rgba(255, 165, 0, 0.88)';
+  const ARROW_SW    = 14;   // stroke-width (viewBox 800 기준)
+  const MARKER_ID   = 'user-arrow-head';
+
+  let _arrowStart = null;  // { col, row } in viewBox coords
+  let _userArrows = [];    // { fromCol, fromRow, toCol, toRow }
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  // SVG 오버레이 생성 (보드 위에 올림)
+  function ensureSvg() {
+    let svg = document.getElementById('user-arrow-svg-play');
+    if (svg) return svg;
+
+    const board = document.getElementById('play-board');
+    if (!board) return null;
+
+    // wrap container
+    let wrap = board.parentElement;
+    if (!wrap || wrap.style.position === '' || getComputedStyle(wrap).position === 'static') {
+      // chessboard 자체에 relative 부모가 없으면 board에 래퍼 사용
+      wrap = board;
+    }
+
+    svg = document.createElementNS(SVG_NS, 'svg');
+    svg.id = 'user-arrow-svg-play';
+    svg.setAttribute('viewBox', '0 0 800 800');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('xmlns', SVG_NS);
+    svg.classList.add('board-arrow-overlay');
+
+    // defs + marker
+    const defs = document.createElementNS(SVG_NS, 'defs');
+    const marker = document.createElementNS(SVG_NS, 'marker');
+    marker.setAttribute('id', MARKER_ID);
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    marker.setAttribute('markerWidth', '4');
+    marker.setAttribute('markerHeight', '4');
+    marker.setAttribute('refX', '2.5');
+    marker.setAttribute('refY', '2');
+    marker.setAttribute('orient', 'auto');
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', 'M0,0 L4,2 L0,4 L1,2 Z');
+    path.setAttribute('fill', ARROW_COLOR);
+    path.setAttribute('stroke', 'none');
+    marker.appendChild(path);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.id = 'user-arrow-svg-play-arrows';
+    svg.appendChild(g);
+
+    wrap.appendChild(svg);
+    // wrap이 relative여야 overlay가 정확히 들어감
+    if (getComputedStyle(wrap).position === 'static') {
+      wrap.style.position = 'relative';
+    }
+    return svg;
   }
-});
 
-// 페이지 로드 시 webgazer 로드 여부 표시
-window.addEventListener('load', () => {
-  const wgLoaded = typeof webgazer !== 'undefined';
-  console.log('[ET Debug] webgazer loaded:', wgLoaded);
-  if (!wgLoaded) {
-    console.error('[ET Debug] webgazer is NOT defined! Check CDN URL.');
+  // viewBox 칸 중심 좌표 반환 (0-indexed col/row, 100px per square)
+  function sqCenter(col, row) {
+    return { px: col * 100 + 50, py: row * 100 + 50 };
+  }
+
+  // 화살표 하나 그리기
+  function makeArrow(fromCol, fromRow, toCol, toRow, color, markerId, sw) {
+    const from = sqCenter(fromCol, fromRow);
+    const to   = sqCenter(toCol, toRow);
+    const dx = to.px - from.px, dy = to.py - from.py;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    if (len < 1) return null;
+    const ux = dx / len, uy = dy / len;
+    const startOffset = sw * 1.2;
+    const endOffset   = sw * 2.5;
+    const sx = from.px + ux * startOffset;
+    const sy = from.py + uy * startOffset;
+    const ex = to.px   - ux * endOffset;
+    const ey = to.py   - uy * endOffset;
+    if (Math.sqrt((ex-sx)**2+(ey-sy)**2) < 5) return null;
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', sx.toFixed(2)); line.setAttribute('y1', sy.toFixed(2));
+    line.setAttribute('x2', ex.toFixed(2)); line.setAttribute('y2', ey.toFixed(2));
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', sw);
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('marker-end', 'url(#' + markerId + ')');
+    return line;
+  }
+
+  function redrawArrows() {
+    const g = document.getElementById('user-arrow-svg-play-arrows');
+    if (!g) return;
+    g.innerHTML = '';
+    _userArrows.forEach(a => {
+      const el = makeArrow(a.fromCol, a.fromRow, a.toCol, a.toRow, ARROW_COLOR, MARKER_ID, ARROW_SW);
+      if (el) g.appendChild(el);
+    });
+  }
+
+  // 보드 기준 칸 좌표 계산
+  function getBoardSquare(e) {
+    const board = document.getElementById('play-board');
+    if (!board) return null;
+    const rect = board.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+    const col = Math.floor(x / rect.width  * 8);
+    const row = Math.floor(y / rect.height * 8);
+    return { col: Math.max(0,Math.min(7,col)), row: Math.max(0,Math.min(7,row)) };
+  }
+
+  // 플립(흑 시점) 여부 감지 — 보드 안의 첫 칸 data-r/data-c로 판단
+  function isFlipped() {
+    const board = document.getElementById('play-board');
+    if (!board) return false;
+    const sq = board.querySelector('[data-r]');
+    if (!sq) return false;
+    return Number(sq.dataset.r) !== 0 || Number(sq.dataset.c) !== 7;
+  }
+
+  // 이벤트 등록 (DOMContentLoaded or 즉시)
+  function attachEvents() {
+    const board = document.getElementById('play-board');
+    if (!board) { setTimeout(attachEvents, 300); return; }
+    ensureSvg();
+
+    board.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      const sq = getBoardSquare(e);
+      if (!sq) return;
+      _arrowStart = sq;
+    });
+
+    board.addEventListener('mouseup', function(e) {
+      if (e.button !== 2) return;
+      if (!_arrowStart) return;
+      const sq = getBoardSquare(e);
+      ensureSvg();
+      if (sq) {
+        if (sq.col === _arrowStart.col && sq.row === _arrowStart.row) {
+          // 같은 칸 → 모든 화살표 지우기
+          _userArrows = [];
+        } else {
+          // 중복 체크: 같은 화살표면 제거(토글), 아니면 추가
+          const key = sq.col + ',' + sq.row + '<-' + _arrowStart.col + ',' + _arrowStart.row;
+          const idx = _userArrows.findIndex(a =>
+            a.fromCol===_arrowStart.col && a.fromRow===_arrowStart.row &&
+            a.toCol===sq.col && a.toRow===sq.row
+          );
+          if (idx >= 0) _userArrows.splice(idx, 1);
+          else _userArrows.push({ fromCol:_arrowStart.col, fromRow:_arrowStart.row, toCol:sq.col, toRow:sq.row });
+        }
+        redrawArrows();
+      }
+      _arrowStart = null;
+    });
+
+    // 좌클릭 시 화살표 초기화
+    board.addEventListener('mousedown', function(e) {
+      if (e.button === 0) {
+        _userArrows = [];
+        redrawArrows();
+        _arrowStart = null;
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attachEvents);
   } else {
-    console.log('[ET Debug] webgazer version info:', Object.keys(webgazer).slice(0,10));
+    attachEvents();
   }
-});
+})();
+</script>
+<script>
+// ══════════════════════════════════════════════════════
+//  우클릭 화살표 그리기
+// ══════════════════════════════════════════════════════
+(function() {
+  const ARROW_COLOR = 'rgba(255, 165, 0, 0.88)';
+  const ARROW_SW    = 14;
+  const MARKER_ID   = 'user-arrow-svg-play-head';
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  let _arrowStart = null;
+  let _userArrows = [];
+
+  function ensureSvg() {
+    // chess-wasm-fixed / study-opening 등 기존 SVG overlay 재사용
+    const existingSvg = document.getElementById('board-svg-overlay');
+    if (existingSvg && !document.getElementById('user-arrow-svg-play-arrows')) {
+      let defs = existingSvg.querySelector('defs');
+      if (!defs) { defs = document.createElementNS(SVG_NS,'defs'); existingSvg.prepend(defs); }
+      if (!document.getElementById(MARKER_ID)) {
+        const mk = document.createElementNS(SVG_NS, 'marker');
+        mk.setAttribute('id', MARKER_ID); mk.setAttribute('markerUnits', 'strokeWidth');
+        mk.setAttribute('markerWidth', '4'); mk.setAttribute('markerHeight', '4');
+        mk.setAttribute('refX', '2.5'); mk.setAttribute('refY', '2');
+        mk.setAttribute('orient', 'auto');
+        const mp = document.createElementNS(SVG_NS, 'path');
+        mp.setAttribute('d', 'M0,0 L4,2 L0,4 L1,2 Z');
+        mp.setAttribute('fill', ARROW_COLOR); mp.setAttribute('stroke', 'none');
+        mk.appendChild(mp); defs.appendChild(mk);
+      }
+      const g2 = document.createElementNS(SVG_NS, 'g');
+      g2.id = 'user-arrow-svg-play-arrows';
+      existingSvg.appendChild(g2);
+      return existingSvg;
+    }
+    if (existingSvg) return existingSvg;
+
+    let svg = document.getElementById('user-arrow-svg-play');
+    if (svg) return svg;
+
+    const board = document.getElementById('play-board');
+    if (!board) return null;
+    let wrap = board.parentElement;
+    if (!wrap || getComputedStyle(wrap).position === 'static') wrap = board;
+
+    svg = document.createElementNS(SVG_NS, 'svg');
+    svg.id = 'user-arrow-svg-play';
+    svg.setAttribute('viewBox', '0 0 800 800');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.classList.add('board-arrow-overlay');
+
+    const defs = document.createElementNS(SVG_NS, 'defs');
+    const mk = document.createElementNS(SVG_NS, 'marker');
+    mk.setAttribute('id', MARKER_ID); mk.setAttribute('markerUnits', 'strokeWidth');
+    mk.setAttribute('markerWidth', '4'); mk.setAttribute('markerHeight', '4');
+    mk.setAttribute('refX', '2.5'); mk.setAttribute('refY', '2');
+    mk.setAttribute('orient', 'auto');
+    const mp = document.createElementNS(SVG_NS, 'path');
+    mp.setAttribute('d', 'M0,0 L4,2 L0,4 L1,2 Z');
+    mp.setAttribute('fill', ARROW_COLOR); mp.setAttribute('stroke', 'none');
+    mk.appendChild(mp); defs.appendChild(mk); svg.appendChild(defs);
+
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.id = 'user-arrow-svg-play-arrows';
+    svg.appendChild(g);
+    wrap.appendChild(svg);
+    if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+    return svg;
+  }
+
+  function sqCenter(col, row) { return { px: col * 100 + 50, py: row * 100 + 50 }; }
+
+  function makeArrow(fromCol, fromRow, toCol, toRow) {
+    const from = sqCenter(fromCol, fromRow);
+    const to   = sqCenter(toCol, toRow);
+    const dx = to.px - from.px, dy = to.py - from.py;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    if (len < 1) return null;
+    const ux = dx/len, uy = dy/len;
+    const sw = ARROW_SW;
+    const sx = from.px + ux*sw*1.2, sy = from.py + uy*sw*1.2;
+    const ex = to.px   - ux*sw*2.5, ey = to.py   - uy*sw*2.5;
+    if (Math.sqrt((ex-sx)**2+(ey-sy)**2) < 5) return null;
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('x1', sx.toFixed(2)); line.setAttribute('y1', sy.toFixed(2));
+    line.setAttribute('x2', ex.toFixed(2)); line.setAttribute('y2', ey.toFixed(2));
+    line.setAttribute('stroke', ARROW_COLOR);
+    line.setAttribute('stroke-width', sw);
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('marker-end', 'url(#' + MARKER_ID + ')');
+    return line;
+  }
+
+  function redrawArrows() {
+    const g = document.getElementById('user-arrow-svg-play-arrows');
+    if (!g) return;
+    g.innerHTML = '';
+    _userArrows.forEach(a => {
+      const el = makeArrow(a.fromCol, a.fromRow, a.toCol, a.toRow);
+      if (el) g.appendChild(el);
+    });
+  }
+
+  function getBoardSquare(e) {
+    const board = document.getElementById('play-board');
+    if (!board) return null;
+    const rect = board.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+    return {
+      col: Math.max(0, Math.min(7, Math.floor(x / rect.width  * 8))),
+      row: Math.max(0, Math.min(7, Math.floor(y / rect.height * 8)))
+    };
+  }
+
+  function attachEvents() {
+    const board = document.getElementById('play-board');
+    if (!board) { setTimeout(attachEvents, 300); return; }
+    ensureSvg();
+
+    board.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      const sq = getBoardSquare(e);
+      if (sq) _arrowStart = sq;
+    });
+
+    board.addEventListener('mouseup', function(e) {
+      if (e.button !== 2) return;
+      if (!_arrowStart) return;
+      const sq = getBoardSquare(e);
+      ensureSvg();
+      if (sq) {
+        if (sq.col === _arrowStart.col && sq.row === _arrowStart.row) {
+          _userArrows = [];
+        } else {
+          const idx = _userArrows.findIndex(a =>
+            a.fromCol===_arrowStart.col && a.fromRow===_arrowStart.row &&
+            a.toCol===sq.col && a.toRow===sq.row
+          );
+          if (idx >= 0) _userArrows.splice(idx, 1);
+          else _userArrows.push({ fromCol:_arrowStart.col, fromRow:_arrowStart.row, toCol:sq.col, toRow:sq.row });
+        }
+        redrawArrows();
+      }
+      _arrowStart = null;
+    });
+
+    board.addEventListener('mousedown', function(e) {
+      if (e.button === 0) {
+        _userArrows = [];
+        redrawArrows();
+        _arrowStart = null;
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attachEvents);
+  } else {
+    attachEvents();
+  }
+})();
 </script>
 </body>
 </html>
