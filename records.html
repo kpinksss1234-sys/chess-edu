@@ -1327,14 +1327,21 @@ let _arrowDragStart=null,_arrowRightDragging=false;
 
 // ── Firebase 화살표 저장 ──────────────────
 async function saveArrowsToFirebase(){
-  if(!_fbDb||!_user||!_currentRecord?.id)return;
+  if(!_fbDb){console.warn('[arrows] _fbDb 없음');return;}
+  if(!_user){console.warn('[arrows] _user 없음');return;}
+  if(!_currentRecord?.id){console.warn('[arrows] _currentRecord.id 없음',_currentRecord);return;}
   try{
-    // 빈 배열 키 제거해서 compact하게 저장
     const toSave={};
     Object.entries(_moveArrows).forEach(([k,v])=>{if(v&&v.length>0)toSave[k]=v;});
+    console.log('[arrows] 저장 시도:', _currentRecord.id, toSave);
+    // update 대신 set+merge 사용 (필드 없어도 생성)
     await _fbDb.collection('game_records').doc(_currentRecord.id)
-      .update({moveArrows: toSave});
-  }catch(e){console.warn('[arrows] 저장 실패',e);}
+      .set({moveArrows: toSave}, {merge:true});
+    console.log('[arrows] 저장 성공');
+  }catch(e){
+    console.error('[arrows] 저장 실패:', e.code, e.message);
+    showToast('화살표 저장 실패: '+e.message, 3000);
+  }
 }
 
 // ── Firebase 화살표 불러오기 ──────────────
