@@ -16,8 +16,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
-<!-- WebGazer.js -->
-<script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+<!-- WebGazer.js (npm 2.0.1 — TFFacemesh + MediaPipe assets bundled via jsDelivr) -->
+<script src="https://cdn.jsdelivr.net/npm/webgazer@2.0.1/dist/webgazer.min.js"></script>
 
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1171,12 +1171,11 @@ const ET = {
     if (this.running) return;
     setEtStatus('warning', '카메라 초기화 중...');
     try {
-      // ── 핵심 수정 ──
-      // TFFacemesh(MediaPipe) 대신 clmtrackr 사용 → 로컬 파일 불필요
+      // TFFacemesh는 WebGazer 2.x의 유일한 트래커
       // setRegression/setTracker는 begin() 이전에 호출해야 함
       webgazer
         .setRegression('ridge')
-        .setTracker('clmtrackr')
+        .setTracker('TFFacemesh')
         .showVideoPreview(false)
         .showFaceOverlay(false)
         .showFaceFeedbackBox(false);
