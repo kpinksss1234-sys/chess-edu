@@ -685,8 +685,12 @@ async function loadRecords(){
         _fbDb.collection('game_records').where('uid','==',_user.uid).orderBy('playedAt','desc').limit(50).get()
       );
     }catch(e1){
-      console.warn('[loadRecords] 1차 쿼리 실패, 재시도:', e1.message);
-      // 2차 시도: orderBy 없이 (인덱스 미생성 or 타임아웃 후 재시도)
+      // 인덱스 미생성 시 링크 안내
+      if(e1.message&&e1.message.includes('index')){
+        console.info('%c[Firebase] 복합 인덱스를 생성하면 정렬이 더 빨라집니다\n%c▶ https://console.firebase.google.com/v1/r/project/chess-education-464fc/firestore/indexes?create_composite=Clpwcm9qZWN0cy9jaGVzcy1lZHVjYXRpb24tNDY0ZmMvZGF0YWJhc2VzLyhkZWZhdWx0KS9jb2xsZWN0aW9uR3JvdXBzL2dhbWVfcmVjb3Jkcy9pbmRleGVzL18QARoHCgN1aWQQARoMCghwbGF5ZWRBdBACGgwKCF9fbmFtZV9fEAI',
+          'color:#e0b040;font-weight:bold','color:#7fa650;text-decoration:underline');
+      }
+      // 2차 시도: orderBy 없이
       try{
         snap=await withTimeout(
           _fbDb.collection('game_records').where('uid','==',_user.uid).limit(50).get()
@@ -739,7 +743,8 @@ function openRecord(doc,itemEl){
   if(!doc.pgn){showToast('기보 데이터가 없습니다');return;}
   _states=parsePgnToStates(doc.pgn);
   if(!_states.length){showToast('기보 파싱 실패');return;}
-  _moveArrows={}; // ← 새 게임 열 때 화살표 초기화
+  _moveArrows={}; // 초기화 후 Firebase에서 불러오기
+  loadArrowsFromFirebase(doc.id);
   const myName=_viewMyColor==='w'?(doc.whiteName||'나'):(doc.blackName||'나');
   const oppName=_viewMyColor==='w'?(doc.blackName||'상대'):(doc.whiteName||'상대');
   document.getElementById('vp-my-name').textContent=myName;
@@ -1320,6 +1325,38 @@ const FILES_ARR=['a','b','c','d','e','f','g','h'];
 let _moveArrows={};
 let _arrowDragStart=null,_arrowRightDragging=false;
 
+// ── Firebase 화살표 저장 ──────────────────
+async function saveArrowsToFirebase(){
+  if(!_fbDb||!_user||!_currentRecord?.id)return;
+  try{
+    // 빈 배열 키 제거해서 compact하게 저장
+    const toSave={};
+    Object.entries(_moveArrows).forEach(([k,v])=>{if(v&&v.length>0)toSave[k]=v;});
+    await _fbDb.collection('game_records').doc(_currentRecord.id)
+      .update({moveArrows: toSave});
+  }catch(e){console.warn('[arrows] 저장 실패',e);}
+}
+
+// ── Firebase 화살표 불러오기 ──────────────
+async function loadArrowsFromFirebase(docId){
+  if(!_fbDb||!_user||!docId)return;
+  try{
+    const snap=await _fbDb.collection('game_records').doc(docId).get();
+    const data=snap.data();
+    if(data&&data.moveArrows){
+      // 키가 문자열로 저장되므로 숫자로 변환
+      const loaded={};
+      Object.entries(data.moveArrows).forEach(([k,v])=>{loaded[parseInt(k)]=v;});
+      _moveArrows=loaded;
+    }else{
+      _moveArrows={};
+    }
+    redrawViewerArrows();
+    renderMoveTokens();
+    highlightMoveToken(_viewIdx);
+  }catch(e){console.warn('[arrows] 불러오기 실패',e);}
+}
+
 // 칸 이름 (col=0→a, row=0→rank8)
 function sqName(col,row){ return FILES_ARR[col]+(8-row); }
 
@@ -1397,6 +1434,7 @@ function getViewerBoardSq(e){
           redrawViewerArrows();
           renderMoveTokens();
           highlightMoveToken(_viewIdx);
+          saveArrowsToFirebase(); // 초기화도 Firebase에 반영
         }
         _arrowDragStart=null;_arrowRightDragging=false;
       }
@@ -1431,6 +1469,7 @@ function getViewerBoardSq(e){
       redrawViewerArrows();
       renderMoveTokens();          // 배지 업데이트
       highlightMoveToken(_viewIdx); // active 클래스 복원
+      saveArrowsToFirebase();       // Firebase에 영구 저장
     });
   }
   if(document.readyState==='loading'){
