@@ -84,6 +84,17 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
 .vp-result-label.lose{background:rgba(192,64,64,.15);color:#e07070}
 .vp-result-label.draw{background:rgba(160,160,160,.12);color:var(--text-secondary)}
 #viewer-board-wrap{width:100%;max-width:560px;aspect-ratio:1;position:relative}
+/* ── 화살표 오버레이 ── */
+.board-arrow-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+/* ── 수 어노테이션 배지 ── */
+.move-arrow-badge{display:inline-flex;align-items:center;gap:2px;font-size:9px;color:rgba(255,165,0,.9);margin-left:3px;vertical-align:middle;cursor:default}
+.move-arrow-badge svg{flex-shrink:0}
+/* ── 후보수 툴팁 ── */
+.move-candidates{display:none;position:absolute;background:var(--bg-card);border:1px solid rgba(255,165,0,.5);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--text-primary);z-index:200;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);pointer-events:none}
+.move-candidate-item{display:flex;align-items:center;gap:6px;padding:2px 0}
+.move-candidate-arrow{color:rgba(255,165,0,.9);font-size:12px}
+.move-candidate-sq{font-weight:700;color:#fff;font-family:monospace}
+.move-san{position:relative}
 #viewer-board{width:100%;height:100%;display:grid;grid-template-columns:repeat(8,1fr);border:2px solid var(--border-light);border-radius:4px;overflow:hidden;user-select:none}
 .vsq{aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative}
 .vsq.light{background:var(--board-light)}.vsq.dark{background:var(--board-dark)}
@@ -405,7 +416,17 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
         <div class="vp-result-label" id="vp-opp-result"></div>
       </div>
       <div class="viewer-main">
-        <div id="viewer-board-wrap"><div id="viewer-board"></div></div>
+        <div id="viewer-board-wrap"><div id="viewer-board"></div>
+          <!-- 화살표 SVG 오버레이 -->
+          <svg id="viewer-arrow-svg" class="board-arrow-overlay" viewBox="0 0 800 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="viewer-arrow-head" markerUnits="strokeWidth" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto">
+                <path d="M0,0 L4,2 L0,4 L1,2 Z" fill="rgba(255,165,0,0.92)" stroke="none"/>
+              </marker>
+            </defs>
+            <g id="viewer-arrow-layer"></g>
+          </svg>
+        </div>
         <div class="viewer-side">
           <div class="viewer-controls">
             <button class="ctrl-btn" id="btn-first" onclick="goToMove(0)"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6H8V18H6ZM9.5 12L18 18V6L9.5 12Z" transform="scale(-1,1) translate(-24,0)"/></svg></button>
@@ -718,6 +739,7 @@ function openRecord(doc,itemEl){
   if(!doc.pgn){showToast('기보 데이터가 없습니다');return;}
   _states=parsePgnToStates(doc.pgn);
   if(!_states.length){showToast('기보 파싱 실패');return;}
+  _moveArrows={}; // ← 새 게임 열 때 화살표 초기화
   const myName=_viewMyColor==='w'?(doc.whiteName||'나'):(doc.blackName||'나');
   const oppName=_viewMyColor==='w'?(doc.blackName||'상대'):(doc.whiteName||'상대');
   document.getElementById('vp-my-name').textContent=myName;
@@ -761,6 +783,7 @@ function goToMove(idx){
   const prevIdx=_viewIdx;
   idx=Math.max(0,Math.min(_states.length-1,idx));_viewIdx=idx;
   renderViewerBoard();updateControls();highlightMoveToken(idx);
+  redrawViewerArrows(); // ← 화살표 다시 그리기
   if(idx>prevIdx&&idx>0){const st=getViewSoundType(_states[idx]);if(st)playViewSound(st);}
   const at=document.querySelector('.move-san.active');if(at)at.scrollIntoView({block:'nearest',inline:'nearest'});
 }
@@ -781,6 +804,15 @@ function renderMoveTokens(){
     }
     const ss=document.createElement('span');ss.className='move-san';ss.textContent=san;ss.dataset.idx=i;
     ss.addEventListener('click',()=>goToMove(i));
+    // ── 화살표 배지 ──
+    const arrows=_moveArrows[i];
+    if(arrows&&arrows.length>0){
+      const badge=document.createElement('span');
+      badge.className='move-arrow-badge';
+      badge.title=arrows.map(a=>sqName(a.fromCol,a.fromRow)+'→'+sqName(a.toCol,a.toRow)).join(', ');
+      badge.innerHTML=`<svg width="9" height="9" viewBox="0 0 10 10"><line x1="1" y1="9" x2="9" y2="1" stroke="rgba(255,165,0,.9)" stroke-width="1.8" stroke-linecap="round" marker-end="url(#badge-arrow-head)"/><defs><marker id="badge-arrow-head" markerUnits="strokeWidth" markerWidth="3" markerHeight="3" refX="1.5" refY="1.5" orient="auto"><path d="M0,0 L3,1.5 L0,3 L0.8,1.5 Z" fill="rgba(255,165,0,.9)"/></marker></defs></svg><span style="font-size:9px">${arrows.length}</span>`;
+      ss.appendChild(badge);
+    }
     if(!currentRow){
       currentRow=document.createElement('div');
       currentRow.className='move-row';
@@ -1278,6 +1310,134 @@ function renderStatsHTML(s){
     <div style="height:32px"></div>
   `;
 }
+
+// ════════════════════════════════════════
+// 화살표 시스템 (우클릭 드래그)
+// chess-wasm-fixed.html 동일 방식
+// ════════════════════════════════════════
+const FILES_ARR=['a','b','c','d','e','f','g','h'];
+// 수 인덱스 → 화살표 배열 { fromCol,fromRow,toCol,toRow }
+let _moveArrows={};
+let _arrowDragStart=null,_arrowRightDragging=false;
+
+// 칸 이름 (col=0→a, row=0→rank8)
+function sqName(col,row){ return FILES_ARR[col]+(8-row); }
+
+// 800×800 viewBox 기준 칸 중앙 좌표 (뒤집기 고려)
+function viewerSqCenter(col,row){
+  const flipped=_viewMyColor==='b';
+  const dispCol=flipped?7-col:col;
+  const dispRow=flipped?7-row:row;
+  return{px:dispCol*100+50,py:dispRow*100+50};
+}
+
+// SVG line 화살표 요소 생성
+function makeViewerArrowEl(fromCol,fromRow,toCol,toRow){
+  const ARROW_COLOR='rgba(255,165,0,0.92)';
+  const ARROW_SW=14;
+  const SVG_NS='http://www.w3.org/2000/svg';
+  const from=viewerSqCenter(fromCol,fromRow);
+  const to=viewerSqCenter(toCol,toRow);
+  const dx=to.px-from.px,dy=to.py-from.py;
+  const len=Math.sqrt(dx*dx+dy*dy);if(len<1)return null;
+  const ux=dx/len,uy=dy/len;
+  const sx=from.px+ux*ARROW_SW*1.1,sy=from.py+uy*ARROW_SW*1.1;
+  const ex=to.px-ux*ARROW_SW*2.4,ey=to.py-uy*ARROW_SW*2.4;
+  if(Math.sqrt((ex-sx)**2+(ey-sy)**2)<5)return null;
+  const line=document.createElementNS(SVG_NS,'line');
+  line.setAttribute('x1',sx.toFixed(2));line.setAttribute('y1',sy.toFixed(2));
+  line.setAttribute('x2',ex.toFixed(2));line.setAttribute('y2',ey.toFixed(2));
+  line.setAttribute('stroke',ARROW_COLOR);
+  line.setAttribute('stroke-width',ARROW_SW);
+  line.setAttribute('stroke-linecap','round');
+  line.setAttribute('marker-end','url(#viewer-arrow-head)');
+  return line;
+}
+
+// 현재 수(_viewIdx)의 화살표를 SVG에 다시 그리기
+function redrawViewerArrows(){
+  const g=document.getElementById('viewer-arrow-layer');
+  if(!g)return;
+  g.innerHTML='';
+  const arrows=_moveArrows[_viewIdx]||[];
+  arrows.forEach(a=>{
+    const el=makeViewerArrowEl(a.fromCol,a.fromRow,a.toCol,a.toRow);
+    if(el)g.appendChild(el);
+  });
+}
+
+// 마우스 위치 → 보드 칸(col,row) 변환 (뒤집기 적용)
+function getViewerBoardSq(e){
+  const board=document.getElementById('viewer-board');if(!board)return null;
+  const rect=board.getBoundingClientRect();
+  const x=Math.max(0,Math.min(rect.width-1,e.clientX-rect.left));
+  const y=Math.max(0,Math.min(rect.height-1,e.clientY-rect.top));
+  const dispCol=Math.floor(x/rect.width*8);
+  const dispRow=Math.floor(y/rect.height*8);
+  const flipped=_viewMyColor==='b';
+  return{col:flipped?7-dispCol:dispCol,row:flipped?7-dispRow:dispRow};
+}
+
+// 이벤트 연결 (보드 준비 후 실행)
+(function attachViewerArrowEvents(){
+  function init(){
+    const board=document.getElementById('viewer-board');
+    if(!board){setTimeout(init,300);return;}
+
+    board.addEventListener('contextmenu',e=>e.preventDefault());
+
+    board.addEventListener('mousedown',e=>{
+      if(e.button===2){
+        _arrowRightDragging=true;
+        _arrowDragStart=getViewerBoardSq(e);
+      }else if(e.button===0){
+        // 좌클릭: 현재 수 화살표 전체 초기화
+        if(_moveArrows[_viewIdx]&&_moveArrows[_viewIdx].length>0){
+          _moveArrows[_viewIdx]=[];
+          redrawViewerArrows();
+          renderMoveTokens();
+          highlightMoveToken(_viewIdx);
+        }
+        _arrowDragStart=null;_arrowRightDragging=false;
+      }
+    });
+
+    document.addEventListener('mouseup',e=>{
+      if(e.button!==2)return;
+      if(!_arrowRightDragging||!_arrowDragStart){
+        _arrowRightDragging=false;_arrowDragStart=null;return;
+      }
+      _arrowRightDragging=false;
+      const sq=getViewerBoardSq(e);
+      if(!sq){_arrowDragStart=null;return;}
+      const start=_arrowDragStart;_arrowDragStart=null;
+
+      if(!_moveArrows[_viewIdx])_moveArrows[_viewIdx]=[];
+      const arr=_moveArrows[_viewIdx];
+
+      if(sq.col===start.col&&sq.row===start.row){
+        // 같은 칸: 이 수 화살표 전체 삭제
+        _moveArrows[_viewIdx]=[];
+      }else{
+        // 토글: 같은 화살표면 제거, 없으면 추가
+        const idx=arr.findIndex(a=>
+          a.fromCol===start.col&&a.fromRow===start.row&&
+          a.toCol===sq.col&&a.toRow===sq.row
+        );
+        if(idx>=0)arr.splice(idx,1);
+        else arr.push({fromCol:start.col,fromRow:start.row,toCol:sq.col,toRow:sq.row});
+      }
+
+      redrawViewerArrows();
+      renderMoveTokens();          // 배지 업데이트
+      highlightMoveToken(_viewIdx); // active 클래스 복원
+    });
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',init);
+  }else{init();}
+})();
+
 </script>
 
 <!-- 모바일 하단 내비게이션 -->
