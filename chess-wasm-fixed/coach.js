@@ -386,7 +386,9 @@ async function askCoach() {
 function buildCommentaryPrompt(ctx) {
   const lines = [];
 
-  lines.push(`아래 체스 포지션 데이터를 보고, 체스인사이드 유튜브 채널처럼 자연스럽고 생동감 있는 한국어 해설을 작성해주세요.`);
+  lines.push(`아래 체스 포지션 데이터를 보고, 체스인사이드 유튜브 채널 스타일로 해설을 작성하세요.`);
+  lines.push(`체스인사이드 스타일이란: 수를 하나씩 짚으면서 왜 그 수가 좋은지/나쁜지 이유와 결과를 설명하는 것입니다.`);
+  lines.push(`예시 문체: "근데 이거는 인간적인 관점에서는 쉽지 않은 수라고 느껴지긴 합니다.", "비숍이 c5 칸으로 빠져나가는 거죠. 나이트의 공격에서 벗어나면서", "이게 핀에 걸려있었기 때문에 비숍이 잡히고, 그다음 룩까지도 내주는 상황이지만, 나이트 하나 돌려받고요.", "밝은색 칸에 대한 공략으로 흑이 괜찮은 주도권을 확보할 수 있다고 하거든요."`);
   lines.push(``);
   lines.push(`[포지션 데이터]`);
   lines.push(`게임 단계: ${ctx.phase} | 진행 수: ${ctx.moveCount}수 | 차례: ${ctx.turn === 'w' ? '백(White)' : '흑(Black)'}`);
@@ -402,7 +404,7 @@ function buildCommentaryPrompt(ctx) {
   if (ctx.line2)    lines.push(`[엔진 2순위 라인] ${ctx.line2}`);
   if (ctx.line3)    lines.push(`[엔진 3순위 라인] ${ctx.line3}`);
 
-  // 위협 패널 데이터 (체스인사이드 Idea→Problem→Solution 구조)
+  // 위협 패널 데이터
   if (ctx.threatData) {
     lines.push(``);
     lines.push(`[위협 분석 데이터 — 해설에 반드시 반영할 것]`);
@@ -426,28 +428,28 @@ function buildCommentaryPrompt(ctx) {
   lines.push(`FEN: ${ctx.fen}`);
 
   lines.push(``);
-  lines.push(`[해설 작성 지침]`);
-  lines.push(`스톡피시 엔진 라인과 위협 분석 데이터(핵심 계획/문제점/최선책)를 함께 참고하여, 체스인사이드 스타일로 해설하세요.`);
-  lines.push(`위협 분석 데이터가 있다면 **위협 & 아이디어** 섹션에 반드시 녹여서 작성하세요. 핵심 계획→문제점→최선책 흐름을 자연스러운 한국어로 풀어서 설명하세요.`);
-  lines.push(`해설은 반드시 **포지션 상황** 섹션으로 시작합니다.`);
-  lines.push(`그 뒤로는 포지션의 특성에 따라 아래 섹션들을 필요한 것만 선택해서 작성하세요:`);
-  lines.push(``);
-  lines.push(`- **약점 분석** : 백 또는 흑에게 구체적인 구조적/전략적 약점이 존재할 때만 작성. 균형 잡힌 오프닝 초반처럼 약점이 불분명하면 생략.`);
-  lines.push(`- **강점 분석** : 한쪽이 공간적 우위, 기물 활동성, 폰 구조 등에서 뚜렷한 강점을 가질 때만 작성. 특이사항이 없으면 생략.`);
-  lines.push(`- **위협 & 아이디어** : 즉각적인 위협(전술, 포크, 핀, 킹 안전 위협 등)이나 중요한 전략적 아이디어가 있을 때만 작성. 아무것도 없으면 생략.`);
-  lines.push(`- **최선수 분석** : 엔진 1순위 첫 수를 항상 분석. 최선수 이유 분석 데이터가 있으면 그 이유들을 자연스러운 문장으로 풀어서 설명하고, 이후 수순과 연결하세요. 데이터가 없으면 엔진 라인에서 직접 이유 2~3가지를 도출하세요.`);
-  lines.push(`- **이후 수순** : 앞으로 전개될 핵심 흐름과 양 측의 계획을 해설.`);
+  lines.push(`[해설 작성 필수 규칙]`);
+  lines.push(`1. 엔진 라인의 수를 하나씩 짚으면서 왜 그 수인지 이유를 설명하세요. 막연하게 "중앙을 장악한다", "기물 발전을 돕는다" 같은 클리셰는 금지. 구체적인 전술적/위치적 이유를 서술하세요.`);
+  lines.push(`2. 최선수가 인간적으로 두기 어렵거나 직관에 반하는 수라면 반드시 그 점을 언급하세요: "인간적인 관점에서는 쉽지 않은 수이지만" 같은 표현 사용.`);
+  lines.push(`3. 핀, 포크, 스큐어, 색깔 약점, 개방 파일, 루크 침투, 폰 구조 등 구체적인 체스 개념을 자연스럽게 녹여서 설명하세요.`);
+  lines.push(`4. 엔진 최선 수순을 따라가면서 각 수의 의도와 결과를 설명하세요. 단순히 나열하지 말고 흐름을 보여주세요.`);
+  lines.push(`5. 위협 분석 데이터가 있으면 **위협 & 아이디어** 섹션에 자연스러운 문장으로 풀어서 작성하세요.`);
+  lines.push(`6. 해설은 반드시 **포지션 상황** 섹션으로 시작합니다.`);
+  lines.push(`7. 그 뒤로는 포지션의 특성에 따라 아래 섹션들을 필요한 것만 선택하세요:`);
+  lines.push(`   - **약점 분석**: 구체적 약점이 있을 때만`);
+  lines.push(`   - **강점 분석**: 뚜렷한 강점이 있을 때만`);
+  lines.push(`   - **위협 & 아이디어**: 즉각적 위협 또는 중요한 전략적 아이디어가 있을 때`);
+  lines.push(`   - **최선수 분석**: 항상 포함. 엔진 1순위 수를 왜 두는지 구체적으로 설명.`);
+  lines.push(`   - **이후 수순**: 앞으로 전개될 흐름과 양 측의 계획`);
   lines.push(``);
   lines.push(`[형식 규칙]`);
   lines.push(`- 출력 언어: 한국어만 (체스 수 표기 e4, Nf3, O-O 등은 영문 유지)`);
-  lines.push(`- cp/평가점수/승률 수치 절대 금지. 수 표기(e4, Nf3)는 예외`);
-  lines.push(`- 말투: 체스인사이드처럼 편안하고 흥미롭게`);
-  lines.push(`- 섹션 헤더 형식: 반드시 **헤더명** 형태로만 쓰세요. 예: **포지션 상황**, **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**`);
-  lines.push(`- 섹션 헤더는 항상 새 줄에서 시작하고, 헤더와 본문 사이에 줄바꿈 하나를 넣으세요.`);
-  lines.push(`- 절대로 ** 없이 평문으로 섹션 이름을 쓰지 마세요. 모든 섹션 구분은 반드시 **헤더명** 패턴만 사용합니다.`);
-  lines.push(`- 한 섹션의 본문 안에 다른 섹션 이름(약점 분석, 최선수 분석 등)을 절대 포함하지 마세요.`);
-  lines.push(`- 각 섹션 1~3문장, 전체 400~600자`);
-  lines.push(`- 반드시 엔진 라인의 실제 수 표기를 그대로 쓸 것. 수를 생략하거나 "이 수", "해당 수"처럼 모호하게 쓰지 말 것`);
+  lines.push(`- cp/평가점수/승률 수치 절대 금지`);
+  lines.push(`- 섹션 헤더 형식: 반드시 **헤더명** 형태만. 예: **포지션 상황**, **최선수 분석**`);
+  lines.push(`- 섹션 헤더는 항상 새 줄에서 시작, 헤더와 본문 사이에 줄바꿈 하나`);
+  lines.push(`- 한 섹션의 본문 안에 다른 섹션 이름을 절대 포함하지 말 것`);
+  lines.push(`- 각 섹션 2~4문장, 전체 500~700자`);
+  lines.push(`- 반드시 엔진 라인의 실제 수 표기를 그대로 쓸 것. "이 수", "해당 수"처럼 모호하게 쓰지 말 것`);
   lines.push(`- 플레이스홀더(<<_0>> 등) 절대 금지`);
 
   return lines.join('\n');
@@ -498,13 +500,19 @@ function buildCoachPrompt(ctx, question) {
 
 // 포지션 해설 전용 API 호출
 async function callCommentaryAPI(ctx) {
-  const SYSTEM = `You are a Korean-language chess commentator in the style of the YouTube channel "ChessInside".
-Always respond ONLY in Korean (한국어). Chess move notation (e4, Nf3, O-O, dxc4) stays in English/algebraic form.
-Never output Japanese, Chinese, Arabic, or any non-Korean script.
-Never output numerical evaluation scores (cp, centipawn, win rate percentages).
-Only use these section headers (use only what is relevant): **포지션 상황**, **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**.
-Never output placeholders like <<_0>> or <<1>>.
-Talk like an enthusiastic chess analyst explaining to viewers: observation → reason → consequence.`;
+  const SYSTEM = `You are a Korean-language chess commentator in the style of the YouTube channel "ChessInside" (체스인사이드).
+
+STYLE RULES — follow these exactly:
+- Speak like a knowledgeable coach talking to a viewer during a live game review. Conversational, vivid, analytical.
+- Always explain the concrete reason behind a move: what tactical or strategic idea it serves, what threat it creates or avoids.
+- When discussing engine lines, explain them step by step: "여기서 비숍이 c5로 빠져나가는 거죠. 그러면 백은 Nb3로 비숍을 다시 노릴 수 있는데, 이때 흑이 폰을 잡는 게 최선입니다. 핀에 걸려 비숍이 잡히고 룩도 내주지만, 나이트를 돌려받고 나서 밝은색 칸에 대한 공략 주도권을 잡을 수 있거든요."
+- Use phrases like: "이 수가 좋은 이유는", "~하기 때문에", "~를 노리는 거죠", "충분히 괜찮은 수라고 볼 수 있어요", "인간적인 관점에서는 쉽지 않은 수이지만", "여기서 핵심은", "위협적인 플레이도 되겠고".
+- Mention piece activity, pawn structure, color complexes, pins, forks, key squares naturally as a coach would.
+- Always name specific moves using algebraic notation. Never say "이 수" or "해당 수" — always give the actual move.
+- Never output numerical scores (cp, win%).
+- Only use these section headers: **포지션 상황**, **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**.
+- Never output placeholders like <<_0>>.
+- Output ONLY in Korean (한국어). Chess move notation stays in English algebraic form.`;
 
   const prompt = buildCommentaryPrompt(ctx);
   return callGroqAPIWithSystem(SYSTEM, prompt, 900);
