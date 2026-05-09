@@ -272,7 +272,7 @@ body {
   z-index: 9999;
   transform: translate(-50%, -50%);
   display: none;
-  transition: left 0.05s linear, top 0.05s linear;
+  /* transition 제거 - EMA 스무딩으로 대체 */
   box-shadow: 0 0 12px rgba(255,60,60,0.8), 0 0 24px rgba(255,60,60,0.3);
   animation: gaze-pulse 1.2s ease-in-out infinite;
 }
@@ -1038,7 +1038,8 @@ body {
   <div class="dbg-row"><span class="dbg-key">begin() 결과</span><span id="dbg-begin-result">-</span></div>
   <div class="dbg-row"><span class="dbg-key">GazeListener 등록</span><span id="dbg-listener">-</span></div>
   <div class="dbg-row"><span class="dbg-key">onGaze 호출 횟수</span><span id="dbg-gaze-count">0</span></div>
-  <div class="dbg-row"><span class="dbg-key">마지막 gaze x,y</span><span id="dbg-gaze-xy">-</span></div>
+  <div class="dbg-row"><span class="dbg-key">마지막 gaze x,y (스무딩)</span><span id="dbg-gaze-xy">-</span></div>
+  <div class="dbg-row"><span class="dbg-key">스무딩 α</span><span id="dbg-smooth-alpha">-</span></div>
   <div class="dbg-row"><span class="dbg-key">gaze-dot display</span><span id="dbg-dot-display">-</span></div>
   <div class="dbg-row"><span class="dbg-key">gaze-dot z-index</span><span id="dbg-dot-z">-</span></div>
   <div class="dbg-row"><span class="dbg-key">WG video element</span><span id="dbg-wg-video">-</span></div>
@@ -1196,6 +1197,13 @@ const ET = {
 
   // 통계 수집
   gazeHistory: [],          // [{x,y,t}]
+
+  // 시선 스무딩 (EMA)
+  _smoothX: null,
+  _smoothY: null,
+  // α값: 0에 가까울수록 부드럽고 느림, 1이면 raw 그대로
+  // 0.10 ≈ 10프레임 평균 효과 → 자연스럽게 부드러움
+  _smoothAlpha: 0.10,
   boardHits: Array(64).fill(0),  // 각 칸 시선 횟수
   awayCount: 0,             // 화면 이탈 횟수
   awayTotal: 0,             // 총 이탈 샘플 수
@@ -1329,7 +1337,8 @@ const ET = {
         ET._dbgCount++;
         if (ET._dbgCount <= 5 || ET._dbgCount % 30 === 0) {
           ET._dbg('dbg-gaze-count', String(ET._dbgCount), 'dbg-ok');
-          ET._dbg('dbg-gaze-xy', Math.round(data.x) + ', ' + Math.round(data.y), 'dbg-ok');
+          ET._dbg('dbg-gaze-xy', Math.round(ET._smoothX||data.x) + ', ' + Math.round(ET._smoothY||data.y) + ' (raw:' + Math.round(data.x) + ',' + Math.round(data.y) + ')', 'dbg-ok');
+          ET._dbg('dbg-smooth-alpha', 'α=' + ET._smoothAlpha + ' (낮을수록 부드러움)');
           ET._refreshDebug();
         }
         ET.onGaze(data.x, data.y, elapsedTime);
@@ -1452,6 +1461,8 @@ const ET = {
     try { webgazer.end(); } catch(e) {}
     this.running = false;
     this.enabled = false;
+    this._smoothX = null;
+    this._smoothY = null;
     document.getElementById('et-enable-toggle').checked = false;
     document.getElementById('et-gaze-dot').style.display = 'none';
     document.getElementById('et-focus-bar').classList.remove('show');
@@ -1468,12 +1479,22 @@ const ET = {
     if (vid) vid.style.display = 'none';
   },
 
-  onGaze(x, y, t) {
+  onGaze(rawX, rawY, t) {
+    // ── EMA 스무딩 ──
+    const α = this._smoothAlpha;
+    if (this._smoothX === null) { this._smoothX = rawX; this._smoothY = rawY; }
+    else {
+      this._smoothX = α * rawX + (1 - α) * this._smoothX;
+      this._smoothY = α * rawY + (1 - α) * this._smoothY;
+    }
+    const x = this._smoothX;
+    const y = this._smoothY;
+
     this._lastGazeX = x;
     this._lastGazeY = y;
     this.totalSamples++;
 
-    // 시선 커서 이동
+    // 시선 커서 이동 (CSS transition 제거 - 스무딩으로 대체)
     const dot = document.getElementById('et-gaze-dot');
     if (dot) {
       dot.style.left = x + 'px';
