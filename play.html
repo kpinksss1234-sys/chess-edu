@@ -1042,6 +1042,7 @@ body {
   <div class="dbg-row"><span class="dbg-key">gaze-dot display</span><span id="dbg-dot-display">-</span></div>
   <div class="dbg-row"><span class="dbg-key">gaze-dot z-index</span><span id="dbg-dot-z">-</span></div>
   <div class="dbg-row"><span class="dbg-key">WG video element</span><span id="dbg-wg-video">-</span></div>
+  <div class="dbg-row"><span class="dbg-key">video srcObject</span><span id="dbg-video-src">-</span></div>
   <div class="dbg-row"><span class="dbg-key">WG canvas z-index</span><span id="dbg-wg-canvas-z">-</span></div>
   <div class="dbg-row"><span class="dbg-key">ET.running</span><span id="dbg-running">-</span></div>
   <div class="dbg-row"><span class="dbg-key">ET.enabled</span><span id="dbg-enabled">-</span></div>
@@ -1253,9 +1254,18 @@ const ET = {
     }
 
     // WebGazer 생성 요소 확인
-    const wgVideo = document.getElementById('webgazerVideoFeed') || document.querySelector('video[id^="webgazer"]');
-    this._dbg('dbg-wg-video', wgVideo ? '✓ video 있음 (readyState=' + wgVideo.readyState + ')' : '✗ video 없음',
-      wgVideo ? 'dbg-ok' : 'dbg-warn');
+    const wgVideo = document.getElementById('webgazerVideoFeed')
+      || document.querySelector('#webgazerVideoContainer video')
+      || document.querySelector('video');
+    if (wgVideo) {
+      this._dbg('dbg-wg-video', `✓ video (readyState=${wgVideo.readyState})`, wgVideo.readyState >= 2 ? 'dbg-ok' : 'dbg-warn');
+      const hasSrc = !!(wgVideo.srcObject || wgVideo.src);
+      this._dbg('dbg-video-src', hasSrc ? `✓ srcObject:${!!wgVideo.srcObject} src:${!!wgVideo.src}` : '✗ 소스 없음!',
+        hasSrc ? 'dbg-ok' : 'dbg-err');
+    } else {
+      this._dbg('dbg-wg-video', '✗ video 없음', 'dbg-err');
+      this._dbg('dbg-video-src', '-', 'dbg-err');
+    }
 
     // WebGazer canvas z-index 확인
     const wgCanvases = document.querySelectorAll('canvas[id^="webgazer"], #webgazerFaceFeedbackBox, #webgazerVideoContainer canvas');
@@ -1273,9 +1283,10 @@ const ET = {
   },
 
   init() {
-    // WebGazer 기본 내장 UI 모두 끄기 (직접 렌더링)
+    // showVideoPreview는 반드시 true여야 WebGazer가 video 스트림을 생성함
+    // 시각적으로 숨기는 건 CSS로 처리
     try {
-      webgazer.params.showVideoPreview     = false;
+      webgazer.params.showVideoPreview     = true;  // ← false면 video 스트림 안 만들어짐!
       webgazer.params.showFaceOverlay      = false;
       webgazer.params.showFaceFeedbackBox  = false;
       webgazer.params.saveDataAcrossSessions = false;
@@ -1297,7 +1308,8 @@ const ET = {
       // WebGazer 2.x: 체이닝 미지원, 각각 개별 호출 필요
       webgazer.setRegression('ridge');
       webgazer.setTracker('TFFacemesh');
-      webgazer.params.showVideoPreview    = false;
+      // showVideoPreview=true 필수: false면 내부 video 스트림을 아예 안 만듦
+      webgazer.params.showVideoPreview    = true;
       webgazer.params.showFaceOverlay     = false;
       webgazer.params.showFaceFeedbackBox = false;
       webgazer.params.saveDataAcrossSessions = false;
@@ -1327,32 +1339,42 @@ const ET = {
       // 내장 비디오 컨테이너가 생성됐으면 직접 스타일 적용
       // 또한 WebGazer가 생성하는 canvas가 gaze-dot 위를 덮지 않도록 z-index 강제 조정
       const styleVideo = () => {
+        // webgazerVideoContainer: 카메라 피드가 살아있어야 추적 작동
+        // 화면 좌상단에 작게 표시 (숨기면 추적 안 됨)
         const vid = document.getElementById('webgazerVideoContainer');
         if (vid) {
           vid.style.cssText = `
             position:fixed!important; top:8px!important; left:8px!important;
-            width:130px!important; height:80px!important;
-            border-radius:10px!important; overflow:hidden!important;
-            border:1px solid rgba(79,142,247,0.35)!important;
-            opacity:0.85!important; z-index:790!important;
-            box-shadow:0 4px 16px rgba(0,0,0,0.4)!important;
-            display:block!important;
+            width:120px!important; height:90px!important;
+            border-radius:8px!important; overflow:hidden!important;
+            border:2px solid rgba(79,142,247,0.5)!important;
+            opacity:1!important; z-index:780!important;
+            box-shadow:0 4px 16px rgba(0,0,0,0.5)!important;
+            display:block!important; visibility:visible!important;
           `;
         }
-        // WebGazer가 삽입하는 캔버스/오버레이의 z-index를 gaze-dot(9999)보다 낮게 설정
-        ['webgazerFaceOverlay','webgazerFaceFeedbackBox',
-         'webgazerGazeDot','webgazerVideoCanvas','webgazer-canvas'].forEach(id => {
+        // video 요소 자체도 보이게 유지
+        const videoEl = document.getElementById('webgazerVideoFeed')
+          || document.querySelector('#webgazerVideoContainer video');
+        if (videoEl) {
+          videoEl.style.cssText = `
+            display:block!important; visibility:visible!important;
+            width:120px!important; height:90px!important;
+            position:relative!important; z-index:1!important;
+          `;
+          ET._dbg('dbg-wg-video', '✓ video 있음 (readyState=' + videoEl.readyState + ')', 'dbg-ok');
+        }
+        // WebGazer 추가 오버레이는 숨기되 video 자체는 살림
+        ['webgazerFaceOverlay','webgazerFaceFeedbackBox','webgazerGazeDot'].forEach(id => {
           const el = document.getElementById(id);
-          if (el) {
-            el.style.zIndex = '100';
-            el.style.pointerEvents = 'none';
-            if (id !== 'webgazerVideoCanvas') el.style.display = 'none';
-          }
+          if (el) { el.style.display = 'none'; }
         });
-        // id 없는 webgazer canvas 도 처리
-        document.querySelectorAll('canvas[data-webgazer], canvas[style*="position: fixed"]').forEach(c => {
-          if (c.id !== 'et-heatmap-canvas' && c.id !== 'et-mini-canvas') {
-            c.style.zIndex = '100';
+        // WebGazer 캔버스 z-index를 gaze-dot(9999)보다 낮게
+        document.querySelectorAll('canvas').forEach(c => {
+          if (c.id === 'et-heatmap-canvas' || c.id === 'et-mini-canvas') return;
+          const cz = parseInt(window.getComputedStyle(c).zIndex) || 0;
+          if (cz > 1000) {
+            c.style.zIndex = '200';
             c.style.pointerEvents = 'none';
           }
         });
@@ -1360,7 +1382,37 @@ const ET = {
       };
       styleVideo();
       setTimeout(styleVideo, 500);
-      setTimeout(styleVideo, 1500);  // 비동기 DOM 삽입 대비
+      setTimeout(styleVideo, 1500);
+
+      // 3초 후에도 gaze가 0이면 경고 + 상세 진단
+      setTimeout(() => {
+        if (ET._dbgCount === 0 && ET.running) {
+          const videoEl = document.getElementById('webgazerVideoFeed')
+            || document.querySelector('#webgazerVideoContainer video')
+            || document.querySelector('video');
+          const hasVideo = !!videoEl;
+          const readyState = videoEl ? videoEl.readyState : -1;
+          const hasSrcObj = videoEl ? !!videoEl.srcObject : false;
+          const diagMsg = `video:${hasVideo} ready:${readyState} srcObj:${hasSrcObj}`;
+          ET._dbg('dbg-last-err', '3초 후에도 gaze=0. ' + diagMsg, 'dbg-err');
+          ET._dbg('dbg-wg-video', hasVideo ? `video readyState=${readyState} srcObj=${hasSrcObj}` : '✗ video 없음!',
+            hasVideo && readyState >= 2 ? 'dbg-ok' : 'dbg-err');
+          console.warn('[ET] No gaze data after 3s. Video diag:', diagMsg);
+          // 마지막 시도: 리스너 재등록
+          console.log('[ET] Re-registering gaze listener...');
+          webgazer.setGazeListener((data, elapsedTime) => {
+            if (!data) return;
+            ET._dbgCount++;
+            if (ET._dbgCount <= 5 || ET._dbgCount % 30 === 0) {
+              ET._dbg('dbg-gaze-count', String(ET._dbgCount), 'dbg-ok');
+              ET._dbg('dbg-gaze-xy', Math.round(data.x) + ', ' + Math.round(data.y), 'dbg-ok');
+              ET._refreshDebug();
+            }
+            ET.onGaze(data.x, data.y, elapsedTime);
+          });
+          ET._dbg('dbg-listener', '✓ 재등록됨', 'dbg-ok');
+        }
+      }, 3000);
 
       this.running = true;
       setEtStatus('active', '시선 추적 중');
