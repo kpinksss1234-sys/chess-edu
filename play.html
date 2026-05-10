@@ -516,30 +516,15 @@ body {
       <!-- 화살표 SVG 오버레이 -->
       <svg id="play-arrow-svg" class="board-arrow-overlay" viewBox="0 0 800 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <!-- 후보수 화살표 머리 (주황) -->
           <marker id="play-arrow-head" markerUnits="strokeWidth" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto">
             <path d="M0,0 L4,2 L0,4 L1,2 Z" fill="rgba(255,165,0,0.92)" stroke="none"/>
-          </marker>
-          <!-- 수순 화살표 머리 (파랑) -->
-          <marker id="play-arrow-head-seq" markerUnits="strokeWidth" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto">
-            <path d="M0,0 L4,2 L0,4 L1,2 Z" fill="rgba(80,160,255,0.92)" stroke="none"/>
           </marker>
         </defs>
         <g id="play-arrow-layer"></g>
       </svg>
     </div>
-    <!-- 화살표 범례 -->
-    <div id="arrow-legend" style="display:flex;gap:12px;align-items:center;padding:4px 2px;font-size:10px;color:var(--text-muted);flex-wrap:wrap;">
-      <span style="display:flex;align-items:center;gap:4px;">
-        <svg width="28" height="10" viewBox="0 0 28 10"><defs><marker id="leg-o" markerUnits="strokeWidth" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 L1,2 Z" fill="rgba(255,165,0,0.92)"/></marker></defs><line x1="2" y1="5" x2="20" y2="5" stroke="rgba(255,165,0,0.92)" stroke-width="2.5" marker-end="url(#leg-o)"/></svg>
-        우클릭: 후보수
-      </span>
-      <span style="display:flex;align-items:center;gap:4px;">
-        <svg width="28" height="10" viewBox="0 0 28 10"><defs><marker id="leg-b" markerUnits="strokeWidth" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 L1,2 Z" fill="rgba(80,160,255,0.88)"/></marker></defs><line x1="2" y1="5" x2="20" y2="5" stroke="rgba(80,160,255,0.88)" stroke-width="2.5" marker-end="url(#leg-b)"/></svg>
-        Alt+우클릭: 수순
-      </span>
-      <span style="color:var(--text-muted);font-size:9px;">좌클릭: 모두 지우기</span>
-    </div>
+
+    <!-- 내 바 -->
     <div class="player-bar my-bar" style="width:100%;">
       <div class="player-info-wrap">
         <div class="p-avatar me" id="my-avatar-el">?</div>
@@ -1020,7 +1005,8 @@ function startTimer() {
 
     if (_wTime <= 0 || _bTime <= 0) {
       const loserColor = _wTime <= 0 ? 'w' : 'b';
-      const status = loserColor === _myColor ? 'lose_time' : 'win_time';
+      // timeout_w / timeout_b 로 저장 → 양쪽 클라이언트가 올바르게 판정 가능
+      const status = loserColor === 'w' ? 'timeout_w' : 'timeout_b';
       if (_gameRef) _gameRef.update({ status });
     }
   }, 100);
@@ -1320,9 +1306,19 @@ function endGame(status) {
   } else if (status==='resign_b') {
     if (_myColor==='w') { emoji='🏆'; title='승리!'; reason='상대방 기권'; }
     else { emoji='😔'; title='패배'; reason='기권'; }
+  } else if (status==='timeout_w') {
+    // 백이 시간 초과
+    if (_myColor==='b') { emoji='🏆'; title='승리!'; reason='상대방 시간 초과'; }
+    else { emoji='😔'; title='패배'; reason='시간 초과'; }
+  } else if (status==='timeout_b') {
+    // 흑이 시간 초과
+    if (_myColor==='w') { emoji='🏆'; title='승리!'; reason='상대방 시간 초과'; }
+    else { emoji='😔'; title='패배'; reason='시간 초과'; }
   } else if (status==='win_time') {
+    // 구버전 호환
     emoji='🏆'; title='승리!'; reason='상대방 시간 초과';
   } else if (status==='lose_time') {
+    // 구버전 호환
     emoji='😔'; title='패배'; reason='시간 초과';
   } else if (status==='stalemate') {
     emoji='🤝'; title='무승부'; reason='스테일메이트';
@@ -1334,7 +1330,6 @@ function endGame(status) {
   document.getElementById('result-title').textContent = title;
   document.getElementById('result-reason').textContent = reason;
 
-  const gd = _gameRef ? null : null; // gameData cached above
   showScreen('result');
 }
 
@@ -1352,24 +1347,55 @@ async function saveRecord(result) {
       pgn += san + ' ';
     });
     pgn = pgn.trim();
+
+    // ── resultStr: 항상 백/흑 관점으로 올바르게 계산 ──
     let resultStr = '*';
-    if (result==='checkmate')  resultStr = _myColor===enemyColor(_turn)?'1-0':'0-1';
-    if (result==='resign_w')   resultStr = '0-1';
-    if (result==='resign_b')   resultStr = '1-0';
-    if (result==='win_time')   resultStr = _myColor==='w'?'1-0':'0-1';
-    if (result==='lose_time')  resultStr = _myColor==='w'?'0-1':'1-0';
-    if (result==='stalemate'||result==='draw') resultStr = '1/2-1/2';
+    if (result === 'checkmate') {
+      // _turn은 체크메이트 당한 쪽(진 쪽)의 색
+      resultStr = _turn === 'w' ? '0-1' : '1-0';
+    } else if (result === 'resign_w') {
+      // 백이 기권 → 흑 승
+      resultStr = '0-1';
+    } else if (result === 'resign_b') {
+      // 흑이 기권 → 백 승
+      resultStr = '1-0';
+    } else if (result === 'timeout_w') {
+      // 백이 시간 초과 → 흑 승
+      resultStr = '0-1';
+    } else if (result === 'timeout_b') {
+      // 흑이 시간 초과 → 백 승
+      resultStr = '1-0';
+    } else if (result === 'win_time') {
+      // 구버전 호환: 내가 시간승
+      resultStr = _myColor === 'w' ? '1-0' : '0-1';
+    } else if (result === 'lose_time') {
+      // 구버전 호환: 내가 시간패
+      resultStr = _myColor === 'w' ? '0-1' : '1-0';
+    } else if (result === 'stalemate' || result === 'draw' || result === 'draw_no_move') {
+      resultStr = '1/2-1/2';
+    }
+
     const myName   = _user.displayName || _user.email.split('@')[0];
     const oppName  = document.getElementById('opp-name-el')?.textContent || '상대방';
-    const whiteName = _myColor==='w' ? myName : oppName;
-    const blackName = _myColor==='b' ? myName : oppName;
+    const whiteName = _myColor === 'w' ? myName : oppName;
+    const blackName = _myColor === 'b' ? myName : oppName;
     const today = new Date().toISOString().slice(0,10);
-    const fullPgn = `[White "${whiteName}"]
-[Black "${blackName}"]
-[Result "${resultStr}"]
-[Date "${today}"]
+    const fullPgn = `[White "${whiteName}"]\n[Black "${blackName}"]\n[Result "${resultStr}"]\n[Date "${today}"]\n\n${pgn} ${resultStr}`;
 
-${pgn} ${resultStr}`;
+    // ── 중복 저장 방지: gameId + uid 조합으로 이미 저장된 기록 확인 ──
+    if (_gameId) {
+      try {
+        const existing = await _fbDb.collection('game_records')
+          .where('gameId', '==', _gameId)
+          .where('uid', '==', _user.uid)
+          .limit(1).get();
+        if (!existing.empty) {
+          console.log('[saveRecord] 이미 저장된 기록, 중복 저장 방지');
+          return;
+        }
+      } catch(e) { /* 인덱스 없을 경우 무시하고 저장 진행 */ }
+    }
+
     await _fbDb.collection('game_records').add({
       uid: _user.uid, playerName: myName, gameId: _gameId || '',
       myColor: _myColor, whiteName, blackName,
@@ -1378,6 +1404,7 @@ ${pgn} ${resultStr}`;
       arrows: _gameArrows,
       playedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    console.log('[saveRecord] 기보 저장 완료:', _myColor, resultStr);
   } catch(e) { console.warn('기보 저장 실패', e); }
 }
 
@@ -1406,19 +1433,16 @@ function showToast(msg, duration=2500) {
 
 // ══════════════════════════════════════════
 // 우클릭 화살표 그리기
-// - 우클릭 드래그: 후보수 화살표 (주황, 기존)
-// - Alt+우클릭 드래그: 수순/변형 화살표 (파랑)
 // ══════════════════════════════════════════
-// 게임 중 화살표: 수 인덱스 → 화살표 배열
-// { fc, fr, tc, tr, seq?: true }
-let _gameArrows = {}; // moveIndex → [{fc,fr,tc,tr,seq?}, ...]
+// 게임 중 후보수 화살표: 수 인덱스 → 화살표 배열
+// { fc, fr, tc, tr }
+let _gameArrows = {}; // moveIndex → [{fc,fr,tc,tr}, ...]
 
 (function(){
-  const ARROW_COLOR_CAND='rgba(255,165,0,0.92)';  // 후보수 (주황)
-  const ARROW_COLOR_SEQ ='rgba(80,160,255,0.88)';  // 수순   (파랑)
+  const ARROW_COLOR='rgba(255,165,0,0.92)';
   const ARROW_SW=14;
   const SVG_NS='http://www.w3.org/2000/svg';
-  let _arrowStart=null,_rightDragging=false,_isSeq=false;
+  let _arrowStart=null,_userArrows=[],_rightDragging=false;
 
   function sqCenter(col,row){
     const flipped=_myColor==='b';
@@ -1436,9 +1460,7 @@ let _gameArrows = {}; // moveIndex → [{fc,fr,tc,tr,seq?}, ...]
     return{col:flipped?7-dc:dc,row:flipped?7-dr:dr};
   }
 
-  function makeArrow(fc,fr,tc,tr,isSeq){
-    const color=isSeq?ARROW_COLOR_SEQ:ARROW_COLOR_CAND;
-    const markerId=isSeq?'play-arrow-head-seq':'play-arrow-head';
+  function makeArrow(fc,fr,tc,tr){
     const from=sqCenter(fc,fr),to=sqCenter(tc,tr);
     const dx=to.px-from.px,dy=to.py-from.py;
     const len=Math.sqrt(dx*dx+dy*dy);if(len<1)return null;
@@ -1449,18 +1471,16 @@ let _gameArrows = {}; // moveIndex → [{fc,fr,tc,tr,seq?}, ...]
     const line=document.createElementNS(SVG_NS,'line');
     line.setAttribute('x1',sx.toFixed(2));line.setAttribute('y1',sy.toFixed(2));
     line.setAttribute('x2',ex.toFixed(2));line.setAttribute('y2',ey.toFixed(2));
-    line.setAttribute('stroke',color);line.setAttribute('stroke-width',sw);
+    line.setAttribute('stroke',ARROW_COLOR);line.setAttribute('stroke-width',sw);
     line.setAttribute('stroke-linecap','round');
-    line.setAttribute('marker-end',`url(#${markerId})`);
+    line.setAttribute('marker-end','url(#play-arrow-head)');
     return line;
   }
 
   function redraw(){
     const g=document.getElementById('play-arrow-layer');if(!g)return;
     g.innerHTML='';
-    const curIdx=_sanMoves.length;
-    const arrows=_gameArrows[curIdx]||[];
-    arrows.forEach(a=>{const el=makeArrow(a.fc,a.fr,a.tc,a.tr,!!a.seq);if(el)g.appendChild(el);});
+    _userArrows.forEach(a=>{const el=makeArrow(a.fc,a.fr,a.tc,a.tr);if(el)g.appendChild(el);});
   }
 
   function attach(){
@@ -1468,14 +1488,11 @@ let _gameArrows = {}; // moveIndex → [{fc,fr,tc,tr,seq?}, ...]
     if(!board){setTimeout(attach,300);return;}
     board.addEventListener('contextmenu',e=>e.preventDefault());
     board.addEventListener('mousedown',e=>{
-      if(e.button===2){
-        _rightDragging=true;
-        _isSeq=e.altKey; // Alt 눌리면 수순 화살표
-        _arrowStart=getBoardSq(e);
-      } else if(e.button===0){
-        // 좌클릭: 현재 수의 화살표 전체 초기화
+      if(e.button===2){_rightDragging=true;_arrowStart=getBoardSq(e);}
+      else if(e.button===0){
+        // 좌클릭: 현재 수의 화살표 초기화
         const curIdx=_sanMoves.length;
-        _gameArrows[curIdx]=[];
+        _userArrows=[];_gameArrows[curIdx]=[];
         redraw();_arrowStart=null;_rightDragging=false;
       }
     });
@@ -1486,26 +1503,19 @@ let _gameArrows = {}; // moveIndex → [{fc,fr,tc,tr,seq?}, ...]
       const sq=getBoardSq(e);
       const curIdx=_sanMoves.length;
       if(!_gameArrows[curIdx])_gameArrows[curIdx]=[];
-      const arr=_gameArrows[curIdx];
+      _userArrows=_gameArrows[curIdx];
       if(sq.col===_arrowStart.col&&sq.row===_arrowStart.row){
-        // 같은 칸 클릭 시 전체 초기화
-        _gameArrows[curIdx]=[];
+        _userArrows=[];_gameArrows[curIdx]=[];
       }else{
-        // 같은 경로+같은 종류 화살표가 있으면 제거(토글), 없으면 추가
-        const idx=arr.findIndex(a=>
-          a.fc===_arrowStart.col&&a.fr===_arrowStart.row&&
-          a.tc===sq.col&&a.tr===sq.row&&!!a.seq===_isSeq
-        );
-        if(idx>=0)arr.splice(idx,1);
-        else arr.push({fc:_arrowStart.col,fr:_arrowStart.row,tc:sq.col,tr:sq.row,seq:_isSeq?true:undefined});
+        const idx=_userArrows.findIndex(a=>a.fc===_arrowStart.col&&a.fr===_arrowStart.row&&a.tc===sq.col&&a.tr===sq.row);
+        if(idx>=0)_userArrows.splice(idx,1);
+        else _userArrows.push({fc:_arrowStart.col,fr:_arrowStart.row,tc:sq.col,tr:sq.row});
+        _gameArrows[curIdx]=_userArrows.slice();
       }
       redraw();_arrowStart=null;
     });
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',attach);}else{attach();}
-
-  // 외부에서 redraw 호출 가능하도록 노출
-  window._arrowRedraw = redraw;
 })();
 
 </script>
