@@ -3463,6 +3463,18 @@ async function analyzePgnWithLichess() {
     const gameId = importJson.id;
     if (!gameId) throw new Error('게임 ID를 받지 못했습니다. 응답: ' + importRawText.slice(0, 200));
 
+    // ── STEP 1.5: 명시적 분석 요청 (white + black 양쪽) ──────────────
+    // POST /api/analyse/{id}/{color} — 이미 분석된 게임도 재분석 큐에 올림
+    // analyse=true(import 옵션)는 기존 게임에 무시되므로 이 방법이 필요
+    DBG.log(`[1.5] request-analysis 요청 — gameId: ${gameId}`);
+    for (const col of ['white', 'black']) {
+      const raRes = await fetch(`${PROXY}?path=request-analysis&id=${gameId}&color=${col}`, {
+        method: 'POST',
+      });
+      const raText = await raRes.text().catch(() => '');
+      DBG.log(`[1.5] ${col} → status: ${raRes.status}, body: ${raText.slice(0, 150)}`);
+    }
+
     // ── STEP 2: %judgment 폴링 ────────────────────────────────────────
     DBG.log(`[2] 폴링 시작 — gameId: ${gameId}`);
     let annotations = null;
