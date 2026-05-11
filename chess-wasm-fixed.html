@@ -3610,7 +3610,8 @@ async function analyzePgnWithLichess() {
 // 실제 대국:           { [%judgment name="Inaccuracy" comment="..."] } 태그 형식
 // 두 가지를 모두 지원. Import 게임은 literate 텍스트 주석만 붙음.
 function parseLichessPgnAnnotations(pgnText) {
-  const movesSection = pgnText.replace(/\[.*?\]\s*/gs, '').trim();
+  // PGN 헤더(줄 시작의 [...] 태그)만 제거 — 코멘트 내부의 [%eval ...] 등은 보존
+  const movesSection = pgnText.replace(/^\[.*?\]\s*$/gm, '').trim();
 
   const fullTokens = [];
   const tr = /(\{[^}]*\})|([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?|O-O-O[+#]?|O-O[+#]?|\d+\.{1,3})/g;
@@ -3627,7 +3628,8 @@ function parseLichessPgnAnnotations(pgnText) {
     if (!t.comment && !/^\d+/.test(t.text)) {
       let judgment = null;
 
-      for (let j = i + 1; j < fullTokens.length && j <= i + 2; j++) {
+      // 이 수 뒤에 오는 모든 연속 코멘트를 검사 (다음 수/수번호 전까지)
+      for (let j = i + 1; j < fullTokens.length; j++) {
         if (fullTokens[j].comment) {
           const commentText = fullTokens[j].text;
 
@@ -3639,10 +3641,12 @@ function parseLichessPgnAnnotations(pgnText) {
           // 형식: { Inaccuracy. Nf6 was best. } 또는 { Mistake. } 또는 { Blunder. }
           const lm = commentText.match(/\b(Inaccuracy|Mistake|Blunder|Missed win)\b/);
           if (lm) { judgment = lm[1]; break; }
-
+          // 빈/eval 전용 코멘트는 건너뛰고 계속 탐색
+        } else if (!/^\d+/.test(fullTokens[j].text)) {
+          // 다음 수(수번호 아닌 이동)를 만나면 탐색 종료
           break;
         }
-        if (!fullTokens[j].comment && !/^\d+/.test(fullTokens[j].text)) break;
+        // 수번호(1., 2... 등)는 건너뛰고 계속
       }
 
       anns.push(NEGATIVE.has(judgment) ? judgment : null);
