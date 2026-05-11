@@ -907,6 +907,8 @@ function switchTab(tab){
     if(rb)rb.classList.remove('active');
     if(lp)lp.style.display='none';
     if(vp)vp.style.display='none';
+    // 통계 탭 전환 시 항상 최신 상태 반영 (캐시 무효화 → 새 기보 자동 감지)
+    _statsCache=null;
     if(sp){sp.style.display='block';renderStats();}
   }
 }
@@ -954,6 +956,10 @@ async function renderStats(){
   // 오프닝별 통계 맵: key -> {eco, name, variation, w:{wins,draws,losses}, b:{wins,draws,losses}}
   const openingStatsMap = new Map();
 
+  // ── 이미 분석된 게임 수 카운트
+  let cachedCount = 0;
+  let newlyAnalyzedCount = 0;
+
   for(let gi=0;gi<docs.length;gi++){
     const doc=docs[gi];
     const myColor=doc.myColor||'w',result=doc.result||'*';
@@ -987,9 +993,38 @@ async function renderStats(){
       } catch(e){}
     }
 
+    // ── 이미 분석된 게임인지 확인 (tacticAnalysis 필드 체크)
+    const alreadyAnalyzed = !!(doc.tacticAnalysis && doc.tacticAnalysis.analyzedAt);
+
+    if(alreadyAnalyzed){
+      // 저장된 분석 결과 재사용
+      cachedCount++;
+      const a = doc.tacticAnalysis;
+      sumMyBlunders+=(a.myBlunders||0);sumMyMistakes+=(a.myMistakes||0);sumMyInaccuracies+=(a.myInaccuracies||0);
+      sumOppBlunders+=(a.oppBlunders||0);sumOppMistakes+=(a.oppMistakes||0);
+      sumOppBF+=(a.oppBlunderFound||0);sumOppBM+=(a.oppBlunderMissed||0);
+      sumCheckmates+=(a.checkmates||0);
+      sumAbsPinFound+=(a.absPinFound||0);sumAbsPinMissed+=(a.absPinMissed||0);
+      sumRelPinFound+=(a.relPinFound||0);sumRelPinMissed+=(a.relPinMissed||0);
+      sumCp+=(a.myCpSum||0);sumMoves+=(a.myMoveCount||0);totalMovesSum+=(a.totalMoves||doc.moveCount||0);
+      const ff=a.forkFound||{};const fm=a.forkMissed||{};const ofc=a.oppForkCreated||{};
+      for(const k of['P','N','B','R','Q','K']){sumForkFound[k]+=(ff[k]||0);sumForkMissed[k]+=(fm[k]||0);sumOppForkCreated[k]+=(ofc[k]||0);}
+      if(a.tacticEvents&&a.tacticEvents.length)_statsGameDetails.push({doc,tacticEvents:a.tacticEvents});
+
+      const pct=Math.round(gi/total*100);
+      contentEl.innerHTML=`<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
+        <div style="font-size:13px;color:var(--text-secondary)">분석 중... (${cachedCount}개 캐시 사용)</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${gi+1} / ${total} 게임</div>
+        <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
+        <div class="stats-progress-label">이미 분석된 기보 — 건너뜀 ⚡</div>
+      </div></div>`;
+      continue;
+    }
+
+    // ── 새로 분석 필요한 게임
     const pct=Math.round(gi/total*100);
     contentEl.innerHTML=`<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
-      <div style="font-size:13px;color:var(--text-secondary)">Stockfish 분석 중...</div>
+      <div style="font-size:13px;color:var(--text-secondary)">Stockfish 분석 중... (신규 ${newlyAnalyzedCount+1}번째)</div>
       <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${gi+1} / ${total} 게임</div>
       <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
       <div class="stats-progress-label">깊이 ${SF_DEPTH}으로 포지션 분석 중</div>
@@ -1010,8 +1045,31 @@ async function renderStats(){
         sumRelPinFound+=(a.relPinFound||0);sumRelPinMissed+=(a.relPinMissed||0);
         sumCp+=a.myCpSum;sumMoves+=a.myMoveCount;totalMovesSum+=a.totalMoves;
         for(const k of['P','N','B','R','Q','K']){sumForkFound[k]+=(a.forkFound[k]||0);sumForkMissed[k]+=(a.forkMissed[k]||0);sumOppForkCreated[k]+=(a.oppForkCreated?.[k]||0);}
-        // 게임별 전술 상세 저장
         if(a.tacticEvents&&a.tacticEvents.length)_statsGameDetails.push({doc,tacticEvents:a.tacticEvents});
+        newlyAnalyzedCount++;
+
+        // ── 분석 결과를 Firestore에 저장 (다음 방문 시 재사용)
+        try{
+          const savePayload={
+            myBlunders:a.myBlunders,myMistakes:a.myMistakes,myInaccuracies:a.myInaccuracies,
+            oppBlunders:a.oppBlunders,oppMistakes:a.oppMistakes,
+            oppBlunderFound:a.oppBlunderFound,oppBlunderMissed:a.oppBlunderMissed,
+            checkmates:a.checkmates,
+            absPinFound:a.absPinFound||0,absPinMissed:a.absPinMissed||0,
+            relPinFound:a.relPinFound||0,relPinMissed:a.relPinMissed||0,
+            myCpSum:a.myCpSum,myMoveCount:a.myMoveCount,totalMoves:a.totalMoves,
+            forkFound:a.forkFound,forkMissed:a.forkMissed,oppForkCreated:a.oppForkCreated||{},
+            tacticEvents:(a.tacticEvents||[]).map(ev=>({
+              type:ev.type,subtype:ev.subtype,piece:ev.piece||'',
+              moveNum:ev.moveNum||0,san:ev.san||'',
+              plyIdx:ev.plyIdx||0,bestMove:ev.bestMove||null
+            })),
+            analyzedAt:firebase.firestore.FieldValue.serverTimestamp(),
+            sfDepth:SF_DEPTH
+          };
+          await _fbDb.collection('game_records').doc(doc.id).update({tacticAnalysis:savePayload});
+          console.log('[stats] 분석 저장 완료:', doc.id);
+        }catch(saveErr){console.warn('[stats] 분석 저장 실패:', saveErr);}
       }catch(e){console.warn('게임 분석 실패:',e);if(doc.moveCount)totalMovesSum+=doc.moveCount;}
     }else if(doc.moveCount)totalMovesSum+=doc.moveCount;
   }
@@ -1034,7 +1092,8 @@ async function renderStats(){
     openingStats: Array.from(openingStatsMap.values())
       .sort((a,b)=>(b.w.total+b.b.total)-(a.w.total+a.b.total))
   };
-  subEl.textContent=`총 ${total}게임 · Stockfish 깊이 ${SF_DEPTH} 분석 완료`;
+  const cacheMsg = cachedCount > 0 ? ` · ${cachedCount}개 캐시 재사용, ${newlyAnalyzedCount}개 신규 분석` : ` · Stockfish 깊이 ${SF_DEPTH} 전체 분석`;
+  subEl.textContent=`총 ${total}게임${cacheMsg}`;
   renderStatsHTML(_statsCache);
 }
 

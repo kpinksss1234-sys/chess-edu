@@ -1416,6 +1416,20 @@ body {
       <!-- SCROLL AREA -->
       <div id="puzzle-scroll">
 
+        <!-- 내 기보 기반 퍼즐 -->
+        <div class="section-header" style="margin-top:8px;">
+          <h2>🎮 내 기보 기반 퍼즐</h2>
+          <div class="section-header-line"></div>
+          <div class="section-badge" id="game-puzzle-section-badge">불러오는 중…</div>
+        </div>
+        <div class="theme-grid" id="grid-game-puzzles">
+          <div class="theme-card" style="--card-accent:#e08030; cursor:default; opacity:0.6;">
+            <div class="theme-card-icon">⏳</div>
+            <div class="theme-card-name">분석 중...</div>
+            <div class="theme-card-desc">실제 기보에서 전술 포지션을 추출하고 있습니다</div>
+          </div>
+        </div>
+
         <!-- 오늘의 퍼즐 -->
         <div class="daily-puzzle-banner" onclick="openTheme('daily')">
           <div class="daily-icon">📅</div>
@@ -1424,16 +1438,6 @@ body {
             <div class="daily-sub">매일 새로운 퍼즐로 실력을 점검하세요. 완료 시 특별 보너스 포인트!</div>
           </div>
           <div class="daily-badge">오늘 도전!</div>
-        </div>
-
-        <!-- 내 기보 기반 퍼즐 -->
-        <div class="game-puzzle-banner" onclick="openGamePuzzleModal()">
-          <div class="game-puzzle-banner-icon">🎮</div>
-          <div class="game-puzzle-banner-info">
-            <div class="game-puzzle-banner-title">내 기보 기반 퍼즐</div>
-            <div class="game-puzzle-banner-sub">실제 대국에서 <b>놓쳤던 전술</b>(포크·핀·체크메이트·블런더)을 퍼즐로 다시 훈련하세요. 내 약점을 집중 공략!</div>
-          </div>
-          <div class="game-puzzle-banner-badge" id="game-puzzle-count-badge">불러오는 중…</div>
         </div>
 
         <!-- 통계 -->
@@ -2731,7 +2735,11 @@ function initFirebase() {
     _firebaseReady = true;
     _fbAuth.onAuthStateChanged(u => {
       _fbUser = u;
-      if (u) loadGamePuzzleCount();
+      if (u) {
+        loadGamePuzzleCount();
+        // 기보 기반 퍼즐 그리드도 초기화
+        if (!_gamePuzzleLoaded) initGamePuzzleGrid();
+      }
     });
   } catch(e) { console.warn('[puzzle] Firebase init failed:', e); }
 }
@@ -2779,30 +2787,19 @@ async function loadGamePuzzles() {
       ? new Date(doc.playedAt.seconds * 1000).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
       : '';
 
-    // PGN → 포지션 배열 파싱 (체스 룰 기반)
-    try {
-      const positions = parsePgnToPositions(doc.pgn);
-      if (!positions || positions.length < 4) continue;
-
-      // Stockfish 분석 없이 기보에서 전술 패턴 추출
-      // missedTactics: 내가 놓친 전술 (Firestore에 저장된 경우)
-      const missedTactics = doc.missedTactics || [];
-
-      // 기보 저장된 분석 결과 활용
-      if (doc.tacticEvents && doc.tacticEvents.length > 0) {
-        for (const ev of doc.tacticEvents) {
+    // ── 이미 records.html에서 분석된 경우: tacticAnalysis.tacticEvents 활용
+    if (doc.tacticAnalysis && doc.tacticAnalysis.tacticEvents && doc.tacticAnalysis.tacticEvents.length > 0) {
+      try {
+        const positions = parsePgnToPositions(doc.pgn);
+        for (const ev of doc.tacticAnalysis.tacticEvents) {
           if (ev.subtype !== 'missed') continue;
           const meta = TACTIC_META[ev.type] || TACTIC_META['fork'];
           const plyIdx = ev.plyIdx != null ? ev.plyIdx : (ev.moveNum ? ev.moveNum * 2 - 1 : null);
           if (plyIdx == null || plyIdx >= positions.length - 1) continue;
-
           const pos = positions[plyIdx];
           if (!pos || !pos.fen) continue;
-
-          // 정답 수 구성
           const solution = ev.bestMove ? [ev.bestMove] : null;
           if (!solution) continue;
-
           puzzles.push({
             isGameBased: true,
             gameId: doc.id,
@@ -2828,17 +2825,64 @@ async function loadGamePuzzles() {
             turn: pos.turn,
             lichessId: null,
             gameUrl: null,
+            fromCache: true,
+          });
+        }
+        if (puzzles.filter(p => p.gameId === doc.id).length > 0) continue; // 이미 추출됨
+      } catch(e) { console.warn('[gamePuzzle] 캐시 추출 실패:', e); }
+    }
+  }
+
+  // ── tacticAnalysis 캐시가 없는 기보만 경량 패턴 탐지로 보완
+  for (const doc of docs) {
+    if (!doc.pgn || !doc.myColor) continue;
+    // 이미 캐시(tacticAnalysis)에서 추출된 경우 건너뜀
+    if (puzzles.some(p => p.gameId === doc.id)) continue;
+
+    const myColor = doc.myColor;
+    const whiteName = doc.whiteName || '백';
+    const blackName = doc.blackName || '흑';
+    const dateStr = doc.playedAt
+      ? new Date(doc.playedAt.seconds * 1000).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
+      : '';
+
+    try {
+      const positions = parsePgnToPositions(doc.pgn);
+      if (!positions || positions.length < 4) continue;
+
+      // 구버전 tacticEvents 필드 활용 (레거시 지원)
+      if (doc.tacticEvents && doc.tacticEvents.length > 0) {
+        for (const ev of doc.tacticEvents) {
+          if (ev.subtype !== 'missed') continue;
+          const meta = TACTIC_META[ev.type] || TACTIC_META['fork'];
+          const plyIdx = ev.plyIdx != null ? ev.plyIdx : (ev.moveNum ? ev.moveNum * 2 - 1 : null);
+          if (plyIdx == null || plyIdx >= positions.length - 1) continue;
+          const pos = positions[plyIdx];
+          if (!pos || !pos.fen) continue;
+          const solution = ev.bestMove ? [ev.bestMove] : null;
+          if (!solution) continue;
+          puzzles.push({
+            isGameBased: true, gameId: doc.id, gameDateStr: dateStr,
+            gameVs: myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`,
+            gameResult: doc.result, myColor,
+            tacticType: ev.type, tacticPiece: ev.piece || '',
+            moveNum: ev.moveNum || Math.ceil(plyIdx / 2),
+            title: `${meta.name} 기회 — ${dateStr} ${myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`}`,
+            icon: meta.icon, desc: meta.desc, tagCls: meta.tagCls,
+            rating: 1200 + Math.floor(Math.random() * 400),
+            fen: pos.fen, opponentMove: pos.lastMove || null,
+            solution, fullSolution: solution, hint: `${meta.name}: ${meta.desc}`,
+            moves: solution.length, themes: [ev.type], turn: pos.turn,
+            lichessId: null, gameUrl: null,
           });
         }
       }
 
-      // Stockfish 분석 결과가 없는 경우: 기보의 특정 포지션에서 패턴 추출 시도
-      if (puzzles.filter(p => p.gameId === doc.id).length === 0) {
-        // 각 포지션에서 간단한 포크/핀 탐지
+      // 분석 데이터가 전혀 없는 경우: 경량 패턴 탐지
+      if (!puzzles.some(p => p.gameId === doc.id)) {
         const detected = detectTacticsInPgn(positions, myColor, doc);
         puzzles.push(...detected.map(d => ({
-          ...d,
-          gameDateStr: dateStr,
+          ...d, gameDateStr: dateStr,
           gameVs: myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`,
           gameResult: doc.result,
         })));
@@ -3347,9 +3391,130 @@ window.tryMove = function(fr, fc, tr, tc, moveStr) {
   }, 500);
 };
 
-/* ============================================================
-   Firebase 초기화 (DOMContentLoaded)
-   ============================================================ */
+// ── 기보 기반 퍼즐 그리드 렌더링 ─────────────────────────
+const GAME_PUZZLE_THEME_DEFS = [
+  { type: 'checkmate', icon: '👑', name: '체크메이트 기회',  desc: '실제 대국에서 내가 놓쳤던 체크메이트 기회를 다시 훈련하세요', tagCls: 'checkmate', color: '#c04040' },
+  { type: 'fork',      icon: '🍴', name: '포크 기회',       desc: '실제 대국에서 두 기물을 동시에 공격할 수 있었던 포크를 연습하세요', tagCls: 'fork',     color: '#e08030' },
+  { type: 'pin',       icon: '📌', name: '핀 기회',         desc: '실제 대국에서 상대 기물을 고정시킬 수 있었던 핀 전술을 훈련하세요', tagCls: 'pin',     color: '#5090d0' },
+  { type: 'absPin',    icon: '📌', name: '절대 핀 기회',    desc: '킹을 직접 노출시키는 절대 핀 기회를 실제 대국에서 추출', tagCls: 'pin',     color: '#5090d0' },
+  { type: 'skewer',    icon: '🏹', name: '스큐어 기회',     desc: '실제 대국에서 스큐어로 기물을 획득할 수 있었던 순간을 연습하세요', tagCls: 'skewer',  color: '#2aada6' },
+  { type: 'oppBlunder',icon: '💥', name: '블런더 포착',     desc: '상대방 실수를 바로 이용하지 못했던 순간들을 다시 공략하세요', tagCls: 'blunder', color: '#8855cc' },
+  { type: 'discoveredAttack',icon:'⚡',name:'발견 공격 기회',desc:'실제 대국에서 발견 공격으로 기물을 획득할 수 있었던 기회를 연습하세요',tagCls:'fork',color:'#cc3333'},
+];
+
+function renderGamePuzzleThemeGrid(puzzles) {
+  const grid = document.getElementById('grid-game-puzzles');
+  const badge = document.getElementById('game-puzzle-section-badge');
+  if (!puzzles || puzzles.length === 0) {
+    grid.innerHTML = `<div class="theme-card" style="--card-accent:#555; cursor:default; grid-column:1/-1;">
+      <div class="theme-card-icon">♟</div>
+      <div class="theme-card-name">기보 없음</div>
+      <div class="theme-card-desc">더 많은 게임을 플레이하면 실제 기보 기반 퍼즐이 생성됩니다.</div>
+    </div>`;
+    badge.textContent = '0개';
+    return;
+  }
+
+  // 타입별로 그룹화
+  const byType = {};
+  for (const p of puzzles) {
+    const t = p.tacticType || 'fork';
+    if (!byType[t]) byType[t] = [];
+    byType[t].push(p);
+  }
+
+  badge.textContent = `${puzzles.length}개 발견`;
+
+  let html = '';
+  // 발견된 타입만 카드 생성
+  for (const def of GAME_PUZZLE_THEME_DEFS) {
+    const group = byType[def.type];
+    if (!group || group.length === 0) continue;
+    const isDemo = group.every(p => p.isDemo);
+    html += `<div class="theme-card" style="--card-accent:${def.color}" onclick="startGamePuzzleByType('${def.type}')">
+      <div class="theme-card-icon">${def.icon}</div>
+      <div class="theme-card-name">${def.name}${isDemo ? ' <span style=\'font-size:10px;color:var(--accent-orange)\'>[예시]</span>' : ''}</div>
+      <div class="theme-card-desc">${def.desc}</div>
+      <div class="theme-card-meta">
+        <span class="theme-card-count">${group.length}개</span>
+        <span class="theme-card-diff diff-medium" style="background:rgba(224,128,48,0.15);color:var(--accent-orange);">내 기보</span>
+      </div>
+    </div>`;
+  }
+
+  // 정의되지 않은 타입도 표시
+  for (const [t, group] of Object.entries(byType)) {
+    if (GAME_PUZZLE_THEME_DEFS.find(d => d.type === t)) continue;
+    const meta = TACTIC_META[t] || { icon:'♟', name:t };
+    html += `<div class="theme-card" style="--card-accent:#888" onclick="startGamePuzzleByType('${t}')">
+      <div class="theme-card-icon">${meta.icon}</div>
+      <div class="theme-card-name">${meta.name}</div>
+      <div class="theme-card-desc">실제 대국에서 추출된 ${meta.name} 전술 포지션</div>
+      <div class="theme-card-meta">
+        <span class="theme-card-count">${group.length}개</span>
+        <span class="theme-card-diff diff-medium" style="background:rgba(224,128,48,0.15);color:var(--accent-orange);">내 기보</span>
+      </div>
+    </div>`;
+  }
+
+  if (!html) {
+    html = `<div class="theme-card" style="--card-accent:#555; cursor:default; grid-column:1/-1;">
+      <div class="theme-card-icon">🔍</div>
+      <div class="theme-card-name">전술 없음</div>
+      <div class="theme-card-desc">기보 분석 결과 특별한 전술 기회가 발견되지 않았습니다.</div>
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+// 타입별로 기보 퍼즐 시작
+function startGamePuzzleByType(tacticType) {
+  if (!_gamePuzzles || _gamePuzzles.length === 0) {
+    openGamePuzzleModal();
+    return;
+  }
+  const filtered = _gamePuzzles.filter(p => p.tacticType === tacticType);
+  if (filtered.length === 0) return;
+
+  const gamePseudoTheme = {
+    id: 'game_based_' + tacticType,
+    icon: TACTIC_META[tacticType]?.icon || '🎮',
+    name: (TACTIC_META[tacticType]?.name || tacticType) + ' — 내 기보',
+    desc: '실제 대국에서 생성된 ' + (TACTIC_META[tacticType]?.name || tacticType) + ' 퍼즐',
+    color: '#e08030',
+  };
+  state.currentTheme = gamePseudoTheme;
+
+  document.getElementById('theme-list-view').style.display = 'none';
+  document.getElementById('puzzle-board-view').classList.add('show');
+  document.getElementById('psp-theme-tag').textContent = `${gamePseudoTheme.icon} ${gamePseudoTheme.name}`;
+
+  state.puzzles = filtered;
+  state.totalPuzzles = filtered.length;
+  state.currentPuzzleIdx = 0;
+  state.moveHistory = [];
+  showBoardLoading(false);
+  loadPuzzle(0);
+}
+
+// 기보 퍼즐 로드 후 그리드 자동 업데이트 (Firebase 인증 후)
+async function initGamePuzzleGrid() {
+  try {
+    if (!_firebaseReady || !_fbUser) {
+      _gamePuzzles = buildDemoPuzzles();
+    } else {
+      _gamePuzzles = await loadGamePuzzles();
+      if (_gamePuzzles.length === 0) _gamePuzzles = buildDemoPuzzles();
+    }
+    _gamePuzzleLoaded = true;
+    renderGamePuzzleThemeGrid(_gamePuzzles);
+  } catch(e) {
+    console.warn('[puzzle] 기보 그리드 초기화 실패:', e);
+    renderGamePuzzleThemeGrid([]);
+  }
+}
+
+// ── Firebase 초기화 (DOMContentLoaded)
 document.addEventListener('DOMContentLoaded', () => {
   initFirebase();
 });
