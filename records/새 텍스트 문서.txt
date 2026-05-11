@@ -1,4 +1,0 @@
-  chess-engine.js     ← 체스 규칙 엔진 (순수 로직)
-  chess-tactics.js    ← 전술 감지 (포크핀 정교화)
-  chess-stockfish.js  ← Stockfish 워커 관리
-  chess-analyzer.js   ← 게임 분석 파이프라인 통합
