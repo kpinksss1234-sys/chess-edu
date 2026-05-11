@@ -29,14 +29,17 @@
 
     // Back-button navigation check
     window.addEventListener('pageshow', function(event) {
-      if (event.persisted || window._auth.currentUser === null) {
-        checkAuth(window._auth.currentUser);
+      // If navigating back and not on auth page, re-verify auth state
+      if (!window.location.pathname.endsWith('auth.html')) {
+        window._auth.onAuthStateChanged(function(user) {
+          if (!user) window.location.href = '/auth.html';
+        });
       }
     });
 
     function checkAuth(user) {
       const path = window.location.pathname;
-      const isAuthPage = path.endsWith('auth.html');
+      const isAuthPage = path.endsWith('auth.html') || path === '/';
 
       if (user) {
         window._user = user;
@@ -44,7 +47,7 @@
         
         const name = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
         
-        // Update Sidebar UI (Common across many pages)
+        // Update Sidebar UI
         const avatarEl = document.getElementById('sidebar-avatar-letter');
         const nameEl = document.getElementById('sidebar-username');
         if (avatarEl) avatarEl.textContent = name[0].toUpperCase();
