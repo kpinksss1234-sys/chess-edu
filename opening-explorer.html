@@ -11,35 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script>
-  firebase.initializeApp({
-    apiKey: "AIzaSyDiBFoUf2QVG9QXO34Xny0bSslFYaiwozg",
-    authDomain: "chess-education-464fc.firebaseapp.com",
-    projectId: "chess-education-464fc",
-    storageBucket: "chess-education-464fc.firebasestorage.app",
-    messagingSenderId: "963998720041",
-    appId: "1:963998720041:web:aa4037707214d3777c7c38",
-    measurementId: "G-HBS1RQ4WYQ"
-  });
-  var _fbAuth = firebase.auth();
-  var _currentUser = null;
-
-  _fbAuth.onAuthStateChanged(function(user) {
-    if (!user) {
-      window.location.href = '/auth.html';
-    } else {
-      _currentUser = user;
-      var name = user.displayName || user.email || '?';
-      var avatarEl = document.getElementById('sidebar-avatar-letter');
-      var nameEl   = document.getElementById('sidebar-username');
-      if (avatarEl) avatarEl.textContent = name[0].toUpperCase();
-      if (nameEl)   nameEl.textContent   = name.split('@')[0];
-    }
-  });
-  function handleLogout() {
-    _fbAuth.signOut().then(function() { window.location.href = '/auth.html'; });
-  }
-</script>
+<script src="auth-check.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }

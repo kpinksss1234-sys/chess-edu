@@ -572,33 +572,9 @@ body {
 
 <div id="toast"></div>
 
+<script src="auth-check.js"></script>
+
 <script>
-// ── Firebase 초기화 ──
-firebase.initializeApp({
-  apiKey: "AIzaSyDiBFoUf2QVG9QXO34Xny0bSslFYaiwozg",
-  authDomain: "chess-education-464fc.firebaseapp.com",
-  projectId: "chess-education-464fc",
-  storageBucket: "chess-education-464fc.firebasestorage.app",
-  messagingSenderId: "963998720041",
-  appId: "1:963998720041:web:aa4037707214d3777c7c38",
-  databaseURL: "https://chess-education-464fc-default-rtdb.firebaseio.com"
-});
-const _auth  = firebase.auth();
-const _fbDb  = firebase.firestore();
-const _rtDb  = firebase.database();
-
-let _user = null;
-_auth.onAuthStateChanged(u => {
-  if (!u) { window.location.href = '/auth.html'; return; }
-  _user = u;
-  const name = u.displayName || u.email.split('@')[0];
-  document.getElementById('my-name-el').textContent = name;
-  document.getElementById('my-avatar-el').textContent = name[0].toUpperCase();
-});
-function handleLogout() {
-  _auth.signOut().then(() => window.location.href = '/auth.html');
-}
-
 // ══════════════════════════════════════════
 // 체스 엔진 (독립형)
 // ══════════════════════════════════════════

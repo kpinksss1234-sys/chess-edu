@@ -222,23 +222,8 @@ body{font-family:var(--font-main);background:var(--bg-primary);color:var(--text-
   </div>
 </div>
 
+<script src="auth-check.js"></script>
 <script>
-firebase.initializeApp({
-  apiKey:"AIzaSyDiBFoUf2QVG9QXO34Xny0bSslFYaiwozg",
-  authDomain:"chess-education-464fc.firebaseapp.com",
-  projectId:"chess-education-464fc",
-  storageBucket:"chess-education-464fc.firebasestorage.app",
-  messagingSenderId:"963998720041",
-  appId:"1:963998720041:web:aa4037707214d3777c7c38"
-});
-const _auth=firebase.auth();
-_auth.onAuthStateChanged(function(u){
-  if(!u){window.location.href='/auth.html';return;}
-  const name=u.displayName||u.email.split('@')[0];
-  document.getElementById('sidebar-avatar-letter').textContent=name[0].toUpperCase();
-  document.getElementById('sidebar-username').textContent=name;
-});
-function handleLogout(){_auth.signOut().then(function(){window.location.href='/auth.html';});}
 var _toastTimer=null;
 function showToast(msg){
   var el=document.getElementById('toast');

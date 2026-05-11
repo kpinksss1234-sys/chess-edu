@@ -622,28 +622,14 @@ function detectOpening(uciMoves) {
 // 오프닝 키 (eco+name 조합)
 function openingKey(op){ return op.eco+'|'+op.name+(op.variation?'|'+op.variation:''); }
 </script>
+<script src="auth-check.js"></script>
 <script>
 // ════════════════════════════════════════
-// Firebase
+// Firebase 연동 후 페이지 초기화
 // ════════════════════════════════════════
-firebase.initializeApp({
-  apiKey:"AIzaSyDiBFoUf2QVG9QXO34Xny0bSslFYaiwozg",
-  authDomain:"chess-education-464fc.firebaseapp.com",
-  projectId:"chess-education-464fc",
-  storageBucket:"chess-education-464fc.firebasestorage.app",
-  messagingSenderId:"963998720041",
-  appId:"1:963998720041:web:aa4037707214d3777c7c38",
-  databaseURL:"https://chess-education-464fc-default-rtdb.firebaseio.com"
-});
-const _auth=firebase.auth(), _fbDb=firebase.firestore();
-let _user=null;
 let _authInitialized=false;
 _auth.onAuthStateChanged(u=>{
-  if(!u){window.location.href='/auth.html';return;}
-  _user=u;
-  const name=u.displayName||u.email.split('@')[0];
-  document.getElementById('sidebar-avatar-letter').textContent=name[0].toUpperCase();
-  document.getElementById('sidebar-username').textContent=name;
+  if(!u) return;
   if(_authInitialized)return; // 중복 발화 방지
   _authInitialized=true;
   const params=new URLSearchParams(window.location.search);
@@ -651,7 +637,6 @@ _auth.onAuthStateChanged(u=>{
   if(initialTab==='stats'){switchTab('stats');}
   else{loadRecords();}
 });
-function handleLogout(){_auth.signOut().then(()=>window.location.href='/auth.html');}
 
 // ════════════════════════════════════════
 // 뷰어 상태

@@ -9,16 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script id="firebase-config-json" type="application/json">
-{
-  "apiKey": "AIzaSyDiBFoUf2QVG9QXO34Xny0bSslFYaiwozg",
-  "authDomain": "chess-education-464fc.firebaseapp.com",
-  "projectId": "chess-education-464fc",
-  "storageBucket": "chess-education-464fc.firebasestorage.app",
-  "messagingSenderId": "963998720041",
-  "appId": "1:963998720041:web:aa4037707214d3777c7c38"
-}
-</script>
+<script src="auth-check.js"></script>
 <style>
 
 /* ===== RESET & BASE ===== */
@@ -2697,40 +2688,15 @@ applyQueryFromUrl();
 /* ============================================================
    FIREBASE / 기보 기반 퍼즐
    ============================================================ */
+let _fbUser = null;
 
-// ── Firebase 초기화 (records.html과 동일한 config) ──────────────
-let _fbApp = null, _fbAuth = null, _fbDb = null, _fbUser = null;
-let _firebaseReady = false;
-
-function initFirebase() {
-  if (_firebaseReady) return;
-  try {
-    const cfgEl = document.getElementById('firebase-config-json');
-    const cfg = cfgEl ? JSON.parse(cfgEl.textContent) : null;
-    if (!cfg) { console.warn('[puzzle] Firebase config not found'); return; }
-    if (!firebase.apps.length) { _fbApp = firebase.initializeApp(cfg); }
-    else { _fbApp = firebase.app(); }
-    _fbAuth = firebase.auth();
-    window._fbAuthInst = _fbAuth; // handleLogout에서 접근용
-    _fbDb   = firebase.firestore();
-    _firebaseReady = true;
-    _fbAuth.onAuthStateChanged(u => {
-      _fbUser = u;
-      if (u) {
-        // 사이드바 사용자 정보 업데이트
-        const name = u.displayName || u.email || '?';
-        const avatarEl = document.getElementById('sidebar-avatar-letter');
-        const nameEl   = document.getElementById('sidebar-username');
-        if (avatarEl) avatarEl.textContent = name[0].toUpperCase();
-        if (nameEl)   nameEl.textContent   = name.split('@')[0];
-        loadGamePuzzleCount();
-        if (!_gamePuzzleLoaded) initGamePuzzleGrid();
-      } else {
-        window.location.href = '/auth.html';
-      }
-    });
-  } catch(e) { console.warn('[puzzle] Firebase init failed:', e); }
-}
+_auth.onAuthStateChanged(u => {
+  _fbUser = u;
+  if (u) {
+    loadGamePuzzleCount();
+    if (!_gamePuzzleLoaded) initGamePuzzleGrid();
+  }
+});
 
 // ── 기보 기반 퍼즐 데이터 ────────────────────────────────────────
 let _gamePuzzles = [];         // 생성된 퍼즐 배열
@@ -3063,7 +3029,7 @@ async function loadGamePuzzleCount() {
 // ── 기보 기반 퍼즐 모달 열기/닫기 ──────────────────────────────
 async function openGamePuzzleModal() {
   document.getElementById('game-puzzle-modal-backdrop').classList.add('show');
-  initFirebase();
+// Firebase initialized via auth-check.js
 
   if (!_gamePuzzleLoaded) {
     const body = document.getElementById('gpm-body');
@@ -3444,7 +3410,7 @@ async function initGamePuzzleGrid() {
 
 // ── Firebase 초기화 (DOMContentLoaded)
 document.addEventListener('DOMContentLoaded', () => {
-  initFirebase();
+// Firebase initialized via auth-check.js
 });
 </script>
 
