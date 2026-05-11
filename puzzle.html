@@ -6,6 +6,9 @@
 <title>체스 퍼즐 — 테마별 훈련</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 
 /* ===== RESET & BASE ===== */
@@ -1044,6 +1047,232 @@ body {
 }
 
 
+/* ===== 기보 기반 퍼즐 섹션 ===== */
+.game-puzzle-banner {
+  background: linear-gradient(135deg, rgba(224,128,48,0.10) 0%, rgba(136,85,204,0.10) 100%);
+  border: 1px solid rgba(224,128,48,0.3);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: all 0.18s;
+  position: relative;
+  overflow: hidden;
+}
+.game-puzzle-banner:hover { border-color: var(--accent-orange); background: linear-gradient(135deg, rgba(224,128,48,0.16), rgba(136,85,204,0.12)); }
+.game-puzzle-banner-icon { font-size: 36px; flex-shrink: 0; }
+.game-puzzle-banner-info { flex: 1; }
+.game-puzzle-banner-title { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.game-puzzle-banner-sub { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.game-puzzle-banner-badge {
+  font-size: 11px; font-weight: 700; padding: 4px 12px;
+  background: linear-gradient(135deg, var(--accent-orange), var(--accent-purple));
+  color: #fff; border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+}
+
+/* 기보 기반 퍼즐 모달 */
+#game-puzzle-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 510;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+#game-puzzle-modal-backdrop.show { display: flex; animation: fadeIn 0.2s ease; }
+#game-puzzle-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  width: 100%; max-width: 620px;
+  max-height: 85vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.25s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+#gpm-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#gpm-header-icon { font-size: 26px; }
+#gpm-header-title { font-size: 17px; font-weight: 700; color: var(--text-primary); flex: 1; }
+#gpm-header-close {
+  width: 32px; height: 32px; background: var(--bg-tertiary);
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-secondary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  transition: all 0.15s; flex-shrink: 0;
+}
+#gpm-header-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+#gpm-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+#gpm-footer {
+  padding: 14px 20px; border-top: 1px solid var(--border);
+  display: flex; gap: 10px; flex-shrink: 0;
+}
+
+/* 기보 기반 퍼즐 카드 */
+.gp-game-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+  cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 14px;
+}
+.gp-game-card:hover { border-color: var(--accent-orange); background: var(--bg-hover); }
+.gp-game-card.selected { border-color: var(--accent-orange); background: rgba(224,128,48,0.08); }
+.gp-card-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(224,128,48,0.12); color: var(--accent-orange);
+  display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+}
+.gp-card-body { flex: 1; min-width: 0; }
+.gp-card-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gp-card-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; flex-wrap: wrap; }
+.gp-tag {
+  font-size: 10px; padding: 2px 7px; border-radius: 8px;
+  background: rgba(224,128,48,0.12); color: var(--accent-orange);
+  font-weight: 600; white-space: nowrap;
+}
+.gp-tag.pin { background: rgba(80,144,208,0.12); color: #80aadd; }
+.gp-tag.checkmate { background: rgba(192,64,64,0.12); color: #e07070; }
+.gp-tag.blunder { background: rgba(136,85,204,0.12); color: #bb88ff; }
+.gp-tag.skewer { background: rgba(42,173,166,0.12); color: #4dd0ca; }
+.gp-loading {
+  text-align: center; padding: 32px 16px;
+  color: var(--text-muted); font-size: 13px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.gp-empty {
+  text-align: center; padding: 32px 16px;
+  color: var(--text-muted); font-size: 13px; line-height: 1.7;
+}
+.gp-empty-icon { font-size: 36px; margin-bottom: 10px; opacity: 0.5; }
+
+/* ===== 사용자 피드백 모달 ===== */
+#feedback-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 600;
+  display: none; align-items: center; justify-content: center;
+  padding: 20px; backdrop-filter: blur(4px);
+}
+#feedback-modal-backdrop.show { display: flex; animation: fadeIn 0.2s ease; }
+#feedback-modal {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 18px; width: 100%; max-width: 420px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.25s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+#fbm-header {
+  padding: 18px 20px 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+#fbm-header-title { font-size: 16px; font-weight: 700; color: var(--text-primary); flex: 1; }
+#fbm-close {
+  width: 30px; height: 30px; background: var(--bg-tertiary);
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-secondary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  transition: all 0.15s;
+}
+#fbm-close:hover { background: var(--bg-hover); }
+#fbm-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+/* 별점 */
+.fbm-section-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+.star-row { display: flex; gap: 6px; }
+.star-btn {
+  font-size: 24px; cursor: pointer; transition: transform 0.12s, filter 0.12s;
+  filter: grayscale(1) opacity(0.4); line-height: 1;
+  background: none; border: none; padding: 2px;
+}
+.star-btn.active { filter: none; transform: scale(1.12); }
+.star-btn:hover { filter: none; }
+
+/* 태그 버튼 */
+.feedback-tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.feedback-tag {
+  padding: 6px 12px; border-radius: 20px;
+  border: 1px solid var(--border); background: var(--bg-tertiary);
+  color: var(--text-secondary); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; font-family: var(--font-main);
+}
+.feedback-tag:hover { background: var(--bg-hover); color: var(--text-primary); }
+.feedback-tag.selected { background: rgba(127,166,80,0.15); border-color: var(--accent-green); color: var(--accent-green-bright); }
+.feedback-tag.selected.neg { background: rgba(192,64,64,0.12); border-color: #c04040; color: #e07070; }
+
+/* 텍스트 입력 */
+#fbm-comment {
+  width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px;
+  color: var(--text-primary); font-family: var(--font-main); font-size: 12px;
+  resize: none; min-height: 72px; transition: border-color 0.15s;
+  outline: none;
+}
+#fbm-comment:focus { border-color: var(--accent-green-dark); }
+#fbm-comment::placeholder { color: var(--text-muted); }
+
+/* 제출 버튼 */
+#fbm-footer { padding: 12px 20px 16px; display: flex; gap: 8px; }
+#fbm-submit {
+  flex: 1; padding: 11px; background: var(--accent-green);
+  border: none; border-radius: 10px; color: #fff;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: all 0.15s; font-family: var(--font-main);
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+#fbm-submit:hover { background: var(--accent-green-bright); }
+#fbm-skip {
+  padding: 11px 16px; background: var(--bg-tertiary);
+  border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text-secondary); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; font-family: var(--font-main);
+}
+#fbm-skip:hover { background: var(--bg-hover); }
+
+/* 피드백 성공 메시지 */
+.fbm-success {
+  text-align: center; padding: 24px 20px 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.fbm-success-icon { font-size: 40px; }
+.fbm-success-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.fbm-success-sub { font-size: 12px; color: var(--text-secondary); }
+
+/* 퍼즐 사이드패널 - 피드백 버튼 */
+.pz-feedback-btn {
+  width: 100%; padding: 9px;
+  background: rgba(127,166,80,0.1);
+  border: 1px solid rgba(127,166,80,0.25);
+  border-radius: 9px;
+  color: var(--accent-green-bright);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  font-family: var(--font-main);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.pz-feedback-btn:hover { background: rgba(127,166,80,0.18); border-color: var(--accent-green); }
+
+/* 기보 기반 퍼즐 태그 (퍼즐 뷰 사이드패널) */
+.psp-game-source {
+  background: rgba(224,128,48,0.08);
+  border: 1px solid rgba(224,128,48,0.2);
+  border-radius: 8px; padding: 8px 12px;
+  font-size: 11px; color: var(--accent-orange);
+  display: flex; align-items: flex-start; gap: 8px; line-height: 1.5;
+}
+.psp-game-source .src-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.psp-game-source .src-text b { font-weight: 700; }
+
 /* ── 우클릭 화살표 오버레이 ── */
 .board-arrow-overlay {
   position: absolute;
@@ -1195,6 +1424,16 @@ body {
             <div class="daily-sub">매일 새로운 퍼즐로 실력을 점검하세요. 완료 시 특별 보너스 포인트!</div>
           </div>
           <div class="daily-badge">오늘 도전!</div>
+        </div>
+
+        <!-- 내 기보 기반 퍼즐 -->
+        <div class="game-puzzle-banner" onclick="openGamePuzzleModal()">
+          <div class="game-puzzle-banner-icon">🎮</div>
+          <div class="game-puzzle-banner-info">
+            <div class="game-puzzle-banner-title">내 기보 기반 퍼즐</div>
+            <div class="game-puzzle-banner-sub">실제 대국에서 <b>놓쳤던 전술</b>(포크·핀·체크메이트·블런더)을 퍼즐로 다시 훈련하세요. 내 약점을 집중 공략!</div>
+          </div>
+          <div class="game-puzzle-banner-badge" id="game-puzzle-count-badge">불러오는 중…</div>
         </div>
 
         <!-- 통계 -->
@@ -1350,6 +1589,14 @@ body {
           <button class="pz-btn" onclick="prevPuzzle()">← 이전</button>
           <button class="pz-btn primary" id="next-puzzle-btn" onclick="nextPuzzle()">다음 퍼즐 →</button>
         </div>
+        <!-- 피드백 버튼 (퍼즐 완료 후 표시) -->
+        <button class="pz-feedback-btn" id="puzzle-feedback-btn" style="display:none;" onclick="openFeedbackModal()">
+          💬 이 퍼즐 피드백 남기기
+        </button>
+        <div id="psp-game-source" class="psp-game-source" style="display:none;">
+          <span class="src-icon">🎮</span>
+          <div class="src-text" id="psp-game-source-text">내 대국에서 생성된 퍼즐</div>
+        </div>
         <div style="display:flex; justify-content:center; margin-top:2px;">
           <a id="lichess-link" class="lichess-link-btn" href="#" target="_blank" style="display:none;">
             ♟ Lichess에서 보기
@@ -1360,6 +1607,80 @@ body {
   </div>
 
 </div><!-- /main -->
+
+<!-- 기보 기반 퍼즐 선택 모달 -->
+<div id="game-puzzle-modal-backdrop" onclick="closeGamePuzzleModal(event)">
+  <div id="game-puzzle-modal">
+    <div id="gpm-header">
+      <div id="gpm-header-icon">🎮</div>
+      <div id="gpm-header-title">내 기보 기반 퍼즐</div>
+      <button id="gpm-header-close" onclick="closeGamePuzzleModal()">✕</button>
+    </div>
+    <div id="gpm-body">
+      <div class="gp-loading" id="gpm-loading">
+        <div class="lichess-spinner"></div>
+        <div>기보에서 전술 포지션 분석 중…</div>
+      </div>
+    </div>
+    <div id="gpm-footer">
+      <button class="pz-btn" onclick="closeGamePuzzleModal()" style="flex:none;padding:11px 18px;">취소</button>
+      <button class="pz-btn primary" id="gpm-start-btn" onclick="startGamePuzzle()" style="flex:1;" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        선택한 퍼즐 시작
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 사용자 피드백 모달 -->
+<div id="feedback-modal-backdrop">
+  <div id="feedback-modal">
+    <div id="fbm-header">
+      <span style="font-size:20px;">💬</span>
+      <div id="fbm-header-title">이 퍼즐은 어떠셨나요?</div>
+      <button id="fbm-close" onclick="closeFeedbackModal()">✕</button>
+    </div>
+    <div id="fbm-body">
+      <!-- 별점 -->
+      <div>
+        <div class="fbm-section-label">난이도 평가</div>
+        <div class="star-row" id="star-row">
+          <button class="star-btn" data-val="1" onclick="setStarRating(1)" title="너무 쉬움">⭐</button>
+          <button class="star-btn" data-val="2" onclick="setStarRating(2)" title="쉬움">⭐</button>
+          <button class="star-btn" data-val="3" onclick="setStarRating(3)" title="보통">⭐</button>
+          <button class="star-btn" data-val="4" onclick="setStarRating(4)" title="어려움">⭐</button>
+          <button class="star-btn" data-val="5" onclick="setStarRating(5)" title="매우 어려움">⭐</button>
+        </div>
+        <div id="star-label" style="font-size:11px;color:var(--text-muted);margin-top:5px;">★ 클릭해서 난이도를 평가하세요</div>
+      </div>
+      <!-- 태그 -->
+      <div>
+        <div class="fbm-section-label">퍼즐 평가</div>
+        <div class="feedback-tag-row" id="feedback-tags">
+          <button class="feedback-tag" data-tag="perfect" onclick="toggleFeedbackTag(this)">👍 좋은 퍼즐</button>
+          <button class="feedback-tag" data-tag="tooEasy" onclick="toggleFeedbackTag(this)">😌 너무 쉬움</button>
+          <button class="feedback-tag neg" data-tag="tooHard" onclick="toggleFeedbackTag(this)">😅 너무 어려움</button>
+          <button class="feedback-tag neg" data-tag="wrongSolution" onclick="toggleFeedbackTag(this)">⚠️ 정답 오류</button>
+          <button class="feedback-tag neg" data-tag="badPosition" onclick="toggleFeedbackTag(this)">❓ 포지션 이상</button>
+          <button class="feedback-tag" data-tag="learned" onclick="toggleFeedbackTag(this)">💡 배움이 있었음</button>
+          <button class="feedback-tag" data-tag="interesting" onclick="toggleFeedbackTag(this)">✨ 흥미로운 전술</button>
+        </div>
+      </div>
+      <!-- 코멘트 -->
+      <div>
+        <div class="fbm-section-label">추가 의견 (선택)</div>
+        <textarea id="fbm-comment" placeholder="이 퍼즐에 대해 자유롭게 남겨주세요…" maxlength="300"></textarea>
+      </div>
+    </div>
+    <div id="fbm-footer">
+      <button id="fbm-skip" onclick="closeFeedbackModal()">건너뛰기</button>
+      <button id="fbm-submit" onclick="submitFeedback()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        피드백 제출
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- THEME MODAL -->
 <div id="puzzle-modal-backdrop" onclick="closeModal(event)">
@@ -2387,6 +2708,651 @@ function updateStats() {
 initThemeGrids();
 updateStats();
 applyQueryFromUrl();
+
+/* ============================================================
+   FIREBASE / 기보 기반 퍼즐
+   ============================================================ */
+
+// ── Firebase 초기화 (records.html과 동일한 config) ──────────────
+let _fbApp = null, _fbAuth = null, _fbDb = null, _fbUser = null;
+let _firebaseReady = false;
+
+function initFirebase() {
+  if (_firebaseReady) return;
+  try {
+    // records.html과 동일한 설정을 사용 (실제 배포 시 환경변수로 관리)
+    const cfgEl = document.getElementById('firebase-config-json');
+    const cfg = cfgEl ? JSON.parse(cfgEl.textContent) : null;
+    if (!cfg) { console.warn('[puzzle] Firebase config not found'); return; }
+    if (!firebase.apps.length) { _fbApp = firebase.initializeApp(cfg); }
+    else { _fbApp = firebase.app(); }
+    _fbAuth = firebase.auth();
+    _fbDb   = firebase.firestore();
+    _firebaseReady = true;
+    _fbAuth.onAuthStateChanged(u => {
+      _fbUser = u;
+      if (u) loadGamePuzzleCount();
+    });
+  } catch(e) { console.warn('[puzzle] Firebase init failed:', e); }
+}
+
+// ── 기보 기반 퍼즐 데이터 ────────────────────────────────────────
+let _gamePuzzles = [];         // 생성된 퍼즐 배열
+let _selectedGamePuzzleIdx = -1; // 모달에서 선택된 퍼즐
+let _gamePuzzleLoaded = false;
+
+// 전술 이벤트 타입 → 이름/아이콘 매핑
+const TACTIC_META = {
+  fork:      { icon:'🍴', name:'포크',      tagCls:'fork',     desc:'두 개 이상의 적 말을 동시에 위협' },
+  pin:       { icon:'📌', name:'핀',        tagCls:'pin',      desc:'핀으로 더 가치 있는 말 보호' },
+  absPin:    { icon:'📌', name:'절대 핀',   tagCls:'pin',      desc:'킹을 보호하는 절대 핀' },
+  relPin:    { icon:'📌', name:'상대 핀',   tagCls:'pin',      desc:'높은 가치 말을 보호하는 상대 핀' },
+  skewer:    { icon:'🏹', name:'스큐어',    tagCls:'skewer',   desc:'가치 있는 말을 이동시켜 뒤의 말 포획' },
+  oppBlunder:{ icon:'💥', name:'블런더 포착',tagCls:'blunder', desc:'상대방 실수를 이용한 기물 획득' },
+  checkmate: { icon:'👑', name:'체크메이트', tagCls:'checkmate',desc:'킹을 잡는 결정적인 수' },
+  discoveredAttack:{ icon:'⚡', name:'발견 공격', tagCls:'fork', desc:'말 이동으로 뒤의 말이 공격' },
+};
+
+// Firestore에서 기보 불러와 전술 포지션 추출
+async function loadGamePuzzles() {
+  if (!_firebaseReady || !_fbUser) return [];
+
+  const snap = await _fbDb.collection('game_records')
+    .where('uid', '==', _fbUser.uid)
+    .orderBy('playedAt', 'desc')
+    .limit(30)
+    .get().catch(() => null);
+  if (!snap || snap.empty) return [];
+
+  const docs = [];
+  snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+
+  const puzzles = [];
+
+  for (const doc of docs) {
+    if (!doc.pgn || !doc.myColor) continue;
+
+    const myColor = doc.myColor;
+    const whiteName = doc.whiteName || '백';
+    const blackName = doc.blackName || '흑';
+    const dateStr = doc.playedAt
+      ? new Date(doc.playedAt.seconds * 1000).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
+      : '';
+
+    // PGN → 포지션 배열 파싱 (체스 룰 기반)
+    try {
+      const positions = parsePgnToPositions(doc.pgn);
+      if (!positions || positions.length < 4) continue;
+
+      // Stockfish 분석 없이 기보에서 전술 패턴 추출
+      // missedTactics: 내가 놓친 전술 (Firestore에 저장된 경우)
+      const missedTactics = doc.missedTactics || [];
+
+      // 기보 저장된 분석 결과 활용
+      if (doc.tacticEvents && doc.tacticEvents.length > 0) {
+        for (const ev of doc.tacticEvents) {
+          if (ev.subtype !== 'missed') continue;
+          const meta = TACTIC_META[ev.type] || TACTIC_META['fork'];
+          const plyIdx = ev.plyIdx != null ? ev.plyIdx : (ev.moveNum ? ev.moveNum * 2 - 1 : null);
+          if (plyIdx == null || plyIdx >= positions.length - 1) continue;
+
+          const pos = positions[plyIdx];
+          if (!pos || !pos.fen) continue;
+
+          // 정답 수 구성
+          const solution = ev.bestMove ? [ev.bestMove] : null;
+          if (!solution) continue;
+
+          puzzles.push({
+            isGameBased: true,
+            gameId: doc.id,
+            gameDateStr: dateStr,
+            gameVs: myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`,
+            gameResult: doc.result,
+            myColor,
+            tacticType: ev.type,
+            tacticPiece: ev.piece || '',
+            moveNum: ev.moveNum || Math.ceil(plyIdx / 2),
+            title: `${meta.name} 기회 — ${dateStr} ${myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`}`,
+            icon: meta.icon,
+            desc: meta.desc,
+            tagCls: meta.tagCls,
+            rating: 1200 + Math.floor(Math.random() * 400),
+            fen: pos.fen,
+            opponentMove: pos.lastMove || null,
+            solution,
+            fullSolution: solution,
+            hint: `${meta.name}: ${meta.desc}`,
+            moves: solution.length,
+            themes: [ev.type],
+            turn: pos.turn,
+            lichessId: null,
+            gameUrl: null,
+          });
+        }
+      }
+
+      // Stockfish 분석 결과가 없는 경우: 기보의 특정 포지션에서 패턴 추출 시도
+      if (puzzles.filter(p => p.gameId === doc.id).length === 0) {
+        // 각 포지션에서 간단한 포크/핀 탐지
+        const detected = detectTacticsInPgn(positions, myColor, doc);
+        puzzles.push(...detected.map(d => ({
+          ...d,
+          gameDateStr: dateStr,
+          gameVs: myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`,
+          gameResult: doc.result,
+        })));
+      }
+    } catch(e) {
+      console.warn('[gamePuzzle] PGN 파싱 실패:', e);
+    }
+  }
+
+  return puzzles.slice(0, 20);
+}
+
+// 경량 전술 탐지: 포크/핀/매이트 기회를 수읽기로 탐지
+function detectTacticsInPgn(positions, myColor, doc) {
+  const result = [];
+  const oppColor = myColor === 'w' ? 'b' : 'w';
+  const whiteName = doc.whiteName || '백';
+  const blackName = doc.blackName || '흑';
+
+  // 중반 포지션(6~40수) 위주로 분석
+  for (let i = 12; i < Math.min(positions.length - 2, 80); i += 2) {
+    const pos = positions[i];
+    if (!pos || !pos.fen || pos.turn !== myColor) continue;
+
+    try {
+      const chess = new Chess(pos.fen);
+      const legalMoves = chess.moves({ verbose: true });
+
+      // 1. 체크메이트 기회 탐지
+      for (const mv of legalMoves) {
+        const test = new Chess(pos.fen);
+        test.move(mv);
+        if (test.in_checkmate()) {
+          result.push(buildGamePuzzle(doc, pos, mv.from + mv.to, 'checkmate', '', i, myColor));
+          if (result.length >= 5) return result;
+          break;
+        }
+      }
+
+      // 2. 포크 탐지 (한 수로 두 개 이상의 고가치 기물 공격)
+      for (const mv of legalMoves) {
+        const test = new Chess(pos.fen);
+        const result2 = test.move(mv);
+        if (!result2) continue;
+        const attackTargets = getAttackedHighValuePieces(test, mv.to, oppColor);
+        if (attackTargets >= 2) {
+          const piece = mv.piece.toUpperCase();
+          result.push(buildGamePuzzle(doc, pos, mv.from + mv.to + (mv.promotion || ''), 'fork', piece, i, myColor));
+          if (result.length >= 5) return result;
+          break;
+        }
+      }
+
+      // 3. 피닝 기회 탐지 (기물이 킹을 향해 직선상에 있는 경우)
+      const pins = detectPinOpportunities(chess, myColor, oppColor);
+      if (pins.length > 0) {
+        const pv = pins[0];
+        result.push(buildGamePuzzle(doc, pos, pv.uci, 'pin', pv.piece, i, myColor));
+        if (result.length >= 5) return result;
+      }
+
+    } catch(e) { continue; }
+  }
+  return result;
+}
+
+function buildGamePuzzle(doc, pos, solutionUCI, tacticType, piece, plyIdx, myColor) {
+  const meta = TACTIC_META[tacticType] || TACTIC_META['fork'];
+  const whiteName = doc.whiteName || '백';
+  const blackName = doc.blackName || '흑';
+  const dateStr = doc.playedAt
+    ? new Date(doc.playedAt.seconds * 1000).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
+    : '';
+  return {
+    isGameBased: true,
+    gameId: doc.id,
+    gameDateStr: dateStr,
+    gameVs: myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`,
+    gameResult: doc.result,
+    myColor,
+    tacticType,
+    tacticPiece: piece,
+    moveNum: Math.ceil(plyIdx / 2),
+    title: `${meta.name} — ${dateStr} ${myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`}`,
+    icon: meta.icon,
+    desc: meta.desc,
+    tagCls: meta.tagCls,
+    rating: 1000 + Math.floor(Math.random() * 600),
+    fen: pos.fen,
+    opponentMove: pos.lastMove || null,
+    solution: [solutionUCI],
+    fullSolution: [solutionUCI],
+    hint: `${meta.name}: ${meta.desc}`,
+    moves: 1,
+    themes: [tacticType],
+    turn: pos.turn,
+    lichessId: null,
+    gameUrl: null,
+  };
+}
+
+function getAttackedHighValuePieces(chess, fromSq, oppColor) {
+  const highValue = oppColor === 'w' ? ['wQ','wR','wB','wN','wK'] : ['bQ','bR','bB','bN','bK'];
+  const board = chess.board();
+  const moves = chess.moves({ verbose: true });
+  const attackedSqs = new Set(moves.filter(m => m.from === fromSq).map(m => m.to));
+  let count = 0;
+  board.forEach(row => row.forEach(sq => {
+    if (!sq) return;
+    const key = (sq.color) + (sq.type.toUpperCase());
+    if (highValue.includes(key)) {
+      const file = 'abcdefgh'[sq.square ? sq.square.charCodeAt(0) - 97 : 0];
+      if (attackedSqs.has(sq.square)) count++;
+    }
+  }));
+  return count;
+}
+
+function detectPinOpportunities(chess, myColor, oppColor) {
+  // 간단한 핀 탐지: 비숍/룩/퀸 이동 후 상대 기물과 킹 사이 직선 점령
+  const moves = chess.moves({ verbose: true });
+  const result = [];
+  for (const mv of moves) {
+    if (!['b','r','q'].includes(mv.piece)) continue;
+    const test = new Chess(chess.fen());
+    test.move(mv);
+    // 이동 후 해당 기물이 상대 킹 방향 직선상에 고가치 기물 핀 가능한지 체크
+    const oppKingPos = findKing(test.board(), oppColor);
+    if (!oppKingPos) continue;
+    // 단순히 이동 후 체크 또는 공격이 발생하면 핀 후보로 처리
+    if (test.in_check()) {
+      result.push({ uci: mv.from + mv.to + (mv.promotion || ''), piece: mv.piece.toUpperCase() });
+    }
+  }
+  return result;
+}
+
+function findKing(board, color) {
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const sq = board[r][c];
+    if (sq && sq.color === color && sq.type === 'k') return { r, c };
+  }
+  return null;
+}
+
+// PGN → 포지션 배열 (FEN + lastMove + turn)
+function parsePgnToPositions(pgn) {
+  try {
+    const chess = new Chess();
+    const moves = pgn.trim().split(/\s+/).filter(t => !/^\d+\./.test(t) && t !== '' && !t.startsWith('{') && !['1-0','0-1','1/2-1/2','*'].includes(t));
+    const positions = [{ fen: chess.fen(), lastMove: null, turn: 'w' }];
+    for (const san of moves) {
+      const r = chess.move(san, { sloppy: true });
+      if (!r) break;
+      positions.push({
+        fen: chess.fen(),
+        lastMove: r.from + r.to + (r.promotion || ''),
+        turn: chess.turn(),
+      });
+    }
+    return positions;
+  } catch(e) { return []; }
+}
+
+// ── 기보 기반 퍼즐 개수 뱃지 업데이트 ──────────────────────────
+async function loadGamePuzzleCount() {
+  try {
+    const snap = await _fbDb.collection('game_records')
+      .where('uid', '==', _fbUser.uid)
+      .limit(30).get();
+    const cnt = Math.min(snap.size * 2, 20);
+    const badge = document.getElementById('game-puzzle-count-badge');
+    if (badge) badge.textContent = cnt > 0 ? `약 ${cnt}개 발견` : '기보 분석';
+  } catch(e) {
+    const badge = document.getElementById('game-puzzle-count-badge');
+    if (badge) badge.textContent = '기보 분석';
+  }
+}
+
+// ── 기보 기반 퍼즐 모달 열기/닫기 ──────────────────────────────
+async function openGamePuzzleModal() {
+  document.getElementById('game-puzzle-modal-backdrop').classList.add('show');
+  initFirebase();
+
+  if (!_gamePuzzleLoaded) {
+    const body = document.getElementById('gpm-body');
+    body.innerHTML = `<div class="gp-loading"><div class="lichess-spinner"></div><div>기보 분석 중… Stockfish 불필요, 패턴 기반 추출</div></div>`;
+
+    if (!_firebaseReady || !_fbUser) {
+      // 로그인 안 된 경우 데모 퍼즐 표시
+      _gamePuzzles = buildDemoPuzzles();
+    } else {
+      _gamePuzzles = await loadGamePuzzles();
+      if (_gamePuzzles.length === 0) _gamePuzzles = buildDemoPuzzles();
+    }
+    _gamePuzzleLoaded = true;
+    renderGamePuzzleList();
+  }
+}
+
+function closeGamePuzzleModal(e) {
+  if (!e || e.target === document.getElementById('game-puzzle-modal-backdrop')) {
+    document.getElementById('game-puzzle-modal-backdrop').classList.remove('show');
+  }
+}
+
+// 데모용 기보 기반 퍼즐 (로그인 없을 때)
+function buildDemoPuzzles() {
+  return [
+    {
+      isGameBased: true,
+      gameId: 'demo1',
+      gameDateStr: '예시 대국',
+      gameVs: 'vs 상대방',
+      gameResult: '0-1',
+      myColor: 'w',
+      tacticType: 'fork',
+      tacticPiece: 'N',
+      moveNum: 18,
+      title: '포크 기회 — 나이트로 킹·룩 동시 공격',
+      icon: '🍴',
+      desc: '나이트로 킹과 룩을 동시에 공격할 수 있는 포크를 찾으세요',
+      tagCls: 'fork',
+      rating: 1350,
+      fen: 'r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5',
+      opponentMove: 'e7e5',
+      solution: ['f3g5'],
+      fullSolution: ['f3g5'],
+      hint: '나이트로 두 개의 적 말을 동시에 공격하세요',
+      moves: 1,
+      themes: ['fork'],
+      turn: 'white',
+      lichessId: null,
+      gameUrl: null,
+      isDemo: true,
+    },
+    {
+      isGameBased: true,
+      gameId: 'demo2',
+      gameDateStr: '예시 대국',
+      gameVs: 'vs 상대방',
+      gameResult: '1-0',
+      myColor: 'b',
+      tacticType: 'checkmate',
+      tacticPiece: '',
+      moveNum: 24,
+      title: '1수 체크메이트 기회',
+      icon: '👑',
+      desc: '단 한 수로 체크메이트를 완성하세요',
+      tagCls: 'checkmate',
+      rating: 1100,
+      fen: '6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1',
+      opponentMove: null,
+      solution: ['e1e8'],
+      fullSolution: ['e1e8'],
+      hint: '룩으로 백랭크를 노리세요',
+      moves: 1,
+      themes: ['backRankMate'],
+      turn: 'white',
+      lichessId: null,
+      gameUrl: null,
+      isDemo: true,
+    },
+    {
+      isGameBased: true,
+      gameId: 'demo3',
+      gameDateStr: '예시 대국',
+      gameVs: 'vs 상대방',
+      gameResult: '0-1',
+      myColor: 'w',
+      tacticType: 'pin',
+      tacticPiece: 'B',
+      moveNum: 15,
+      title: '절대 핀 — 비숍으로 나이트 고정',
+      icon: '📌',
+      desc: '비숍으로 나이트를 킹 앞에 묶어두는 핀을 찾으세요',
+      tagCls: 'pin',
+      rating: 1250,
+      fen: 'rnbqk2r/ppp2ppp/4pn2/3p4/1b1PP3/2NB1N2/PPP2PPP/R1BQK2R w KQkq - 2 6',
+      opponentMove: 'f8b4',
+      solution: ['d1d2'],
+      fullSolution: ['d1d2'],
+      hint: '퀸을 움직여 비숍의 핀 위협에 대응하세요',
+      moves: 1,
+      themes: ['pin'],
+      turn: 'white',
+      lichessId: null,
+      gameUrl: null,
+      isDemo: true,
+    },
+  ];
+}
+
+function renderGamePuzzleList() {
+  const body = document.getElementById('gpm-body');
+  if (_gamePuzzles.length === 0) {
+    body.innerHTML = `<div class="gp-empty"><div class="gp-empty-icon">♟</div>기보에서 전술 포지션을 찾지 못했습니다.<br>더 많은 게임을 플레이하거나 Stockfish 분석을 먼저 실행해보세요.</div>`;
+    return;
+  }
+
+  const isDemo = !_fbUser || _gamePuzzles.every(p => p.isDemo);
+  let html = '';
+  if (isDemo) {
+    html += `<div style="background:rgba(224,128,48,0.08);border:1px solid rgba(224,128,48,0.2);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--accent-orange);margin-bottom:4px;">
+      💡 로그인하면 실제 내 기보에서 생성된 퍼즐을 받을 수 있습니다. 아래는 예시 퍼즐입니다.
+    </div>`;
+  }
+
+  _gamePuzzles.forEach((p, i) => {
+    const resultLabel = p.gameResult === '1-0' ? (p.myColor === 'w' ? '승리' : '패배')
+                      : p.gameResult === '0-1' ? (p.myColor === 'b' ? '승리' : '패배') : '무승부';
+    const resultCls = resultLabel === '승리' ? 'color:var(--accent-green-bright)' : resultLabel === '패배' ? 'color:#e07070' : 'color:var(--text-muted)';
+    html += `<div class="gp-game-card" id="gpc-${i}" onclick="selectGamePuzzle(${i})">
+      <div class="gp-card-icon">${p.icon}</div>
+      <div class="gp-card-body">
+        <div class="gp-card-title">${p.title}</div>
+        <div class="gp-card-meta">
+          <span>${p.gameDateStr}</span>
+          <span>${p.gameVs}</span>
+          <span style="${resultCls}">${resultLabel}</span>
+          <span style="color:var(--text-muted)">${p.moveNum}수</span>
+        </div>
+        <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">
+          <span class="gp-tag ${p.tagCls}">${p.icon} ${TACTIC_META[p.tacticType]?.name || p.tacticType}</span>
+          <span class="gp-tag" style="background:rgba(80,80,80,0.15);color:var(--text-muted);">레이팅 ${p.rating}</span>
+          ${p.isDemo ? '<span class="gp-tag" style="background:rgba(255,200,0,0.1);color:#c8a020;">예시</span>' : ''}
+        </div>
+      </div>
+    </div>`;
+  });
+  body.innerHTML = html;
+}
+
+function selectGamePuzzle(idx) {
+  _selectedGamePuzzleIdx = idx;
+  document.querySelectorAll('.gp-game-card').forEach((el, i) => {
+    el.classList.toggle('selected', i === idx);
+  });
+  document.getElementById('gpm-start-btn').disabled = false;
+}
+
+function startGamePuzzle() {
+  if (_selectedGamePuzzleIdx < 0) return;
+  closeGamePuzzleModal();
+
+  // 기보 기반 퍼즐 모드로 세팅
+  const selectedPuzzle = _gamePuzzles[_selectedGamePuzzleIdx];
+  const allFromGame = _gamePuzzles.filter(p => p.gameId === selectedPuzzle.gameId);
+  const startFrom = _gamePuzzles.indexOf(selectedPuzzle);
+  const puzzleSet = _gamePuzzles.slice(startFrom);
+
+  // 기보 기반 테마 객체
+  const gamePseudoTheme = {
+    id: 'game_based',
+    icon: '🎮',
+    name: '내 기보 퍼즐',
+    desc: '실제 대국에서 생성된 퍼즐',
+    color: '#e08030',
+  };
+  state.currentTheme = gamePseudoTheme;
+
+  document.getElementById('theme-list-view').style.display = 'none';
+  document.getElementById('puzzle-board-view').classList.add('show');
+  document.getElementById('psp-theme-tag').textContent = '🎮 내 기보 퍼즐';
+
+  state.puzzles = puzzleSet;
+  state.totalPuzzles = puzzleSet.length;
+  state.currentPuzzleIdx = 0;
+  state.moveHistory = [];
+  showBoardLoading(false);
+  loadPuzzle(0);
+}
+
+/* ============================================================
+   사용자 피드백 시스템
+   ============================================================ */
+
+let _feedbackState = {
+  rating: 0,
+  tags: new Set(),
+  puzzleId: null,
+  puzzleTheme: null,
+  isGameBased: false,
+};
+
+function openFeedbackModal() {
+  const puzzle = state.currentPuzzle;
+  if (!puzzle) return;
+  _feedbackState.rating = 0;
+  _feedbackState.tags = new Set();
+  _feedbackState.puzzleId = puzzle.lichessId || puzzle.gameId || null;
+  _feedbackState.puzzleTheme = puzzle.themes?.[0] || state.currentTheme?.id || '';
+  _feedbackState.isGameBased = !!puzzle.isGameBased;
+
+  // UI 초기화
+  setStarRating(0);
+  document.querySelectorAll('.feedback-tag').forEach(t => t.classList.remove('selected'));
+  document.getElementById('fbm-comment').value = '';
+  document.getElementById('feedback-modal-backdrop').classList.add('show');
+}
+
+function closeFeedbackModal() {
+  document.getElementById('feedback-modal-backdrop').classList.remove('show');
+}
+
+const STAR_LABELS = ['', '너무 쉬움 ★', '쉬움 ★★', '보통 ★★★', '어려움 ★★★★', '매우 어려움 ★★★★★'];
+function setStarRating(val) {
+  _feedbackState.rating = val;
+  document.querySelectorAll('.star-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.val) <= val);
+  });
+  document.getElementById('star-label').textContent = val > 0 ? STAR_LABELS[val] : '★ 클릭해서 난이도를 평가하세요';
+}
+
+function toggleFeedbackTag(btn) {
+  const tag = btn.dataset.tag;
+  btn.classList.toggle('selected');
+  if (_feedbackState.tags.has(tag)) _feedbackState.tags.delete(tag);
+  else _feedbackState.tags.add(tag);
+}
+
+async function submitFeedback() {
+  const comment = document.getElementById('fbm-comment').value.trim();
+  const payload = {
+    puzzleId: _feedbackState.puzzleId,
+    puzzleTheme: _feedbackState.puzzleTheme,
+    isGameBased: _feedbackState.isGameBased,
+    difficultyRating: _feedbackState.rating,
+    tags: Array.from(_feedbackState.tags),
+    comment,
+    submittedAt: new Date().toISOString(),
+    uid: _fbUser?.uid || null,
+  };
+
+  // Firestore에 저장 (가능할 경우)
+  if (_firebaseReady && _fbDb && _fbUser) {
+    try {
+      await _fbDb.collection('puzzle_feedback').add(payload);
+    } catch(e) {
+      console.warn('[feedback] Firestore 저장 실패:', e);
+    }
+  }
+
+  // localStorage에 로컬 백업 저장
+  try {
+    const localFb = JSON.parse(localStorage.getItem('puzzle_feedback_local') || '[]');
+    localFb.push(payload);
+    if (localFb.length > 50) localFb.splice(0, localFb.length - 50);
+    localStorage.setItem('puzzle_feedback_local', JSON.stringify(localFb));
+  } catch(e) {}
+
+  // 성공 UI
+  const modal = document.getElementById('feedback-modal');
+  const body = document.getElementById('fbm-body');
+  const footer = document.getElementById('fbm-footer');
+  body.innerHTML = `<div class="fbm-success">
+    <div class="fbm-success-icon">🎉</div>
+    <div class="fbm-success-title">피드백 감사합니다!</div>
+    <div class="fbm-success-sub">퍼즐 품질 개선에 도움이 됩니다.</div>
+  </div>`;
+  footer.innerHTML = `<button class="pz-btn primary" style="flex:1;padding:11px;" onclick="closeFeedbackModal()">닫기</button>`;
+}
+
+/* ============================================================
+   퍼즐 완료 시 피드백 버튼 표시 패치
+   ============================================================ */
+
+// 기존 tryMove 함수에 퍼즐 완료 시 피드백 버튼 표시 추가
+const _origShowFeedback = showFeedback;
+const _origTryMove = window.tryMove;
+
+// 퍼즐 완료 감지 → 피드백 버튼 표시
+const _origLoadPuzzle = loadPuzzle;
+window.loadPuzzle = function(idx) {
+  _origLoadPuzzle(idx);
+  // 기보 기반 퍼즐이면 출처 표시
+  const puzzle = state.puzzles[idx];
+  const srcEl = document.getElementById('psp-game-source');
+  const srcText = document.getElementById('psp-game-source-text');
+  if (puzzle && puzzle.isGameBased && srcEl && srcText) {
+    srcEl.style.display = 'flex';
+    const resultLabel = puzzle.gameResult === '1-0'
+      ? (puzzle.myColor === 'w' ? '승리' : '패배')
+      : puzzle.gameResult === '0-1'
+        ? (puzzle.myColor === 'b' ? '승리' : '패배') : '무승부';
+    srcText.innerHTML = `<b>내 대국 기반</b> — ${puzzle.gameDateStr} ${puzzle.gameVs} (${resultLabel})<br>${puzzle.moveNum}수에서의 ${TACTIC_META[puzzle.tacticType]?.name || '전술'} 기회`;
+    if (puzzle.isDemo) srcText.innerHTML += ' <span style="color:var(--accent-orange)">[예시]</span>';
+  } else if (srcEl) {
+    srcEl.style.display = 'none';
+  }
+  // 피드백 버튼 숨기기
+  const fbBtn = document.getElementById('puzzle-feedback-btn');
+  if (fbBtn) fbBtn.style.display = 'none';
+};
+
+// 기존 tryMove 내 퍼즐 완료 로직 패치
+const _patchedTryMove = tryMove;
+window.tryMove = function(fr, fc, tr, tc, moveStr) {
+  _patchedTryMove(fr, fc, tr, tc, moveStr);
+  // 퍼즐 완료 후 잠시 후 피드백 버튼 표시
+  setTimeout(() => {
+    if (state.puzzleSolved) {
+      const fbBtn = document.getElementById('puzzle-feedback-btn');
+      if (fbBtn) fbBtn.style.display = 'flex';
+    }
+  }, 500);
+};
+
+/* ============================================================
+   Firebase 초기화 (DOMContentLoaded)
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  initFirebase();
+});
 </script>
 
 <!-- 모바일 하단 내비게이션 -->
