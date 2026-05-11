@@ -24,6 +24,17 @@
 
     // Authentication state observer
     window._auth.onAuthStateChanged(function(user) {
+      checkAuth(user);
+    });
+
+    // Back-button navigation check
+    window.addEventListener('pageshow', function(event) {
+      if (event.persisted || window._auth.currentUser === null) {
+        checkAuth(window._auth.currentUser);
+      }
+    });
+
+    function checkAuth(user) {
       const path = window.location.pathname;
       const isAuthPage = path.endsWith('auth.html');
 
@@ -55,7 +66,7 @@
           window.location.href = '/auth.html';
         }
       }
-    });
+    }
 
     // Global logout handler
     window.handleLogout = function() {
