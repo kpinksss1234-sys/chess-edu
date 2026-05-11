@@ -3,9 +3,14 @@
 // 클라이언트 → /api/lichess-proxy?path=... → lichess.org API → 클라이언트
 //
 // 지원 엔드포인트:
-//   POST /api/lichess-proxy?path=import          → lichess.org/api/import
-//   POST /api/lichess-proxy?path=request-analysis → lichess.org/api/analysis/{gameId}
-//   GET  /api/lichess-proxy?path=export&id={id}  → lichess.org/game/export/{id}?evals=true&accuracy=true
+//   POST /api/lichess-proxy?path=import         → lichess.org/api/import (analyse=true 포함)
+//   GET  /api/lichess-proxy?path=export&id={id} → lichess.org/game/export/{id}?evals=true
+//
+// 흐름:
+//   1) import 시 analyse=true 파라미터를 함께 보내 Lichess 서버 분석을 자동 요청
+//   2) export를 폴링하여 %judgment 태그(Inaccuracy·Mistake·Blunder)가 붙은 PGN 수신
+//   ※ Lichess에는 분석을 별도 시작하는 공개 API가 존재하지 않음 (포럼 공식 답변 확인)
+//      analyse=true 가 유일하게 지원되는 서버 분석 요청 방법입니다.
 
 export default async function handler(req, res) {
   // CORS 헤더 — chess-education.vercel.app 및 localhost 허용
@@ -35,13 +40,16 @@ export default async function handler(req, res) {
   const { path, id } = req.query;
 
   try {
-    // ── 1) PGN import → 게임 ID 반환 ──────────────────────────
+    // ── 1) PGN import + 서버 분석 요청 ────────────────────────
+    // analyse=true 를 함께 전송하면 Lichess가 import와 동시에 분석 큐에 올림
+    // 이것이 Lichess가 공식 지원하는 유일한 서버 분석 요청 방법
     if (path === 'import' && req.method === 'POST') {
-      const body = req.body; // Vercel이 자동으로 파싱
+      const body = req.body;
       const pgn = typeof body === 'object' ? body.pgn : body;
 
       const form = new URLSearchParams();
       form.append('pgn', pgn);
+      form.append('analyse', 'true'); // ← 서버 분석 자동 요청
 
       const lichessRes = await fetch('https://lichess.org/api/import', {
         method: 'POST',
@@ -57,35 +65,11 @@ export default async function handler(req, res) {
       return res.status(lichessRes.status).json(data);
     }
 
-    // ── 2) 분석 요청 → Lichess 서버 분석 시작 ─────────────────
-    if (path === 'request-analysis' && req.method === 'POST') {
-      if (!id) return res.status(400).json({ error: 'id 파라미터 필요' });
-
-      const lichessRes = await fetch(`https://lichess.org/api/analysis/${id}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      res.setHeader('Cache-Control', 'no-store');
-      // 200 or 304 등 — body가 없을 수 있음
-      if (lichessRes.status === 200) {
-        try {
-          const data = await lichessRes.json();
-          return res.status(200).json(data);
-        } catch {
-          return res.status(200).json({ ok: true });
-        }
-      }
-      return res.status(lichessRes.status).json({ ok: false, status: lichessRes.status });
-    }
-
-    // ── 3) 분석 결과 export (PGN with evals) ──────────────────
+    // ── 2) 분석 결과 export (PGN with evals + judgment) ───────
     if (path === 'export' && req.method === 'GET') {
       if (!id) return res.status(400).json({ error: 'id 파라미터 필요' });
 
-      const exportUrl = `https://lichess.org/game/export/${id}?evals=true&accuracy=true&clocks=false&opening=false&literate=false`;
+      const exportUrl = `https://lichess.org/game/export/${id}?evals=true&clocks=false&opening=false&literate=false`;
       const lichessRes = await fetch(exportUrl, {
         headers: {
           'Accept': 'application/x-chess-pgn',

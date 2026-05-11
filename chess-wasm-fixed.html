@@ -3396,7 +3396,6 @@ async function analyzePgnWithLichess() {
     return;
   }
 
-  const level = parseInt(document.getElementById('lichess-level-select')?.value || '5');
   const statusEl = document.getElementById('lichess-analysis-status');
   const resultEl = document.getElementById('lichess-analysis-result');
   const btn      = document.getElementById('lichess-analyze-btn');
@@ -3413,8 +3412,10 @@ async function analyzePgnWithLichess() {
   if (resultEl) resultEl.style.display = 'none';
 
   try {
-    // ── STEP 1: PGN import → gameId ──────────────────────────
-    setStatus('⏳ Lichess에 기보 업로드 중…', null);
+    // ── STEP 1: PGN import + 서버 분석 요청 ──────────────────────────
+    // analyse=true 를 함께 전송 → Lichess가 import와 동시에 분석 큐에 올림
+    // Lichess에는 분석을 별도로 시작하는 공개 API가 없음 (이것이 유일한 방법)
+    setStatus('⏳ Lichess에 기보 업로드 및 분석 요청 중…', null);
 
     const importRes = await fetch(`${PROXY}?path=import`, {
       method: 'POST',
@@ -3429,22 +3430,16 @@ async function analyzePgnWithLichess() {
     const gameId = importJson.id;
     if (!gameId) throw new Error('게임 ID를 받지 못했습니다.');
 
-    // ── STEP 2: 서버 분석 요청 ───────────────────────────────
-    setStatus(`⏳ Lichess 분석 요청 중… (게임 ID: ${gameId})`, null);
-
-    // Lichess /api/analysis/{id} — 분석을 큐에 올림 (레벨 무관, 서버가 결정)
-    await fetch(`${PROXY}?path=request-analysis&id=${gameId}`, {
-      method: 'POST',
-    }).catch(() => {}); // 실패해도 폴링은 계속
-
-    // ── STEP 3: evals 폴링 (최대 ~90초) ──────────────────────
+    // ── STEP 2: %judgment 폴링 (최대 ~90초) ────────────────────────────
+    // Lichess 서버가 분석을 마치면 export PGN에 %judgment 태그가 붙어 반환됨
+    // 수 분류는 전적으로 Lichess API 결과(%judgment)만 사용 — 로컬 계산 없음
     let annotations = null;
-    const maxAttempts = 18; // 2s + 17×5s ≈ 87초
+    const maxAttempts = 18; // 2s + 17x5s ≈ 87초
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const elapsed = attempt === 0 ? 0 : (2 + (attempt - 1) * 5);
       setStatus(
         `⏳ Lichess 분석 중… (${attempt + 1}/${maxAttempts}, 약 ${elapsed}초 경과)<br>` +
-        `<span style="font-size:10px;color:var(--text-muted);">레벨에 따라 최대 90초 소요될 수 있습니다.</span>`,
+        `<span style="font-size:10px;color:var(--text-muted);">Lichess 서버 분석은 최대 90초 소요될 수 있습니다.</span>`,
         null
       );
 
@@ -3455,18 +3450,19 @@ async function analyzePgnWithLichess() {
 
       const pgnText = await expRes.text();
 
-      // %eval 또는 %judgment 태그가 있으면 분석 완료
-      if (pgnText.includes('%eval') || pgnText.includes('%judgment')) {
+      // %judgment 태그가 있으면 Lichess 서버 분석 완료
+      // %eval만 있고 %judgment가 없으면 분석 아직 미완료
+      if (pgnText.includes('%judgment')) {
         annotations = parseLichessPgnAnnotations(pgnText);
         break;
       }
     }
 
-    // ── 분석 타임아웃 ─────────────────────────────────────────
-    if (!annotations || annotations.every(a => a === null)) {
+    // ── 분석 타임아웃 ─────────────────
+    if (!annotations) {
       setStatus(
         `⚠️ 분석 결과를 가져오지 못했습니다.<br>` +
-        `<span style="font-size:10px;color:var(--text-muted);">Lichess 서버가 바쁠 수 있습니다. 잠시 후 다시 시도하세요.</span><br>` +
+        `<span style="font-size:10px;color:var(--text-muted);">Lichess 서버가 바쁘거나, 일일 분석 한도 초과 또는 이미 분석된 게임일 수 있습니다.</span><br>` +
         `<a href="https://lichess.org/${gameId}/analysis" target="_blank" style="color:var(--accent-blue);font-size:11px;">Lichess에서 직접 보기 ↗</a>`,
         null
       );
@@ -3475,7 +3471,7 @@ async function analyzePgnWithLichess() {
       return;
     }
 
-    // ── STEP 4: game.history에 annotation 적용 ───────────────
+    // ── STEP 3: game.history에 annotation 적용 ───────────────
     let applied = 0;
     for (let i = 0; i < game.history.length && i < annotations.length; i++) {
       const ann = annotations[i];
@@ -3528,6 +3524,8 @@ async function analyzePgnWithLichess() {
 }
 
 // ── Lichess PGN에서 수별 judgment 추출 ───────────────────────────
+// Lichess API가 반환한 %judgment 태그만 사용. 로컬 분류 로직 없음.
+// 부정적인 수(Inaccuracy, Mistake, Blunder, Missed win)에만 태그 표시.
 // 형식 예: 1. e4 { [%eval 0.17] } e5 { [%eval 0.19] [%judgment name="Inaccuracy" comment="..."] }
 function parseLichessPgnAnnotations(pgnText) {
   const movesSection = pgnText.replace(/\[.*?\]\s*/gs, '').trim();
@@ -3543,7 +3541,7 @@ function parseLichessPgnAnnotations(pgnText) {
   for (let i = 0; i < fullTokens.length; i++) {
     const t = fullTokens[i];
     if (!t.comment && !/^\d+/.test(t.text)) {
-      // 수 토큰: 바로 뒤 주석 블록에서 judgment 추출
+      // 수 토큰: 바로 뒤 주석 블록에서 %judgment만 추출
       let judgment = null;
       for (let j = i + 1; j < fullTokens.length && j <= i + 2; j++) {
         if (fullTokens[j].comment) {
@@ -3553,7 +3551,9 @@ function parseLichessPgnAnnotations(pgnText) {
         }
         if (!fullTokens[j].comment && !/^\d+/.test(fullTokens[j].text)) break;
       }
-      anns.push(judgment);
+      // 부정적인 수만 반환 — 긍정 판정(Brilliant, Great, Best 등)은 null로 처리
+      const NEGATIVE = new Set(['Inaccuracy', 'Mistake', 'Blunder', 'Missed win']);
+      anns.push(NEGATIVE.has(judgment) ? judgment : null);
     }
   }
   return anns;
