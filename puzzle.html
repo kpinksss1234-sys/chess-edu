@@ -3070,11 +3070,11 @@ async function openGamePuzzleModal() {
     body.innerHTML = `<div class="gp-loading"><div class="lichess-spinner"></div><div>기보 분석 중… Stockfish 불필요, 패턴 기반 추출</div></div>`;
 
     if (!_firebaseReady || !_fbUser) {
-      // 로그인 안 된 경우 데모 퍼즐 표시
-      _gamePuzzles = buildDemoPuzzles();
+      // 로그인 안 된 경우: 빈 배열 + 로그인 유도 메시지
+      _gamePuzzles = [];
     } else {
       _gamePuzzles = await loadGamePuzzles();
-      if (_gamePuzzles.length === 0) _gamePuzzles = buildDemoPuzzles();
+      if (_gamePuzzles.length === 0) _gamePuzzles = [];
     }
     _gamePuzzleLoaded = true;
     renderGamePuzzleList();
@@ -3087,107 +3087,40 @@ function closeGamePuzzleModal(e) {
   }
 }
 
-// 데모용 기보 기반 퍼즐 (로그인 없을 때)
+// buildDemoPuzzles — 데모 퍼즐 제거됨. 실제 기보 기반 퍼즐만 사용.
 function buildDemoPuzzles() {
-  return [
-    {
-      isGameBased: true,
-      gameId: 'demo1',
-      gameDateStr: '예시 대국',
-      gameVs: 'vs 상대방',
-      gameResult: '0-1',
-      myColor: 'w',
-      tacticType: 'fork',
-      tacticPiece: 'N',
-      moveNum: 18,
-      title: '포크 기회 — 나이트로 킹·룩 동시 공격',
-      icon: '🍴',
-      desc: '나이트로 킹과 룩을 동시에 공격할 수 있는 포크를 찾으세요',
-      tagCls: 'fork',
-      rating: 1350,
-      fen: 'r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 4 5',
-      opponentMove: 'e7e5',
-      solution: ['f3g5'],
-      fullSolution: ['f3g5'],
-      hint: '나이트로 두 개의 적 말을 동시에 공격하세요',
-      moves: 1,
-      themes: ['fork'],
-      turn: 'white',
-      lichessId: null,
-      gameUrl: null,
-      isDemo: true,
-    },
-    {
-      isGameBased: true,
-      gameId: 'demo2',
-      gameDateStr: '예시 대국',
-      gameVs: 'vs 상대방',
-      gameResult: '1-0',
-      myColor: 'b',
-      tacticType: 'checkmate',
-      tacticPiece: '',
-      moveNum: 24,
-      title: '1수 체크메이트 기회',
-      icon: '👑',
-      desc: '단 한 수로 체크메이트를 완성하세요',
-      tagCls: 'checkmate',
-      rating: 1100,
-      fen: '6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1',
-      opponentMove: null,
-      solution: ['e1e8'],
-      fullSolution: ['e1e8'],
-      hint: '룩으로 백랭크를 노리세요',
-      moves: 1,
-      themes: ['backRankMate'],
-      turn: 'white',
-      lichessId: null,
-      gameUrl: null,
-      isDemo: true,
-    },
-    {
-      isGameBased: true,
-      gameId: 'demo3',
-      gameDateStr: '예시 대국',
-      gameVs: 'vs 상대방',
-      gameResult: '0-1',
-      myColor: 'w',
-      tacticType: 'pin',
-      tacticPiece: 'B',
-      moveNum: 15,
-      title: '절대 핀 — 비숍으로 나이트 고정',
-      icon: '📌',
-      desc: '비숍으로 나이트를 킹 앞에 묶어두는 핀을 찾으세요',
-      tagCls: 'pin',
-      rating: 1250,
-      fen: 'rnbqk2r/ppp2ppp/4pn2/3p4/1b1PP3/2NB1N2/PPP2PPP/R1BQK2R w KQkq - 2 6',
-      opponentMove: 'f8b4',
-      solution: ['d1d2'],
-      fullSolution: ['d1d2'],
-      hint: '퀸을 움직여 비숍의 핀 위협에 대응하세요',
-      moves: 1,
-      themes: ['pin'],
-      turn: 'white',
-      lichessId: null,
-      gameUrl: null,
-      isDemo: true,
-    },
-  ];
+  return [];
 }
 
 function renderGamePuzzleList() {
   const body = document.getElementById('gpm-body');
   if (_gamePuzzles.length === 0) {
-    body.innerHTML = `<div class="gp-empty"><div class="gp-empty-icon">♟</div>기보에서 전술 포지션을 찾지 못했습니다.<br>더 많은 게임을 플레이하거나 Stockfish 분석을 먼저 실행해보세요.</div>`;
+    if (!_fbUser) {
+      body.innerHTML = `<div class="gp-empty">
+        <div class="gp-empty-icon">🔒</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">로그인이 필요합니다</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:16px;">
+          실제 내 대국 기보에서 전술 포지션(포크, 핀, 스큐어 등)을<br>자동으로 추출하여 퍼즐로 만들어 드립니다.
+        </div>
+        <a href="/auth.html" style="display:inline-block;padding:10px 24px;background:var(--accent-green);border-radius:8px;color:#fff;font-size:13px;font-weight:700;text-decoration:none;transition:background 0.15s;"
+          onmouseover="this.style.background='var(--accent-green-bright)'" onmouseout="this.style.background='var(--accent-green)'">
+          로그인 / 회원가입
+        </a>
+      </div>`;
+    } else {
+      body.innerHTML = `<div class="gp-empty">
+        <div class="gp-empty-icon">♟</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">아직 기보 퍼즐이 없습니다</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.6;">
+          더 많은 대국을 플레이하거나,<br>분석 보드에서 Stockfish 분석을 먼저 실행해 보세요.<br>
+          <span style="color:var(--accent-orange);">전술 이벤트(포크·핀·블런더)가 저장된 기보가 필요합니다.</span>
+        </div>
+      </div>`;
+    }
     return;
   }
 
-  const isDemo = !_fbUser || _gamePuzzles.every(p => p.isDemo);
   let html = '';
-  if (isDemo) {
-    html += `<div style="background:rgba(224,128,48,0.08);border:1px solid rgba(224,128,48,0.2);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--accent-orange);margin-bottom:4px;">
-      💡 로그인하면 실제 내 기보에서 생성된 퍼즐을 받을 수 있습니다. 아래는 예시 퍼즐입니다.
-    </div>`;
-  }
 
   _gamePuzzles.forEach((p, i) => {
     const resultLabel = p.gameResult === '1-0' ? (p.myColor === 'w' ? '승리' : '패배')
@@ -3206,7 +3139,6 @@ function renderGamePuzzleList() {
         <div style="margin-top:5px;display:flex;gap:5px;flex-wrap:wrap;">
           <span class="gp-tag ${p.tagCls}">${p.icon} ${TACTIC_META[p.tacticType]?.name || p.tacticType}</span>
           <span class="gp-tag" style="background:rgba(80,80,80,0.15);color:var(--text-muted);">레이팅 ${p.rating}</span>
-          ${p.isDemo ? '<span class="gp-tag" style="background:rgba(255,200,0,0.1);color:#c8a020;">예시</span>' : ''}
         </div>
       </div>
     </div>`;
@@ -3367,7 +3299,6 @@ window.loadPuzzle = function(idx) {
       : puzzle.gameResult === '0-1'
         ? (puzzle.myColor === 'b' ? '승리' : '패배') : '무승부';
     srcText.innerHTML = `<b>내 대국 기반</b> — ${puzzle.gameDateStr} ${puzzle.gameVs} (${resultLabel})<br>${puzzle.moveNum}수에서의 ${TACTIC_META[puzzle.tacticType]?.name || '전술'} 기회`;
-    if (puzzle.isDemo) srcText.innerHTML += ' <span style="color:var(--accent-orange)">[예시]</span>';
   } else if (srcEl) {
     srcEl.style.display = 'none';
   }
@@ -3428,10 +3359,9 @@ function renderGamePuzzleThemeGrid(puzzles) {
   for (const def of GAME_PUZZLE_THEME_DEFS) {
     const group = byType[def.type];
     if (!group || group.length === 0) continue;
-    const isDemo = group.every(p => p.isDemo);
     html += `<div class="theme-card" style="--card-accent:${def.color}" onclick="startGamePuzzleByType('${def.type}')">
       <div class="theme-card-icon">${def.icon}</div>
-      <div class="theme-card-name">${def.name}${isDemo ? ' <span style=\'font-size:10px;color:var(--accent-orange)\'>[예시]</span>' : ''}</div>
+      <div class="theme-card-name">${def.name}</div>
       <div class="theme-card-desc">${def.desc}</div>
       <div class="theme-card-meta">
         <span class="theme-card-count">${group.length}개</span>
@@ -3499,10 +3429,10 @@ function startGamePuzzleByType(tacticType) {
 async function initGamePuzzleGrid() {
   try {
     if (!_firebaseReady || !_fbUser) {
-      _gamePuzzles = buildDemoPuzzles();
+      _gamePuzzles = [];
     } else {
       _gamePuzzles = await loadGamePuzzles();
-      if (_gamePuzzles.length === 0) _gamePuzzles = buildDemoPuzzles();
+      if (_gamePuzzles.length === 0) _gamePuzzles = [];
     }
     _gamePuzzleLoaded = true;
     renderGamePuzzleThemeGrid(_gamePuzzles);
