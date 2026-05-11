@@ -3508,10 +3508,16 @@ async function analyzePgnWithLichess() {
         DBG.log(`[2] %judgment 샘플 (최대 3개): ${jMatch.slice(0,3).join(' | ')}`);
       }
 
-      if (pgnText.includes('%judgment')) {
-        DBG.log(`[2] ✅ %judgment 발견 — 파싱 시작`);
+      // literate=true export: 텍스트 주석 형식으로 수 분류 포함
+      // { Inaccuracy. Nf6 was best. } / { Mistake. } / { Blunder. }
+      // %eval이 있으면 분석 완료로 판단 (literate 주석도 함께 포함됨)
+      const hasEval = pgnText.includes('%eval');
+      const hasLiterate = /\{[^}]*(Inaccuracy|Mistake|Blunder)[^}]*\}/.test(pgnText);
+      DBG.log(`[2] %eval 있음: ${hasEval}, literate 주석 있음: ${hasLiterate}`);
+      if (hasEval) {
+        DBG.log(`[2] ✅ 분석 완료(%eval 확인) — 파싱 시작`);
         annotations = parseLichessPgnAnnotations(pgnText);
-        DBG.log(`[2] 파싱 결과 (총 ${annotations.length}개): ${JSON.stringify(annotations.slice(0,20))}`);
+        DBG.log(`[2] 파싱 결과 (총 ${annotations.length}개, 비null: ${annotations.filter(Boolean).length}개): ${JSON.stringify(annotations.slice(0,20))}`);
         break;
       }
     }
@@ -3521,7 +3527,7 @@ async function analyzePgnWithLichess() {
       DBG.log(`[!] 타임아웃 — %judgment 끝내 미수신`);
       setStatus(
         `⚠️ 분석 결과를 가져오지 못했습니다.<br>` +
-        `<span style="font-size:10px;color:var(--text-muted);">Lichess 서버가 바쁘거나, 일일 분석 한도 초과 또는 이미 분석된 게임일 수 있습니다.</span><br>` +
+        `<span style="font-size:10px;color:var(--text-muted);">Import 게임은 Lichess 서버 분석(%judgment) 대상이 아닙니다. Lichess에서 직접 분석을 요청하거나 실제 대국 기보를 사용하세요.</span><br>` +
         `<a href="https://lichess.org/${gameId}/analysis" target="_blank" style="color:var(--accent-blue);font-size:11px;">Lichess에서 직접 보기 ↗</a><br><br>` +
         `<details style="font-size:10px;color:var(--text-muted);cursor:pointer;"><summary>🐛 디버그 로그 보기</summary>` +
         `<pre style="white-space:pre-wrap;word-break:break-all;margin-top:4px;">${DBG.lines.join('\n').replace(/</g,'&lt;')}</pre></details>`,
@@ -3591,10 +3597,10 @@ async function analyzePgnWithLichess() {
   if (btn) btn.disabled = false;
 }
 
-// ── Lichess PGN에서 수별 judgment 추출 ───────────────────────────
-// Lichess API가 반환한 %judgment 태그만 사용. 로컬 분류 로직 없음.
-// 부정적인 수(Inaccuracy, Mistake, Blunder, Missed win)에만 태그 표시.
-// 형식 예: 1. e4 { [%eval 0.17] } e5 { [%eval 0.19] [%judgment name="Inaccuracy" comment="..."] }
+// ── Lichess PGN에서 수별 분류 추출 ──────────────────────────────
+// literate=true export: { Inaccuracy. Nf6 was best. } 텍스트 주석 형식
+// 실제 대국:           { [%judgment name="Inaccuracy" comment="..."] } 태그 형식
+// 두 가지를 모두 지원. Import 게임은 literate 텍스트 주석만 붙음.
 function parseLichessPgnAnnotations(pgnText) {
   const movesSection = pgnText.replace(/\[.*?\]\s*/gs, '').trim();
 
@@ -3605,22 +3611,32 @@ function parseLichessPgnAnnotations(pgnText) {
     fullTokens.push({ comment: !!m[1], text: m[0] });
   }
 
+  const NEGATIVE = new Set(['Inaccuracy', 'Mistake', 'Blunder', 'Missed win']);
+
   const anns = [];
   for (let i = 0; i < fullTokens.length; i++) {
     const t = fullTokens[i];
     if (!t.comment && !/^\d+/.test(t.text)) {
-      // 수 토큰: 바로 뒤 주석 블록에서 %judgment만 추출
       let judgment = null;
+
       for (let j = i + 1; j < fullTokens.length && j <= i + 2; j++) {
         if (fullTokens[j].comment) {
-          const jm = fullTokens[j].text.match(/\[%judgment\s+name="([^"]+)"/);
-          if (jm) judgment = jm[1];
+          const commentText = fullTokens[j].text;
+
+          // 방법 1: %judgment 태그 (실제 대국 export)
+          const jm = commentText.match(/\[%judgment\s+name="([^"]+)"/);
+          if (jm) { judgment = jm[1]; break; }
+
+          // 방법 2: literate 텍스트 주석 (import 게임 export with literate=true)
+          // 형식: { Inaccuracy. Nf6 was best. } 또는 { Mistake. } 또는 { Blunder. }
+          const lm = commentText.match(/\b(Inaccuracy|Mistake|Blunder|Missed win)\b/);
+          if (lm) { judgment = lm[1]; break; }
+
           break;
         }
         if (!fullTokens[j].comment && !/^\d+/.test(fullTokens[j].text)) break;
       }
-      // 부정적인 수만 반환 — 긍정 판정(Brilliant, Great, Best 등)은 null로 처리
-      const NEGATIVE = new Set(['Inaccuracy', 'Mistake', 'Blunder', 'Missed win']);
+
       anns.push(NEGATIVE.has(judgment) ? judgment : null);
     }
   }
