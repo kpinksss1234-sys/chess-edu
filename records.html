@@ -2030,6 +2030,62 @@
       return true;
     }
 
+    // 핀 감지
+    function isAbsolutePin(board, r, c, color) {
+        const p = board[r][c];
+        if(!p || p[0] !== color || !['B','R','Q'].includes(p[1])) return false;
+        const enemy = enemyColor(color);
+        let kr, kc;
+        for(let ri=0; ri<8; ri++) for(let ci=0; ci<8; ci++) if(board[ri][ci] === enemy+'K') {kr=ri; kc=ci;}
+        if(kr === undefined) return false;
+
+        const dirs = [['-1','-1'],['-1','1'],['1','-1'],['1','1'],['-1','0'],['1','0'],['0','-1'],['0','1']];
+        for(const [dr, dc] of dirs) {
+            let nr = r + parseInt(dr), nc = c + parseInt(dc);
+            let first = null;
+            while(isInBounds(nr, nc)) {
+                if(board[nr][nc]) {
+                    if(!first) first = {r:nr, c:nc, piece:board[nr][nc]};
+                    else {
+                        if(board[nr][nc] === enemy+'K' && first.piece[0] === enemy) {
+                            if(PIECE_VALUE_TACTICS[first.piece[1]] < 320) break;
+                            const test = board.map(row => [...row]); test[first.r][first.c] = null;
+                            if(isInCheck(test, enemy)) return true;
+                        }
+                        break;
+                    }
+                }
+                nr += parseInt(dr); nc += parseInt(dc);
+            }
+        }
+        return false;
+    }
+
+    function isRelativePin(board, r, c, color) {
+        const p = board[r][c];
+        if(!p || p[0] !== color || !['B','R','Q'].includes(p[1])) return false;
+        const enemy = enemyColor(color);
+        const dirs = [['-1','-1'],['-1','1'],['1','-1'],['1','1'],['-1','0'],['1','0'],['0','-1'],['0','1']];
+        for(const [dr, dc] of dirs) {
+            let nr = r + parseInt(dr), nc = c + parseInt(dc);
+            let first = null;
+            while(isInBounds(nr, nc)) {
+                if(board[nr][nc]) {
+                    if(!first) {
+                        if(board[nr][nc][0] !== enemy || PIECE_VALUE_TACTICS[board[nr][nc][1]] < 320) break;
+                        first = {r:nr, c:nc, piece:board[nr][nc]};
+                    } else {
+                        if(board[nr][nc][0] !== enemy || board[nr][nc][1] === 'K') break;
+                        if(PIECE_VALUE_TACTICS[board[nr][nc][1]] >= 330 && PIECE_VALUE_TACTICS[board[nr][nc][1]] >= PIECE_VALUE_TACTICS[first.piece[1]] && p[1] !== first.piece[1]) return true;
+                        break;
+                    }
+                }
+                nr += parseInt(dr); nc += parseInt(dc);
+            }
+        }
+        return false;
+    }
+
     // ── 핵심 분석 오케스트레이터 (Shared Core) ──────────────────────────────────
 
     /**
