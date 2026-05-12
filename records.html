@@ -2676,15 +2676,6 @@
       const contentEl = document.getElementById('stats-content'), subEl = document.getElementById('stats-sub');
       if (_statsCache) { renderStatsHTML(_statsCache); return; }
 
-      if (!_sfReady) {
-        contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div>Stockfish 초기화 중...</div></div>`;
-        try { await initStockfish(); }
-        catch (e) {
-          contentEl.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div>Stockfish 로드 실패<br><small style="font-size:10px">chess/stockfish/stockfish-18-single.js 경로 확인</small></div></div>`;
-          return;
-        }
-      }
-
       let docs = [];
       try {
         let snap = null;
