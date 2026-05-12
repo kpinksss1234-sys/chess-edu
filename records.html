@@ -3351,7 +3351,7 @@
         // [2] %judgment 폴링
         DBG.log(`[2] 폴링 시작 — gameId: ${gameId}`);
         let annotatedPgn = null;
-        const maxAttempts = 18;
+        const maxAttempts = 1;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           await new Promise(r => setTimeout(r, attempt === 0 ? 2000 : 5000));
           const expRes = await fetch(`${PROXY_R}?path=export&id=${gameId}&evals=true&literate=true`);
