@@ -3526,8 +3526,8 @@ async function analyzePgnWithLichess() {
       counts[mapped] = (counts[mapped] || 0) + 1;
     }
 
-    let statsHtml = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:6px;">`;
-    // 1. 수 분류 (부정확, 실수, 블런더)
+    let statsHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:6px;">`;
+    // 수 분류 (부정확, 실수, 블런더)
     for (const k of STAT_ORDER) {
       const c = counts[k] || 0;
       statsHtml += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:5px 4px;text-align:center;">
@@ -3535,18 +3535,6 @@ async function analyzePgnWithLichess() {
         <div style="font-size:13px;font-weight:700;color:var(--text-primary);">${c}</div>
       </div>`;
     }
-    // 2. 평균 CP 손실
-    const acl = annotations._extra?.acl || '-';
-    statsHtml += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:5px 4px;text-align:center;">
-      <div style="font-size:10px;font-weight:800;color:var(--text-secondary);">평균 CP 손실</div>
-      <div style="font-size:13px;font-weight:700;color:var(--text-primary);">${acl}</div>
-    </div>`;
-    // 3. 정확도
-    const acc = annotations._extra?.acc ? annotations._extra.acc + '%' : '-';
-    statsHtml += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:5px 4px;text-align:center;">
-      <div style="font-size:10px;font-weight:800;color:var(--text-secondary);">정확도</div>
-      <div style="font-size:13px;font-weight:700;color:var(--accent-green-bright);">${acc}</div>
-    </div>`;
     statsHtml += `</div>`;
 
     setStatus(
