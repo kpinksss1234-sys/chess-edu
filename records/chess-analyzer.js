@@ -72,7 +72,7 @@ async function analyzeGame(pgn, myColor, onProgress) {
   const result = {
     totalMoves:      states.length - 1,
     myBlunders:      0, myMistakes:      0, myInaccuracies: 0,
-    oppBlunders:     0, oppMistakes:     0,
+    oppBlunders:     0, oppMistakes:     0, oppInaccuracies: 0,
     oppBlunderFound: 0, oppBlunderMissed: 0,
     checkmates:      0,
     forkFound:       { P:0, N:0, B:0, R:0, Q:0, K:0 },
@@ -126,8 +126,9 @@ async function analyzeGame(pgn, myColor, onProgress) {
       else if (label === 'mistake')    result.myMistakes++;
       else if (label === 'inaccuracy') result.myInaccuracies++;
     } else {
-      if      (label === 'blunder') result.oppBlunders++;
-      else if (label === 'mistake') result.oppMistakes++;
+      if      (label === 'blunder')    result.oppBlunders++;
+      else if (label === 'mistake')    result.oppMistakes++;
+      else if (label === 'inaccuracy') result.oppInaccuracies++;
     }
 
     // ── 상대 블런더 포착 ──────────────────────────────────────────────────
@@ -303,6 +304,7 @@ function _makeTacticEvent(type, subtype, piece, stateIdx, states, color, bestUci
     piece,
     moveIdx: stateIdx,
     moveNum: Math.ceil(stateIdx / 2),
+    plyIdx:  stateIdx, // plyIdx 추가
     san:     s ? s.san : '?',
     color,
     bestUci

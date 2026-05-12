@@ -932,7 +932,7 @@ async function renderStats(){
   let endCheckmate=0,endResign=0,endDraw=0,endTimeout=0;
   const myColor_counts={w:0,b:0};let totalMovesSum=0;
   let sumMyBlunders=0,sumMyMistakes=0,sumMyInaccuracies=0;
-  let sumOppBlunders=0,sumOppMistakes=0,sumOppBF=0,sumOppBM=0;
+  let sumOppBlunders=0,sumOppMistakes=0,sumOppInaccuracies=0,sumOppBF=0,sumOppBM=0;
   let sumCheckmates=0,sumAbsPinFound=0,sumAbsPinMissed=0,sumRelPinFound=0,sumRelPinMissed=0;
   let sumForkFound={P:0,N:0,B:0,R:0,Q:0,K:0},sumForkMissed={P:0,N:0,B:0,R:0,Q:0,K:0},sumOppForkCreated={P:0,N:0,B:0,R:0,Q:0,K:0};
   let sumCp=0,sumMoves=0;
@@ -986,7 +986,7 @@ async function renderStats(){
       cachedCount++;
       const a = doc.tacticAnalysis;
       sumMyBlunders+=(a.myBlunders||0);sumMyMistakes+=(a.myMistakes||0);sumMyInaccuracies+=(a.myInaccuracies||0);
-      sumOppBlunders+=(a.oppBlunders||0);sumOppMistakes+=(a.oppMistakes||0);
+      sumOppBlunders+=(a.oppBlunders||0);sumOppMistakes+=(a.oppMistakes||0);sumOppInaccuracies+=(a.oppInaccuracies||0);
       sumOppBF+=(a.oppBlunderFound||0);sumOppBM+=(a.oppBlunderMissed||0);
       sumCheckmates+=(a.checkmates||0);
       sumAbsPinFound+=(a.absPinFound||0);sumAbsPinMissed+=(a.absPinMissed||0);
@@ -1023,7 +1023,7 @@ async function renderStats(){
           if(fill)fill.style.width=Math.round(gi/total*100+ip/total)+'%';
         });
         sumMyBlunders+=a.myBlunders;sumMyMistakes+=a.myMistakes;sumMyInaccuracies+=a.myInaccuracies;
-        sumOppBlunders+=a.oppBlunders;sumOppMistakes+=a.oppMistakes;
+        sumOppBlunders+=a.oppBlunders;sumOppMistakes+=a.oppMistakes;sumOppInaccuracies+=a.oppInaccuracies;
         sumOppBF+=a.oppBlunderFound;sumOppBM+=a.oppBlunderMissed;
         sumCheckmates+=a.checkmates;
         sumAbsPinFound+=(a.absPinFound||0);sumAbsPinMissed+=(a.absPinMissed||0);
@@ -1037,7 +1037,7 @@ async function renderStats(){
         try{
           const savePayload={
             myBlunders:a.myBlunders,myMistakes:a.myMistakes,myInaccuracies:a.myInaccuracies,
-            oppBlunders:a.oppBlunders,oppMistakes:a.oppMistakes,
+            oppBlunders:a.oppBlunders,oppMistakes:a.oppMistakes,oppInaccuracies:a.oppInaccuracies,
             oppBlunderFound:a.oppBlunderFound,oppBlunderMissed:a.oppBlunderMissed,
             checkmates:a.checkmates,
             absPinFound:a.absPinFound||0,absPinMissed:a.absPinMissed||0,
@@ -1065,7 +1065,7 @@ async function renderStats(){
     winRate:total>0?Math.round(wins/total*100):0,
     endCheckmate,endResign,endDraw,endTimeout,
     myBlunders:sumMyBlunders,myMistakes:sumMyMistakes,myInaccuracies:sumMyInaccuracies,
-    oppBlunders:sumOppBlunders,oppMistakes:sumOppMistakes,
+    oppBlunders:sumOppBlunders,oppMistakes:sumOppMistakes,oppInaccuracies:sumOppInaccuracies,
     oppBlunderFound:sumOppBF,oppBlunderMissed:sumOppBM,
     checkmates:sumCheckmates,
     forkFound:sumForkFound,forkMissed:sumForkMissed,oppForkCreated:sumOppForkCreated,
@@ -1315,20 +1315,38 @@ function renderStatsHTML(s){
       </div></div>
     </div>
 
-    <div class="stats-section-title">⚠️ 내 수 분류</div>
+    <div class="stats-section-title">⚠️ 수 분류</div>
     <div class="key-grid">
+      <!-- 나 -->
       <div class="key-card danger"><div class="key-card-icon">💀</div><div class="key-card-body">
-        <div class="key-card-name">블런더</div><div class="key-card-num">${s.myBlunders}</div>
+        <div class="key-card-name">내 블런더</div><div class="key-card-num">${s.myBlunders}</div>
         <div class="key-card-sub">손실 ≥ ${BLUNDER_CP}cp</div>
       </div></div>
       <div class="key-card warn"><div class="key-card-icon">❗</div><div class="key-card-body">
-        <div class="key-card-name">실수</div><div class="key-card-num">${s.myMistakes}</div>
+        <div class="key-card-name">내 실수</div><div class="key-card-num">${s.myMistakes}</div>
         <div class="key-card-sub">손실 ${MISTAKE_CP}~${BLUNDER_CP}cp</div>
       </div></div>
       <div class="key-card"><div class="key-card-icon">🔶</div><div class="key-card-body">
-        <div class="key-card-name">부정확</div><div class="key-card-num">${s.myInaccuracies}</div>
+        <div class="key-card-name">내 부정확</div><div class="key-card-num">${s.myInaccuracies}</div>
         <div class="key-card-sub">손실 ${INACCURACY_CP}~${MISTAKE_CP}cp</div>
       </div></div>
+      <!-- 상대 -->
+      <div class="key-card danger"><div class="key-card-icon">💀</div><div class="key-card-body">
+        <div class="key-card-name">상대 블런더</div><div class="key-card-num">${s.oppBlunders}</div>
+        <div class="key-card-sub">손실 ≥ ${BLUNDER_CP}cp</div>
+      </div></div>
+      <div class="key-card warn"><div class="key-card-icon">❗</div><div class="key-card-body">
+        <div class="key-card-name">상대 실수</div><div class="key-card-num">${s.oppMistakes}</div>
+        <div class="key-card-sub">손실 ${MISTAKE_CP}~${BLUNDER_CP}cp</div>
+      </div></div>
+      <div class="key-card"><div class="key-card-icon">🔶</div><div class="key-card-body">
+        <div class="key-card-name">상대 부정확</div><div class="key-card-num">${s.oppInaccuracies}</div>
+        <div class="key-card-sub">손실 ${INACCURACY_CP}~${MISTAKE_CP}cp</div>
+      </div></div>
+    </div>
+
+    <div class="stats-section-title">🎯 상대 블런더 합계</div>
+    <div class="key-grid">
       <div class="key-card"><div class="key-card-icon">🎯</div><div class="key-card-body">
         <div class="key-card-name">상대 블런더</div><div class="key-card-num">${s.oppBlunders}</div>
         <div class="key-card-sub">상대가 낸 블런더 합계</div>
