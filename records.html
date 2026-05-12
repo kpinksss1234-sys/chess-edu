@@ -2074,76 +2074,91 @@
 
         if (!annotatedPgn) throw new Error('Lichess analysis not ready after polling');
 
-        // [4] PGN 파싱 → judgment 카운팅
-        // 리체스 literate PGN 형식:
-        //   { [%eval 0.20] [%clk 0:05:00] }  ← eval 태그
-        //   { [%judgment name="Blunder" comment="..."] }  ← judgment 태그
-        //   { Blunder. Nf6 was best. }  ← literate 텍스트 주석
-        const judgmentTagRegex = /\[%judgment\s+name="([^"]+)"/gi;
-        const literateRegex = /\{\s*(Blunder|Mistake|Inaccuracy)\b[^}]*\}/gi;
-        const evalTagRegex = /\[%eval\s+(#?-?[\d.]+)\]/g;
+        // [4] PGN 파싱 (chess-wasm-fixed.html의 parseLichessPgnAnnotations 로직 이식)
+        // 1. 헤더 및 변형수(Variation) 제거
+        const noHeaders = annotatedPgn.replace(/^\[.*?\]\s*$/gm, '').trim();
+        let movesSection = '';
+        let depth = 0;
+        for (let i = 0; i < noHeaders.length; i++) {
+          if (noHeaders[i] === '(') { depth++; continue; }
+          if (noHeaders[i] === ')') { depth = Math.max(0, depth - 1); continue; }
+          if (depth === 0) movesSection += noHeaders[i];
+        }
 
-        // 수 단위로 분리: "1. e4 {...} 1... c5 {...}" 형태
-        // 각 수 블록에서 색상과 판정 추출
-        const moveBlockRegex = /(\d+)\.\s+(\.\.\.)?([A-Za-z][^\s{]+)\s*(?:\{([^}]*)\})?/g;
-        let mbMatch;
+        // 2. 토큰화 (수, 수번호, 주석 분리)
+        const tokens = [];
+        const tr = /(\{[^}]*\})|([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?|O-O-O[+#]?|O-O[+#]?|\d+\.{1,3})/g;
+        let m;
+        while ((m = tr.exec(movesSection)) !== null) {
+          tokens.push({ isComment: !!m[1], text: m[0] });
+        }
+
+        // 3. 순회하며 판단 추출
         let prevEvalCp = null;
-        let prevMover = null;
+        let whiteTurn = true;
 
-        while ((mbMatch = moveBlockRegex.exec(annotatedPgn)) !== null) {
-          const moveNumStr = mbMatch[1];
-          const isBlackMove = !!mbMatch[2]; // '...' 있으면 흑
-          const san = mbMatch[3];
-          const comment = mbMatch[4] || '';
-          const mover = isBlackMove ? 'b' : 'w';
-          const isMe = (mover === myColor);
+        for (let i = 0; i < tokens.length; i++) {
+          const t = tokens[i];
+          // 수(SAN)인 경우만 처리 (수번호 제외)
+          if (!t.isComment && !/^\d+/.test(t.text)) {
+            const mover = whiteTurn ? 'w' : 'b';
+            const isMe = (mover === myColor);
+            
+            let judgment = null;
+            let currentEval = null;
 
-          // judgment 판정
-          let judgment = null;
-          const jTagMatch = comment.match(/\[%judgment\s+name="([^"]+)"/i);
-          if (jTagMatch) {
-            judgment = jTagMatch[1].toLowerCase();
-          } else {
-            const litMatch = comment.match(/\b(Blunder|Mistake|Inaccuracy)\b/i);
-            if (litMatch) judgment = litMatch[1].toLowerCase();
-          }
-
-          if (judgment) {
-            if (isMe) {
-              if (judgment === 'blunder') result.myBlunders++;
-              else if (judgment === 'mistake') result.myMistakes++;
-              else if (judgment === 'inaccuracy') result.myInaccuracies++;
-            } else {
-              if (judgment === 'blunder') result.oppBlunders++;
-              else if (judgment === 'mistake') result.oppMistakes++;
-              else if (judgment === 'inaccuracy') result.oppInaccuracies++;
-            }
-          }
-
-          // ACPL 계산: %eval 태그
-          const evalMatch = comment.match(/\[%eval\s+(#?-?[\d.]+)\]/);
-          if (evalMatch) {
-            const evalStr = evalMatch[1];
-            if (!evalStr.startsWith('#')) {
-              const cp = Math.round(parseFloat(evalStr) * 100);
-              // 직전 수 대비 손실 계산 (내 수만)
-              if (prevEvalCp !== null && prevMover !== mover && isMe) {
-                // 내가 둔 후 cp 변화 (내 관점)
-                const cpMe = myColor === 'w' ? cp : -cp;
-                const cpMePrev = myColor === 'w' ? prevEvalCp : -prevEvalCp;
-                const loss = Math.max(0, cpMePrev - cpMe);
-                result.myCpSum += loss;
-                result.myMoveCount++;
+            // 해당 수 뒤에 오는 모든 연속 주석 검사
+            for (let j = i + 1; j < tokens.length; j++) {
+              if (tokens[j].isComment) {
+                const comm = tokens[j].text;
+                // [%judgment ...] 태그
+                const jm = comm.match(/\[%judgment\s+name="([^"]+)"/i);
+                if (jm) judgment = jm[1].toLowerCase();
+                // literate 텍스트 (Blunder. 등)
+                if (!judgment) {
+                  const lm = comm.match(/\b(Inaccuracy|Mistake|Blunder|Missed win)\b/i);
+                  if (lm) judgment = lm[1].toLowerCase();
+                }
+                // [%eval ...] 태그
+                const em = comm.match(/\[%eval\s+(#?-?[\d.]+)\]/i);
+                if (em && !em[1].startsWith('#')) {
+                  currentEval = Math.round(parseFloat(em[1]) * 100);
+                }
+              } else if (!/^\d+/.test(tokens[j].text)) {
+                break; // 다음 수를 만나면 종료
               }
-              prevEvalCp = cp;
-            } else {
-              prevEvalCp = null;
             }
-          }
-          prevMover = mover;
 
-          // 체크메이트
-          if (san.includes('#') && isMe) result.checkmates++;
+            // 카운팅
+            if (judgment) {
+              if (judgment === 'missed win') judgment = 'blunder'; // Missed win은 블런더급으로 취급
+              if (isMe) {
+                if (judgment === 'blunder') result.myBlunders++;
+                else if (judgment === 'mistake') result.myMistakes++;
+                else if (judgment === 'inaccuracy') result.myInaccuracies++;
+              } else {
+                if (judgment === 'blunder') result.oppBlunders++;
+                else if (judgment === 'mistake') result.oppMistakes++;
+                else if (judgment === 'inaccuracy') result.oppInaccuracies++;
+              }
+            }
+
+            // ACPL (Centipawn Loss)
+            if (currentEval !== null && isMe && prevEvalCp !== null) {
+              const cpMe = myColor === 'w' ? currentEval : -currentEval;
+              const cpMePrev = myColor === 'w' ? prevEvalCp : -prevEvalCp;
+              result.myCpSum += Math.max(0, cpMePrev - cpMe);
+              result.myMoveCount++;
+            }
+            if (currentEval !== null) prevEvalCp = currentEval;
+            if (t.text.includes('#') && isMe) result.checkmates++;
+
+            whiteTurn = !whiteTurn;
+          } else if (!t.isComment && /^\d+\.\.\./.test(t.text)) {
+            whiteTurn = false; // "1... c5" 형태인 경우 흑의 차례로 보정
+          } else if (!t.isComment && /^\d+\./.test(t.text)) {
+            whiteTurn = true; // "2. Nf3" 형태인 경우 백의 차례
+          }
         }
 
         result.totalMoves = result.myMoveCount;
