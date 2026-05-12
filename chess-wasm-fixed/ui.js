@@ -287,62 +287,11 @@ function toggleColorMode() {
 // ═══════════════════════════════════════════════════════════
 
 // 사운드: AudioContext + AudioBuffer 방식 (cloneNode 누수 방지)
-const _soundFiles = {
-  move:       'sound/chess_move.mp3',
-  capture:    'sound/chess_capture.mp3',
-  castle:     'sound/chess_castle.mp3',
-  check:      'sound/chess_check.mp3',
-  checkmate:  'sound/chess_checkmate.mp3',
-  stalemate:  'sound/chess_stalemate.mp3',
-};
-const _audioCtx = (() => {
-  try { return new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; }
-})();
-const _soundBuffers = {};  // AudioBuffer 캐시 (decode once, play many times)
 
-// 페이지 로드 시 AudioBuffer로 미리 디코딩
-(function preloadSounds() {
-  if (!_audioCtx) return;
-  for (const [key, src] of Object.entries(_soundFiles)) {
-    fetch(src)
-      .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
-      .then(buf => _audioCtx.decodeAudioData(buf))
-      .then(decoded => { _soundBuffers[key] = decoded; })
-      .catch(() => {});
-  }
-})();
-
-function _playSound(type) {
-  if (_soundMuted) return;
-  const ctx = _audioCtx;
-  if (!ctx) return;
-  if (ctx.state === 'suspended') ctx.resume();
-  const now = ctx.currentTime;
-
-  if (type === 'nav') {
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.07, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
-    const osc = ctx.createOscillator();
-    osc.type = 'sine'; osc.frequency.value = 480;
-    osc.connect(g); g.connect(ctx.destination);
-    osc.start(now); osc.stop(now + 0.055);
-    return;
-  }
-
-  const buf = _soundBuffers[type];
-  if (!buf) return;
-  // BufferSource는 일회용이지만 AudioBuffer 자체는 재사용 — cloneNode 불필요
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  src.connect(ctx.destination);
-  src.start(now);
-}
-
-// move 객체와 착수 전 보드/턴을 받아 적절한 사운드 재생
+// move 객체와 착수 전 보드/턴을 받아 보드 상태를 처리
 // histState: history 레코드 (fenBefore/fenAfter/castling/captured 포함) — boardBefore null 시 FEN 복원
 function playMoveSound(move, boardBefore, turn, histState) {
-  if (_soundMuted || !move) return;
+  if (!move) return;
 
   // ── 1. boardBefore 복원 ──────────────────────────────────────
   let board = boardBefore;
@@ -368,7 +317,7 @@ function playMoveSound(move, boardBefore, turn, histState) {
     (histState && histState.captured)
   );
 
-  // ── 3. board가 있으면 정밀 판단 (check/checkmate/stalemate) ──
+  // ── 3. board가 있으면 정밀 판단 ──
   if (board) {
     const boardAfter = applyMoveToBoard(board.map(r=>[...r]), move, turn);
     const enemy = turn === 'w' ? 'b' : 'w';
@@ -386,33 +335,8 @@ function playMoveSound(move, boardBefore, turn, histState) {
     const epAfter = move.doublePush ? [move.to[0]-(turn==='w'?-1:1), move.to[1]] : null;
     const noMoves = getAllLegalMoves(boardAfter, enemy, castAfter, epAfter).length === 0;
 
-    if      (inCheck && noMoves)  _playSound('checkmate');
-    else if (!inCheck && noMoves) _playSound('stalemate');
-    else if (inCheck)             _playSound('check');
-    else if (move.castle)         _playSound('castle');
-    else if (isCapture)           _playSound('capture');
-    else                          _playSound('move');
     return;
   }
-
-  // ── 4. board 복원 실패 → fenAfter로 check/checkmate/stalemate 판단 ──
-  if (histState && histState.fenAfter) {
-    const fp2 = histState.fenAfter.split(' ');
-    const boardAfter2 = parseFenBoard(fp2[0]);
-    const enemy = turn === 'w' ? 'b' : 'w';
-    if (boardAfter2) {
-      const inCheck2 = isInCheck(boardAfter2, enemy);
-      const cast2 = parseFenCastling(fp2[2] || '-');
-      const ep2   = parseFenEP(fp2[3] || '-');
-      const noMoves2 = getAllLegalMoves(boardAfter2, enemy, cast2, ep2).length === 0;
-      if      (inCheck2 && noMoves2)  { _playSound('checkmate'); return; }
-      else if (!inCheck2 && noMoves2) { _playSound('stalemate'); return; }
-      else if (inCheck2)              { _playSound('check');     return; }
-    }
-  }
-
-  // ── 5. 최후 fallback ─────────────────────────────────────────
-  _playSound(move.castle ? 'castle' : isCapture ? 'capture' : 'move');
 }
 
 function setupKeyboard() {
