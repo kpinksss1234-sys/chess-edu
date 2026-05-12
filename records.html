@@ -2030,6 +2030,115 @@
       return true;
     }
 
+    /**
+     * 스큐어 (Skewer) 판별
+     * 핀과 반대로, 앞에 있는 가치 높은 기물이 공격받아 피하면 뒤의 기물이 잡히는 경우
+     */
+    function isSkewerR(board, turn, toPos) {
+      const piece = board[toPos[0]][toPos[1]];
+      if (!piece || !'RBQ'.includes(piece[1])) return false;
+      const opp = enemyColor(turn);
+      const dirs = (piece[1] === 'R') ? [[0,1],[0,-1],[1,0],[-1,0]] :
+                   (piece[1] === 'B') ? [[1,1],[1,-1],[-1,1],[-1,-1]] :
+                   [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+      for (const [dr, dc] of dirs) {
+        let targets = [];
+        for (let step = 1; step < 8; step++) {
+          const r = toPos[0] + dr * step, c = toPos[1] + dc * step;
+          if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
+          const p = board[r][c];
+          if (p) {
+            if (p[0] === opp) targets.push({ p, r, c });
+            else break;
+          }
+        }
+        if (targets.length >= 2) {
+          const v1 = PIECE_VALUE_TACTICS[targets[0].p[1]], v2 = PIECE_VALUE_TACTICS[targets[1].p[1]];
+          // 앞 기물이 더 비싸고, 앞 기물이 최소 마이너 피스 이상인 경우
+          if (v1 >= v2 && v1 >= 320) return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * 디스커버드 어택 (Discovered Attack) 판별
+     */
+    function isDiscoveredAttackR(board, turn, move, prevBoard) {
+      const from = move.from;
+      const opp = enemyColor(turn);
+      const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+      
+      for (const [dr, dc] of dirs) {
+        let myLongPiece = null;
+        for (let step = 1; step < 8; step++) {
+          const r = from[0] - dr * step, c = from[1] - dc * step;
+          if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
+          const p = prevBoard[r][c];
+          if (p) {
+            if (p[0] === turn && 'RBQ'.includes(p[1])) myLongPiece = p;
+            break;
+          }
+        }
+        if (!myLongPiece) continue;
+
+        for (let step = 1; step < 8; step++) {
+          const r = from[0] + dr * step, c = from[1] + dc * step;
+          if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
+          const p = prevBoard[r][c]; // 이전 보드에서
+          if (p) {
+            if (p[0] === opp) return true; // 이 길을 막고 있던 내 기물이 비켜남
+            break;
+          }
+        }
+      }
+      return false;
+    }
+
+    /**
+     * X-선 (X-ray) 판별
+     */
+    function isXrayR(board, turn, toPos) {
+      const piece = board[toPos[0]][toPos[1]];
+      if (!piece || !'RBQ'.includes(piece[1])) return false;
+      const opp = enemyColor(turn);
+      const dirs = (piece[1] === 'R') ? [[0,1],[0,-1],[1,0],[-1,0]] :
+                   (piece[1] === 'B') ? [[1,1],[1,-1],[-1,1],[-1,-1]] :
+                   [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+      for (const [dr, dc] of dirs) {
+        let obstacles = 0, foundOpp = false;
+        for (let step = 1; step < 8; step++) {
+          const r = toPos[0] + dr * step, c = toPos[1] + dc * step;
+          if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
+          const p = board[r][c];
+          if (p) {
+            if (p[0] === opp) {
+              if (foundOpp) return true; // 이미 하나를 뚫고 또 다른 목표를 공격
+              foundOpp = true;
+            } else obstacles++;
+          }
+          if (obstacles > 1) break;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * 기물 트래핑 (Trapping) 판별
+     */
+    function isTrappedR(board, color, pos) {
+      const p = board[pos[0]][pos[1]]; if (!p) return false;
+      const moves = pseudoMoves(board, pos[0], pos[1], {wK:0,wQ:0,bK:0,bQ:0}, null);
+      if (moves.length === 0) return true; // 움직일 곳이 없음
+      const safeMoves = moves.filter(m => {
+        const tempBoard = applyMoveToBoard(board.map(r=>[...r]), m, color);
+        const attackers = getAttackersR(tempBoard, pos[0], pos[1], enemyColor(color));
+        return attackers.length === 0;
+      });
+      return safeMoves.length === 0;
+    }
+
     // ── 핵심 분석 오케스트레이터 ────────────────────────────────────────────────
 
     async function analyzeGame(pgn, myColor, onProgress) {
@@ -2135,12 +2244,32 @@
               // [중요] 나쁜 수인 경우에만 정밀 전술 감지 실행
               if (judgment && (['inaccuracy', 'mistake', 'blunder', 'missed win'].includes(judgment))) {
                 if (judgment === 'missed win') judgment = 'blunder';
+                
                 if (isMe) {
+                  const themes = [];
+                  // 포크
                   if (isValidForkR(currentPos.board, mover, move.to, prevBoard)) {
                     const pt = prevBoard[move.from[0]][move.from[1]][1];
                     result.forkFound[pt] = (result.forkFound[pt] || 0) + 1;
+                    themes.push('Fork');
                   }
-                  result.tacticEvents.push({ type: 'error', subtype: judgment, san, moveNum: Math.ceil((i+1)/2), plyIdx: i });
+                  // 스큐어
+                  if (isSkewerR(currentPos.board, mover, move.to)) themes.push('Skewer');
+                  // 디스커버드 어택
+                  if (isDiscoveredAttackR(currentPos.board, mover, move, prevBoard)) themes.push('Discovered Attack');
+                  // X-ray
+                  if (isXrayR(currentPos.board, mover, move.to)) themes.push('X-ray');
+                  // 트래핑
+                  if (isTrappedR(currentPos.board, mover, move.to)) themes.push('Trapped');
+
+                  result.tacticEvents.push({ 
+                    type: 'error', 
+                    subtype: judgment, 
+                    san, 
+                    moveNum: Math.ceil((i+1)/2), 
+                    plyIdx: i,
+                    themes: themes 
+                  });
                 }
               }
 
@@ -2757,6 +2886,17 @@
       let cachedCount = 0;
       let newlyAnalyzedCount = 0;
 
+      // 전술 테마별 통계 초기화
+      let tacticThemeCounts = {
+        'Skewer': 0, 'Discovered Attack': 0, 'X-ray': 0, 'Trapped': 0,
+        'Windmill': 0, 'Desperado': 0, 'Overloading': 0, 'Interference': 0,
+        'Zugzwang': 0, 'Intermediate Move': 0, 'Opposition': 0, 'Clearance': 0, 'Decoy': 0
+      };
+
+      // ── 병렬 분석 로직 도입 (최대 3개 동시 처리) ──────────────────────────
+      const CONCURRENCY_LIMIT = 3;
+      const unanalyzedIndices = [];
+
       for (let gi = 0; gi < docs.length; gi++) {
         const doc = docs[gi];
         const myColor = doc.myColor || 'w', result = doc.result || '*';
@@ -2772,7 +2912,6 @@
         else if (term.includes('time') || term.includes('시간')) endTimeout++;
         else endDraw++;
 
-        // 오프닝 감지
         if (doc.pgn) {
           try {
             const uciArr = pgnToUciMoves(doc.pgn);
@@ -2783,20 +2922,14 @@
               const entry = openingStatsMap.get(k);
               const colorStats = entry[myColor];
               colorStats.total++;
-              if (myWin) colorStats.wins++;
-              else if (myLose) colorStats.losses++;
-              else colorStats.draws++;
+              if (myWin) colorStats.wins++; else if (myLose) colorStats.losses++; else colorStats.draws++;
             }
           } catch (e) { }
         }
 
-        // ── 이미 분석된 게임인지 확인 (tacticAnalysis 필드 체크)
-        const alreadyAnalyzed = !!(doc.tacticAnalysis && doc.tacticAnalysis.analyzedAt);
-
-        if (alreadyAnalyzed) {
-          // 저장된 분석 결과 재사용
+        const a = doc.tacticAnalysis;
+        if (a && a.analyzedAt) {
           cachedCount++;
-          const a = doc.tacticAnalysis;
           sumMyBlunders += (a.myBlunders || 0); sumMyMistakes += (a.myMistakes || 0); sumMyInaccuracies += (a.myInaccuracies || 0);
           sumOppBlunders += (a.oppBlunders || 0); sumOppMistakes += (a.oppMistakes || 0); sumOppInaccuracies += (a.oppInaccuracies || 0);
           sumOppBF += (a.oppBlunderFound || 0); sumOppBM += (a.oppBlunderMissed || 0);
@@ -2804,72 +2937,57 @@
           sumAbsPinFound += (a.absPinFound || 0); sumAbsPinMissed += (a.absPinMissed || 0);
           sumRelPinFound += (a.relPinFound || 0); sumRelPinMissed += (a.relPinMissed || 0);
           sumCp += (a.myCpSum || 0); sumMoves += (a.myMoveCount || 0); totalMovesSum += (a.totalMoves || doc.moveCount || 0);
-          const ff = a.forkFound || {}; const fm = a.forkMissed || {}; const ofc = a.oppForkCreated || {};
-          for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) { sumForkFound[k] += (ff[k] || 0); sumForkMissed[k] += (fm[k] || 0); sumOppForkCreated[k] += (ofc[k] || 0); }
-          if (a.tacticEvents && a.tacticEvents.length) _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents });
-
-          const pct = Math.round(gi / total * 100);
-          contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
-        <div style="font-size:13px;color:var(--text-secondary)">분석 중... (${cachedCount}개 캐시 사용)</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${gi + 1} / ${total} 게임</div>
-        <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
-        <div class="stats-progress-label">이미 분석된 기보 — 건너뜀 ⚡</div>
-      </div></div>`;
-          continue;
+          const ff = a.forkFound || {}; for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) { sumForkFound[k] += (ff[k] || 0); }
+          if (a.tacticEvents) {
+            _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents });
+            a.tacticEvents.forEach(ev => { if(ev.themes) ev.themes.forEach(t => { if(tacticThemeCounts[t] !== undefined) tacticThemeCounts[t]++; })});
+          }
+        } else {
+          unanalyzedIndices.push(gi);
         }
-
-        // ── 새로 분석 필요한 게임
-        const pct = Math.round(gi / total * 100);
-        contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
-      <div style="font-size:13px;color:var(--text-secondary)">Stockfish 분석 중... (신규 ${newlyAnalyzedCount + 1}번째)</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${gi + 1} / ${total} 게임</div>
-      <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
-      <div class="stats-progress-label">깊이 ${SF_DEPTH}으로 포지션 분석 중</div>
-    </div></div>`;
-
-        if (doc.pgn) {
-          try {
-            const a = await analyzeGame(doc.pgn, myColor, (cur, tot) => {
-              const ip = Math.round(cur / Math.max(tot, 1) * 100);
-              const fill = contentEl.querySelector('.stats-progress-bar-fill');
-              if (fill) fill.style.width = Math.round(gi / total * 100 + ip / total) + '%';
-            });
-            sumMyBlunders += a.myBlunders; sumMyMistakes += a.myMistakes; sumMyInaccuracies += a.myInaccuracies;
-            sumOppBlunders += a.oppBlunders; sumOppMistakes += a.oppMistakes; sumOppInaccuracies += a.oppInaccuracies;
-            sumOppBF += a.oppBlunderFound; sumOppBM += a.oppBlunderMissed;
-            sumCheckmates += a.checkmates;
-            sumAbsPinFound += (a.absPinFound || 0); sumAbsPinMissed += (a.absPinMissed || 0);
-            sumRelPinFound += (a.relPinFound || 0); sumRelPinMissed += (a.relPinMissed || 0);
-            sumCp += a.myCpSum; sumMoves += a.myMoveCount; totalMovesSum += a.totalMoves;
-            for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) { sumForkFound[k] += (a.forkFound[k] || 0); sumForkMissed[k] += (a.forkMissed[k] || 0); sumOppForkCreated[k] += (a.oppForkCreated?.[k] || 0); }
-            if (a.tacticEvents && a.tacticEvents.length) _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents });
-            newlyAnalyzedCount++;
-
-            // ── 분석 결과를 Firestore에 저장 (다음 방문 시 재사용)
-            try {
-              const savePayload = {
-                myBlunders: a.myBlunders, myMistakes: a.myMistakes, myInaccuracies: a.myInaccuracies,
-                oppBlunders: a.oppBlunders, oppMistakes: a.oppMistakes, oppInaccuracies: a.oppInaccuracies,
-                oppBlunderFound: a.oppBlunderFound, oppBlunderMissed: a.oppBlunderMissed,
-                checkmates: a.checkmates,
-                absPinFound: a.absPinFound || 0, absPinMissed: a.absPinMissed || 0,
-                relPinFound: a.relPinFound || 0, relPinMissed: a.relPinMissed || 0,
-                myCpSum: a.myCpSum, myMoveCount: a.myMoveCount, totalMoves: a.totalMoves,
-                forkFound: a.forkFound, forkMissed: a.forkMissed, oppForkCreated: a.oppForkCreated || {},
-                tacticEvents: (a.tacticEvents || []).map(ev => ({
-                  type: ev.type, subtype: ev.subtype, piece: ev.piece || '',
-                  moveNum: ev.moveNum || 0, san: ev.san || '',
-                  plyIdx: ev.plyIdx || 0, bestMove: ev.bestMove || null
-                })),
-                analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                sfDepth: SF_DEPTH
-              };
-              await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
-              console.log('[stats] 분석 저장 완료:', doc.id);
-            } catch (saveErr) { console.warn('[stats] 분석 저장 실패:', saveErr); }
-          } catch (e) { console.warn('게임 분석 실패:', e); if (doc.moveCount) totalMovesSum += doc.moveCount; }
-        } else if (doc.moveCount) totalMovesSum += doc.moveCount;
       }
+
+      let activeCount = 0, nextToProcess = 0, finishedCount = 0;
+      async function processTask() {
+        if (nextToProcess >= unanalyzedIndices.length) return;
+        const gi = unanalyzedIndices[nextToProcess++];
+        const doc = docs[gi];
+        const myColor = doc.myColor || 'w';
+        
+        const pct = Math.round((gi + 1) / total * 100);
+        contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
+          <div style="font-size:13px;color:var(--text-secondary)">Lichess 병렬 분석 중... (${finishedCount + 1}/${unanalyzedIndices.length})</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${gi + 1} / ${total} 게임</div>
+          <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
+          <div class="stats-progress-label">기보 임포트 및 전술 엔진 작동 중</div>
+        </div></div>`;
+
+        try {
+          const a = await analyzeGame(doc.pgn, myColor);
+          sumMyBlunders += a.myBlunders; sumMyMistakes += a.myMistakes; sumMyInaccuracies += a.myInaccuracies;
+          sumOppBlunders += a.oppBlunders; sumOppMistakes += a.oppMistakes; sumOppInaccuracies += a.oppInaccuracies;
+          sumOppBF += a.oppBlunderFound; sumOppBM += a.oppBlunderMissed;
+          sumCheckmates += a.checkmates;
+          sumAbsPinFound += (a.absPinFound || 0); sumRelPinFound += (a.relPinFound || 0);
+          sumCp += a.myCpSum; sumMoves += a.myMoveCount; totalMovesSum += a.totalMoves;
+          const ff = a.forkFound || {}; for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) { sumForkFound[k] += (ff[k] || 0); }
+          if (a.tacticEvents) {
+            _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents });
+            a.tacticEvents.forEach(ev => { if(ev.themes) ev.themes.forEach(t => { if(tacticThemeCounts[t] !== undefined) tacticThemeCounts[t]++; })});
+          }
+          // 결과 저장
+          const savePayload = { ...a, analyzedAt: firebase.firestore.FieldValue.serverTimestamp() };
+          await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
+          newlyAnalyzedCount++;
+        } catch (e) { console.warn('분석 실패:', e); }
+        
+        finishedCount++;
+        return processTask();
+      }
+
+      const pool = [];
+      for (let i = 0; i < Math.min(CONCURRENCY_LIMIT, unanalyzedIndices.length); i++) { pool.push(processTask()); }
+      await Promise.all(pool);
 
       _statsCache = {
         total, wins, losses, draws, winsW, lossesW, drawsW, winsB, lossesB, drawsB, myColor_counts,
@@ -2885,6 +3003,7 @@
         relPinFound: sumRelPinFound, relPinMissed: sumRelPinMissed,
         pinFound: sumAbsPinFound + sumRelPinFound,
         pinMissed: sumAbsPinMissed + sumRelPinMissed,
+        tacticThemeCounts, // 새 전술 테마 통계 추가
         avgCpLoss: sumMoves > 0 ? Math.round(sumCp / sumMoves) : 0,
         openingStats: Array.from(openingStatsMap.values())
           .sort((a, b) => (b.w.total + b.b.total) - (a.w.total + a.b.total))
@@ -2902,18 +3021,24 @@
       const titleEl = document.getElementById('tmodal-title');
       const bodyEl = document.getElementById('tmodal-body');
 
-      const typeLabel = { fork: '포크', oppFork: '상대 포크', absPin: '절대 핀', relPin: '상대 핀', pin: '핀', oppBlunder: '상대 블런더 포착' }[tacticType] || tacticType;
+      const typeLabel = { 
+        fork: '포크', oppFork: '상대 포크', absPin: '절대 핀', relPin: '상대 핀', pin: '핀', 
+        oppBlunder: '상대 블런더 포착',
+        'Skewer': '스큐어', 'Discovered Attack': '디스커버드 어택', 'X-ray': 'X-선', 'Trapped': '기물 트래핑'
+      }[tacticType] || tacticType;
+      
       const subtypeLabel = subtypeFilter === 'found' ? '찾음' : subtypeFilter === 'missed' ? '놓침' : '';
       titleEl.innerHTML = `<span>${icon}</span> ${name} — ${typeLabel}${subtypeLabel ? ' (' + subtypeLabel + ')' : ''} 게임 목록`;
 
       // 해당 전술이 있는 게임만 필터
       const PIECE_ICONS = { P: '♙', N: '♞', B: '♝', R: '♜', Q: '♛', K: '♚' };
       const matchingGames = _statsGameDetails.filter(gd =>
-        gd.tacticEvents.some(ev =>
-          ev.type === tacticType &&
-          (tacticPiece === '' || ev.piece === tacticPiece) &&
-          (!subtypeFilter || ev.subtype === subtypeFilter)
-        )
+        gd.tacticEvents.some(ev => {
+          if (ev.type === tacticType && (tacticPiece === '' || ev.piece === tacticPiece) && (!subtypeFilter || ev.subtype === subtypeFilter)) return true;
+          // 테마로 필터링 (스큐어, 디스커버드 등)
+          if (ev.themes && ev.themes.includes(tacticType)) return true;
+          return false;
+        })
       );
 
       if (!matchingGames.length) {
@@ -2933,12 +3058,19 @@
         const whiteName = doc.whiteName || '백', blackName = doc.blackName || '흑';
 
         // 해당 게임에서 이 전술의 이벤트들
-        const evs = gd.tacticEvents.filter(ev => ev.type === tacticType && (tacticPiece === '' || ev.piece === tacticPiece) && (!subtypeFilter || ev.subtype === subtypeFilter));
-        const foundEvs = evs.filter(ev => ev.subtype === 'found');
+        const evs = gd.tacticEvents.filter(ev => {
+          if (ev.type === tacticType && (tacticPiece === '' || ev.piece === tacticPiece) && (!subtypeFilter || ev.subtype === subtypeFilter)) return true;
+          if (ev.themes && ev.themes.includes(tacticType)) return true;
+          return false;
+        });
+        const foundEvs = evs.filter(ev => ev.subtype === 'found' || (ev.type === 'error' && ev.themes && ev.themes.includes(tacticType)));
         const missedEvs = evs.filter(ev => ev.subtype === 'missed');
 
         let tagHtml = '';
-        if (foundEvs.length) tagHtml += foundEvs.map(ev => `<span class="tg-tag found">${tacticType === 'oppFork' ? '⚔' : '✔'} ${ev.moveNum}수${ev.piece && ev.piece !== '' ? ' ' + PIECE_ICONS[ev.piece] : ''} (${ev.san || '?'})</span>`).join('');
+        if (foundEvs.length) tagHtml += foundEvs.map(ev => {
+          const themeLabel = (ev.themes && ev.themes.includes(tacticType)) ? ` [${typeLabel}]` : '';
+          return `<span class="tg-tag found">${tacticType === 'oppFork' ? '⚔' : '✔'} ${ev.moveNum}수${ev.piece && ev.piece !== '' ? ' ' + PIECE_ICONS[ev.piece] : ''} (${ev.san || '?'})${themeLabel}</span>`;
+        }).join('');
         if (missedEvs.length) tagHtml += missedEvs.map(ev => `<span class="tg-tag">✘ ${ev.moveNum}수${ev.piece && ev.piece !== '' ? ' ' + PIECE_ICONS[ev.piece] : ''} (${ev.san || '?'})</span>`).join('');
 
         html += `<div class="tmodal-game-item" onclick="closeTacticModalAndOpen(${JSON.stringify(doc).replace(/"/g, '&quot;')})">
@@ -3111,6 +3243,33 @@
         <div class="color-stat-row"><span>패</span><span>${s.lossesB}</span></div>
         <div class="color-stat-row"><span>게임 수</span><span>${s.myColor_counts.b}</span></div>
       </div>
+    </div>
+
+    <div class="stats-section-title">✨ 심화 전술 테마 (Advanced)</div>
+    <div class="fvm-container" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 15px;background:var(--bg-card);padding:15px;border-radius:12px;border:1px solid var(--border);">
+      ${(() => {
+        const themeIcons = { 
+          'Skewer': '🍢', 'Discovered Attack': '🔓', 'X-ray': '⚡', 'Trapped': '🕸️',
+          'Windmill': '🎡', 'Desperado': '🤠', 'Overloading': '⚖️', 'Interference': '🚧',
+          'Zugzwang': '⌛', 'Intermediate Move': '⏸️', 'Opposition': '👥', 'Clearance': '🧹', 'Decoy': '🎣'
+        };
+        const themeNames = {
+          'Skewer': '스큐어', 'Discovered Attack': '디스커버드', 'X-ray': 'X-선', 'Trapped': '트래핑',
+          'Windmill': '풍차', 'Desperado': '데스페라도', 'Overloading': '과부하', 'Interference': '간섭',
+          'Zugzwang': '추크츠방', 'Intermediate Move': '사잇수', 'Opposition': '오포지션', 'Clearance': '정리 희생', 'Decoy': '유인(속임수)'
+        };
+        let h = '';
+        Object.keys(s.tacticThemeCounts || {}).forEach(theme => {
+          const count = s.tacticThemeCounts[theme];
+          if (count > 0) {
+            h += `<div class="fvm-row clickable" onclick="openTacticModal('${theme}','','${themeIcons[theme]}','${themeNames[theme]}')" style="margin:0;padding:8px;background:var(--bg-secondary);border-radius:8px;">
+              <div class="fvm-piece-col" style="min-width:unset"><div class="fvm-piece-icon">${themeIcons[theme]}</div><div class="fvm-piece-name">${themeNames[theme]}</div></div>
+              <div class="fvm-bars-col" style="justify-content:flex-end"><div class="fvm-count" style="font-weight:700;color:var(--accent-green-bright);margin:0">${count}회</div></div>
+            </div>`;
+          }
+        });
+        return h || '<div class="stats-note" style="grid-column: span 2">감지된 심화 전술이 아직 없습니다.</div>';
+      })()}
     </div>
 
     <div class="stats-section-title">🎯 수 정확도 (Stockfish 깊이 ${SF_DEPTH})</div>
