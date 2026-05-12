@@ -2607,13 +2607,11 @@
       else { ne.textContent = `${Math.ceil(_viewIdx / 2)}수 ${_states[_viewIdx - 1].turn === 'w' ? '백' : '흑'}`; se.textContent = _states[_viewIdx].san || ''; }
     }
     // ════════════════════════════════════════
-    // 기물 이미지 — chess-wasm-fixed 동일 방식
-    // lichess CDN: https://lichess1.org/assets/piece/{style}/{piece}.svg
+    // 기물 이미지 — chess-wasm-fixed/chess.js의 currentPieceStyle 재사용
     // ════════════════════════════════════════
-    let currentPieceStyle = 'cburnett';
-    const LICHESS_PIECE_BASE = 'https://lichess1.org/assets/piece/';
+    // currentPieceStyle은 chess.js에서 이미 선언됨 (중복 선언 제거)
     function pieceImg(piece) {
-      return LICHESS_PIECE_BASE + currentPieceStyle + '/' + piece[0] + piece[1].toUpperCase() + '.svg';
+      return `https://lichess1.org/assets/piece/${currentPieceStyle}/${piece[0]}${piece[1].toUpperCase()}.svg`;
     }
 
     function renderViewerBoard() {
