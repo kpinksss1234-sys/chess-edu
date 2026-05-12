@@ -2262,7 +2262,6 @@
       const contentEl = document.getElementById('stats-content');
       const subEl = document.getElementById('stats-sub');
       
-      // 기보 로드 및 로컬 분석 수행
       const pgn = _currentRecord.pgn;
       const myColor = _currentRecord.myColor || 'w';
 
@@ -2272,7 +2271,7 @@
         subEl.textContent = `분석 중: ${cur} / ${tot}`;
       });
 
-      // 판단 알고리즘 적용
+      // 로컬 분석 결과를 바탕으로 결과 객체 구성
       const results = {
         totalMoves: states.length - 1,
         myBlunders: 0, myMistakes: 0, myInaccuracies: 0,
@@ -2283,7 +2282,31 @@
         tacticThemeCounts: {}, tacticEvents: [], moveJudgments: [],
         winRate: 0, wins: 0, losses: 0, draws: 0
       };
-      // ... (평가치와 states를 조합하여 전술 및 judgement 계산)
+
+      // 각 수마다 판단 및 전술 감지 수행
+      let prevEval = 0;
+      for (let i = 1; i < states.length; i++) {
+        const mover = states[i-1].turn;
+        const cpAfter = evaluations[i];
+        
+        // Judgment 판단
+        const j = getJudgment(prevEval, cpAfter, mover);
+        results.moveJudgments.push(j);
+        
+        // 통계 업데이트
+        if (j === 'blunder') (mover === myColor ? results.myBlunders : results.oppBlunders)++;
+        else if (j === 'mistake') (mover === myColor ? results.myMistakes : results.oppMistakes)++;
+        else if (j === 'inaccuracy') (mover === myColor ? results.myInaccuracies : results.oppInaccuracies)++;
+        
+        // 전술 감지
+        const prevBoard = states[i-1].board;
+        if (isValidForkR(states[i].board, mover, states[i].move.to, prevBoard)) {
+            const pt = prevBoard[states[i].move.from[0]][states[i].move.from[1]][1];
+            results.forkFound[pt]++;
+        }
+        
+        prevEval = cpAfter;
+      }
 
       renderStatsHTML(results);
     }
