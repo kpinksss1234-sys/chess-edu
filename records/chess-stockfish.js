@@ -20,7 +20,7 @@
 
 'use strict';
 
-const SF_DEPTH      = 14;
+const SF_DEPTH      = 18;
 const SF_MULTIPV    = 3;
 const BLUNDER_CP    = 150;
 const MISTAKE_CP    = 75;
