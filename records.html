@@ -1860,24 +1860,9 @@
               <div class="move-tokens" id="move-tokens"></div>
             </div>
 
-            <!-- ── Lichess 분석 ── -->
-            <div
-              style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <button id="lichess-analyze-btn" onclick="analyzePgnWithLichessRecord()"
-                  style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border-light);background:var(--bg-tertiary);color:var(--text-secondary);font-size:12px;font-family:var(--font-main);cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="opacity:.8">
-                    <path
-                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
-                  </svg>
-                  Lichess로 분석하기
-                </button>
-              </div>
-              <div id="lichess-analysis-status"
-                style="display:none;font-size:11px;line-height:1.6;padding:8px 10px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);">
-              </div>
-              <div id="lichess-analysis-result" style="display:none;margin-top:2px;"></div>
-            </div>
+            <!-- Lichess 분석 버튼 제거됨 -->
+            <div id="lichess-analysis-status" style="display:none;"></div>
+            <div id="lichess-analysis-result" style="display:none;"></div>
           </div>
         </div>
         <div class="viewer-player-bar" style="max-width:880px;width:100%;border-color:var(--accent-green-dark);">
@@ -2086,12 +2071,59 @@
         return false;
     }
 
+    // ── 새로운 승률 및 판단 로직 ──────────────────────────────────────────
+
+    function calculateWinProb(cp) {
+      // W = 50 + 50 * erf((cp * ln(10)) / (600 * sqrt(2)))
+      const x = (cp * Math.log(10)) / (600 * Math.sqrt(2));
+      const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+      const sign = x < 0 ? -1 : 1;
+      const t = 1.0 / (1.0 + p * Math.abs(x));
+      const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+      return 50 + 50 * sign * y;
+    }
+
+    function getJudgment(cpBefore, cpAfter, mover) {
+      const wBefore = calculateWinProb(mover === 'w' ? cpBefore : -cpBefore);
+      const wAfter = calculateWinProb(mover === 'w' ? cpAfter : -cpAfter);
+      const deltaW = (wBefore - wAfter) / 100; // 백분율 차이 (0.05 = 5%)
+
+      if (deltaW >= 0.20) return 'blunder';
+      if (deltaW >= 0.10) return 'mistake';
+      if (deltaW >= 0.05) return 'inaccuracy';
+      return null;
+    }
+
+    // ── 새로운 승률 및 판단 로직 ──────────────────────────────────────────
+
+    function calculateWinProb(cp) {
+      // W = 50 + 50 * erf((cp * ln(10)) / (600 * sqrt(2)))
+      const x = (cp * Math.log(10)) / (600 * Math.sqrt(2));
+      const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+      const sign = x < 0 ? -1 : 1;
+      const t = 1.0 / (1.0 + p * Math.abs(x));
+      const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+      return 50 + 50 * sign * y;
+    }
+
+    function getJudgment(cpBefore, cpAfter, mover) {
+      const wBefore = calculateWinProb(mover === 'w' ? cpBefore : -cpBefore);
+      const wAfter = calculateWinProb(mover === 'w' ? cpAfter : -cpAfter);
+      const deltaW = (wBefore - wAfter) / 100; // 백분율 차이 (0.05 = 5%)
+
+      if (deltaW >= 0.20) return 'blunder';
+      if (deltaW >= 0.10) return 'mistake';
+      if (deltaW >= 0.05) return 'inaccuracy';
+      return null;
+    }
+
     // ── 핵심 분석 오케스트레이터 (Shared Core) ──────────────────────────────────
 
     /**
      * Lichess에서 받은 주석 달린 PGN을 분석하여 통계 및 전술 이벤트를 추출합니다.
      */
     function processLichessPgn(annotatedPgn, myColor) {
+      console.time('processLichessPgn_Total');
       const result = {
         totalMoves: 0,
         myBlunders: 0, myMistakes: 0, myInaccuracies: 0,
@@ -2127,26 +2159,22 @@
       let currentPos = parseFen(INIT_FEN);
       let prevEvalCp = null;
       let whiteTurn = true;
+      let moveCounter = 0;
 
       for (let i = 0; i < tokens.length; i++) {
         const t = tokens[i];
         if (!t.isComment && !/^\d+/.test(t.text)) {
+          moveCounter++;
+          console.time(`Move_${moveCounter}_Analysis`);
           const san = t.text;
           const mover = whiteTurn ? 'w' : 'b';
           const isMe = (mover === myColor);
           
-          let judgment = null;
+          // 로컬 평가치 파싱 (eval만 추출)
           let currentEval = null;
           for (let j = i + 1; j < tokens.length; j++) {
             if (tokens[j].isComment) {
-              const comm = tokens[j].text;
-              const jm = comm.match(/\[%judgment\s+name="([^"]+)"/i);
-              if (jm) judgment = jm[1].toLowerCase();
-              if (!judgment) {
-                const lm = comm.match(/\b(Inaccuracy|Mistake|Blunder|Missed win)\b/i);
-                if (lm) judgment = lm[1].toLowerCase();
-              }
-              const em = comm.match(/\[%eval\s+(#?-?[\d.]+)\]/i);
+              const em = tokens[j].text.match(/\[%eval\s+(#?-?[\d.]+)\]/i);
               if (em && !em[1].startsWith('#')) currentEval = Math.round(parseFloat(em[1]) * 100);
             } else if (!/^\d+/.test(tokens[j].text)) break;
           }
@@ -2156,8 +2184,37 @@
           
           if (move) {
             const prevBoard = currentPos.board.map(r => [...r]);
+            const prevEval = prevEvalCp !== null ? prevEvalCp : 0;
             currentPos.board = applyMoveToBoard(currentPos.board.map(r => [...r]), move, mover);
             
+            // ── [전술 감지] 모든 수에 대해 수행 ──────────────────────────
+            const themes = [];
+            if (isValidForkR(currentPos.board, mover, move.to, prevBoard)) {
+              const pt = prevBoard[move.from[0]][move.from[1]][1];
+              result.forkFound[pt] = (result.forkFound[pt] || 0) + 1;
+              themes.push('Fork');
+            }
+            if (isAbsolutePin(currentPos.board, move.to[0], move.to[1], mover)) {
+              result.absPinFound++;
+              themes.push('AbsPin');
+            }
+            if (isRelativePin(currentPos.board, move.to[0], move.to[1], mover)) {
+              result.relPinFound++;
+              themes.push('RelPin');
+            }
+            
+            if (themes.length > 0) {
+              themes.forEach(th => { result.tacticThemeCounts[th] = (result.tacticThemeCounts[th] || 0) + 1; });
+              result.tacticEvents.push({ moveIdx: moveCounter, san, themes });
+            }
+
+            // ── 로컬 판단 (Judgment) 처리 ──────────────────────────
+            let judgment = null;
+            if (currentEval !== null) {
+              judgment = getJudgment(prevEval, currentEval, mover);
+            }
+            
+            // 킹 업데이트 및 EP 처리
             if (currentPos.board[move.to[0]][move.to[1]] === mover + 'K') {
               if (mover === 'w') { currentPos.castling.wK = false; currentPos.castling.wQ = false; }
               else { currentPos.castling.bK = false; currentPos.castling.bQ = false; }
@@ -2165,25 +2222,6 @@
             currentPos.enPassant = move.doublePush ? [move.to[0] - (mover === 'w' ? -1 : 1), move.to[1]] : null;
 
             result.moveJudgments.push(judgment);
-
-            if (judgment && (['inaccuracy', 'mistake', 'blunder', 'missed win'].includes(judgment))) {
-              if (judgment === 'missed win') judgment = 'blunder';
-              if (isMe) {
-                const themes = [];
-                if (isValidForkR(currentPos.board, mover, move.to, prevBoard)) {
-                  const pt = prevBoard[move.from[0]][move.from[1]][1];
-                  result.forkFound[pt] = (result.forkFound[pt] || 0) + 1;
-                  themes.push('Fork');
-                }
-                // Pin detection is handled via Stockfish best move comparison in the statistics pipeline, 
-                // but here we can tag it if needed. For now, we only explicitly tag Fork here.
-                
-                if (themes.length > 0) {
-                  themes.forEach(th => { result.tacticThemeCounts[th] = (result.tacticThemeCounts[th] || 0) + 1; });
-                  result.tacticEvents.push({ moveIdx: result.moveJudgments.length, san, themes });
-                }
-              }
-            }
 
             if (judgment) {
               if (isMe) {
@@ -2209,11 +2247,13 @@
             result.moveJudgments.push(null);
           }
           whiteTurn = !whiteTurn;
+          console.timeEnd(`Move_${moveCounter}_Analysis`);
         } else if (!t.isComment && /^\d+\.\.\./.test(t.text)) whiteTurn = false;
         else if (!t.isComment && /^\d+\./.test(t.text)) whiteTurn = true;
       }
       result.totalMoves = result.myMoveCount;
       result.avgCpLoss = result.myMoveCount > 0 ? Math.round(result.myCpSum / result.myMoveCount) : 0;
+      console.timeEnd('processLichessPgn_Total');
       return result;
     }
 
