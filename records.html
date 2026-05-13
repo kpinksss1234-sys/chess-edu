@@ -3201,13 +3201,16 @@
         const resCls = myWin ? 'win' : myLose ? 'lose' : 'draw';
         const dateStr = doc.playedAt ? new Date(doc.playedAt.seconds * 1000).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) : '—';
         
-        // 데이터 위치 결정: tacticAnalysis 안 혹은 gd 객체 내부
+        // 데이터 위치 결정: gd 객체 내부 혹은 tacticAnalysis 안
         const moves = gd.moveJudgments || (doc.tacticAnalysis && doc.tacticAnalysis.moveJudgments) || [];
+        
         let moveHtml = '';
         if (Array.isArray(moves)) {
             moves.forEach((m, idx) => {
                 if(m === judgment) moveHtml += `<span class="tg-tag" style="background:#cc333333; color:#cc3333">${Math.ceil((idx+1)/2)}수</span> `;
             });
+        } else {
+            console.warn('moves가 배열이 아닙니다:', moves);
         }
 
         html += `<div class="tmodal-game-item" onclick="closeTacticModalAndOpen(${JSON.stringify(doc).replace(/"/g, '&quot;')})">
