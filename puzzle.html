@@ -1816,6 +1816,7 @@ let state = {
   lastMoveSq: null,       // 마지막 수 좌표 [fr,fc,tr,tc]
   wrongMove: false,       // 틀린 수 상태 (클릭 시 복원)
   waitingEngine: false,   // 엔진 응수 대기 중
+  _legalChess: null,      // chess.js — 합법수·차례 (전체 FEN + solution 재생)
 };
 
 /* ============ RENDER THEME GRIDS ============ */
@@ -2013,11 +2014,6 @@ function loadPuzzle(idx) {
   document.getElementById('eval-chip').textContent = `레이팅: ${puzzle.rating}`;
   document.getElementById('psp-instruction-text').textContent = '최선의 수를 찾아보세요. 말을 클릭한 후 이동할 칸을 클릭하세요.';
 
-  const turnText = puzzle.turn === 'white' ? '백 차례' : '흑 차례';
-  document.getElementById('turn-text').textContent = turnText;
-  document.getElementById('turn-dot').style.background = puzzle.turn === 'white' ? '#f0f0f0' : '#1a1a1a';
-  document.getElementById('turn-dot').style.border = puzzle.turn === 'white' ? '1px solid #bbb' : '2px solid #666';
-
   const pct = (idx / state.totalPuzzles * 100).toFixed(0);
   document.getElementById('progress-fill').style.width = pct + '%';
   document.getElementById('progress-label').textContent = `${idx} / ${state.totalPuzzles}`;
@@ -2070,6 +2066,8 @@ function loadPuzzle(idx) {
   } else if (srcEl) {
     srcEl.style.display = 'none';
   }
+
+  updatePuzzleTurnUI();
 }
 
 /* ============ UCI MOVE APPLICATION ============ */
@@ -2220,68 +2218,92 @@ function clearHighlights() {
   });
 }
 
-// 현재 사용자 턴: puzzle.turn은 고정 (사용자가 항상 같은 색)
-// solution[짝수] = 사용자 수, solution[홀수] = 엔진 응수
-// → 사용자 턴은 항상 puzzle.turn으로 고정
+// puzzle.turn: Lichess는 'white'/'black', 기보 생성은 chess.turn() → 'w'/'b'
+function normalizePuzzleTurn(t) {
+  if (t === 'w' || t === 'white') return 'white';
+  if (t === 'b' || t === 'black') return 'black';
+  return 'white';
+}
+
+/** 퍼즐 시작 FEN + 이미 둔 solution[0..idx-1] 재생 → 합법수·차례 일치 */
+function syncLegalChessFromSolution() {
+  const pz = state.currentPuzzle;
+  if (!pz || !pz.fen) {
+    state._legalChess = null;
+    return;
+  }
+  try {
+    const ch = new Chess(pz.fen);
+    const max = Math.min(state.solutionMoveIdx, (pz.solution && pz.solution.length) ? pz.solution.length : 0);
+    for (let i = 0; i < max; i++) {
+      const u = (pz.solution[i] || '').toLowerCase();
+      if (!u || u.length < 4) break;
+      const mv = { from: u.slice(0, 2), to: u.slice(2, 4) };
+      if (u.length >= 5) mv.promotion = u.slice(4, 5);
+      if (!ch.move(mv)) {
+        console.warn('[puzzle] solution 재생 실패', i, u);
+        break;
+      }
+    }
+    state._legalChess = ch;
+  } catch (e) {
+    console.warn('[puzzle] syncLegalChessFromSolution', e);
+    state._legalChess = null;
+  }
+}
+
+function updatePuzzleTurnUI() {
+  const elT = document.getElementById('turn-text');
+  const elD = document.getElementById('turn-dot');
+  if (!elT || !elD) return;
+  syncLegalChessFromSolution();
+  const wt = state._legalChess
+    ? (state._legalChess.turn() === 'w' ? 'white' : 'black')
+    : normalizePuzzleTurn(state.currentPuzzle && state.currentPuzzle.turn);
+  elT.textContent = wt === 'white' ? '백 차례' : '흑 차례';
+  elD.style.background = wt === 'white' ? '#f0f0f0' : '#1a1a1a';
+  elD.style.border = wt === 'white' ? '1px solid #bbb' : '2px solid #666';
+}
+
 function getCurrentTurn() {
-  return state.currentPuzzle ? state.currentPuzzle.turn : 'white';
+  syncLegalChessFromSolution();
+  if (state._legalChess) {
+    return state._legalChess.turn() === 'w' ? 'white' : 'black';
+  }
+  return normalizePuzzleTurn(state.currentPuzzle && state.currentPuzzle.turn);
 }
 
 function getLegalMovesFrom(r, c) {
   try {
-    let fen = '';
-    for (let row = 0; row < 8; row++) {
-      let empty = 0;
-      for (let col = 0; col < 8; col++) {
-        const p = state.board[row][col];
-        if (p) { if (empty) { fen += empty; empty = 0; } fen += p; }
-        else empty++;
-      }
-      if (empty) fen += empty;
-      if (row < 7) fen += '/';
-    }
-    const turn = state.currentPuzzle.turn === 'white' ? 'w' : 'b';
-    const ch = new Chess(fen + ' ' + turn + ' - - 0 1');
+    syncLegalChessFromSolution();
+    if (!state._legalChess) return [];
     const fromSq = FILES[c] + (8 - r);
-    const moves = ch.moves({ square: fromSq, verbose: true });
+    const moves = state._legalChess.moves({ square: fromSq, verbose: true });
     return moves.map(m => ({
-      tr: 8 - parseInt(m.to[1]),
+      tr: 8 - parseInt(m.to[1], 10),
       tc: FILES.indexOf(m.to[0]),
       capture: !!m.captured
     }));
-  } catch(e) { return []; }
+  } catch (e) { return []; }
 }
 
 // 특정 칸에서 이동 가능한 목적지를 UCI 문자열 Set으로 반환
 function getLegalUciFrom(r, c) {
   try {
-    let fen = '';
-    for (let row = 0; row < 8; row++) {
-      let empty = 0;
-      for (let col = 0; col < 8; col++) {
-        const p = state.board[row][col];
-        if (p) { if (empty) { fen += empty; empty = 0; } fen += p; }
-        else empty++;
-      }
-      if (empty) fen += empty;
-      if (row < 7) fen += '/';
-    }
-    const turn = state.currentPuzzle.turn === 'white' ? 'w' : 'b';
-    const ch = new Chess(fen + ' ' + turn + ' - - 0 1');
+    syncLegalChessFromSolution();
+    if (!state._legalChess) return new Set();
     const fromSq = FILES[c] + (8 - r);
-    const moves = ch.moves({ square: fromSq, verbose: true });
-    // 프로모션: 퀸 프로모션(q)만 기본으로 허용 (UCI 끝에 q)
+    const moves = state._legalChess.moves({ square: fromSq, verbose: true });
     const uciSet = new Set();
     moves.forEach(m => {
       const uci = m.from + m.to + (m.promotion || '');
       uciSet.add(uci);
-      // 프로모션 수는 q 버전만 추가 (퍼즐 정답과 매칭)
       if (m.promotion && m.promotion !== 'q') {
         uciSet.add(m.from + m.to + 'q');
       }
     });
     return uciSet;
-  } catch(e) { return new Set(); }
+  } catch (e) { return new Set(); }
 }
 
 function showMoveDots(moves) {
@@ -2368,6 +2390,7 @@ function restoreBoard() {
       getSquareEl(tr, tc)?.classList.add('last-move');
     }
     updateMoveHistory();
+    syncLegalChessFromSolution();
   }
 }
 
@@ -2451,6 +2474,7 @@ function tryMove(fr, fc, tr, tc, moveStr) {
         updateMoveHistory();
         document.getElementById('psp-instruction-text').textContent = '계속하세요! 다음 최선의 수를 찾아보세요.';
         state.waitingEngine = false;
+        updatePuzzleTurnUI();
       }, 600);
     }
   } else {
