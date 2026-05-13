@@ -3034,7 +3034,9 @@
             sumForkMissed[k] += (a.forkMissed[k] || 0);
             sumOppForkCreated[k] += (a.oppForkCreated?.[k] || 0);
           }
-          if (a.tacticEvents && a.tacticEvents.length) _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents });
+          if (a.tacticEvents && a.tacticEvents.length || a.moveJudgments && a.moveJudgments.length) {
+            _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents, moveJudgments: a.moveJudgments });
+          }
           if (a.myAccuracy > 0) { sumMyAccuracy += a.myAccuracy; accuracyCount++; }
           newlyAnalyzedCount++;
 
