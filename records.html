@@ -3206,8 +3206,19 @@
         
         let moveHtml = '';
         if (Array.isArray(moves)) {
+            // 해당 게임의 기보 상태를 일시적으로 로드하여 SAN을 구함
+            const states = parsePgnToStates(doc.pgn);
+            const J_LABEL = { blunder: '??', mistake: '?', inaccuracy: '?!' };
+            const J_COLOR = { blunder: '#cc3333', mistake: '#e08c3a', inaccuracy: '#f6c94a' };
+
             moves.forEach((m, idx) => {
-                if(m === judgment) moveHtml += `<span class="tg-tag" style="background:#cc333333; color:#cc3333">${Math.ceil((idx+1)/2)}수</span> `;
+                if(m === judgment) {
+                    const san = states[idx + 1] ? states[idx + 1].san : '?';
+                    const moveNum = Math.ceil((idx + 1) / 2);
+                    moveHtml += `<span class="tg-tag" style="background:${J_COLOR[judgment]}33; color:${J_COLOR[judgment]}">
+                                    ${moveNum}수 ${san} ${J_LABEL[judgment]}
+                                 </span> `;
+                }
             });
         } else {
             console.warn('moves가 배열이 아닙니다:', moves);
