@@ -3291,6 +3291,7 @@
       // ── 이미 분석된 게임 수 카운트
       let cachedCount = 0;
       let newlyAnalyzedCount = 0;
+      let lichessSyncCount = 0;
 
       for (let gi = 0; gi < docs.length; gi++) {
         const doc = docs[gi];
@@ -3329,6 +3330,35 @@
         const alreadyAnalyzed = !!(doc.tacticAnalysis && doc.tacticAnalysis.analyzedAt);
 
         if (alreadyAnalyzed) {
+          // 리체스 캐시가 구버전이면 자동 재동기화 (%judgment·정확도 반영)
+          if (doc.pgn && needsLichessTacticResync(doc.tacticAnalysis)) {
+            const pct0 = Math.round(gi / total * 100);
+            contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
+        <div style="font-size:13px;color:var(--text-secondary)">리체스 동기화 중… (${gi + 1} / ${total})</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">구버전 분석 캐시를 서버와 맞춥니다</div>
+        <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct0}%"></div></div>
+        <div class="stats-progress-label">Lichess API · 잠시만 기다려 주세요</div>
+      </div></div>`;
+            _statsLichessSyncActive = true;
+            try {
+              const bundle = await fetchLichessTacticAnalysisBundle(doc.pgn, myColor);
+              const savePayload = Object.assign({}, bundle.analysisResult, {
+                tacticEvents: bundle.tacticEventsNormalized,
+                analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                analysisVersion: TACTIC_ANALYSIS_LICHESS_VERSION,
+                lichessGameId: bundle.gameId,
+              });
+              await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
+              doc.tacticAnalysis = savePayload;
+              lichessSyncCount++;
+            } catch (e) {
+              console.warn('[stats] 리체스 동기화 실패:', doc.id, e);
+            } finally {
+              _statsLichessSyncActive = false;
+            }
+            await new Promise(r => setTimeout(r, 900));
+          }
+
           // 저장된 분석 결과 재사용
           cachedCount++;
           const a = doc.tacticAnalysis;
@@ -3403,7 +3433,8 @@
                   plyIdx: ev.plyIdx || 0, bestMove: ev.bestMove || null
                 })),
                 analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                sfDepth: __RC.SF_DEPTH
+                sfDepth: __RC.SF_DEPTH,
+                analysisVersion: TACTIC_ANALYSIS_STOCKFISH_VERSION
               };
               await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
               console.log('[stats] 분석 저장 완료:', doc.id);
@@ -3432,8 +3463,12 @@
         openingStats: Array.from(openingStatsMap.values())
           .sort((a, b) => (b.w.total + b.b.total) - (a.w.total + a.b.total))
       };
-      const cacheMsg = cachedCount > 0 ? ` · ${cachedCount}개 캐시 재사용, ${newlyAnalyzedCount}개 신규 분석` : ` · Stockfish 깊이 ${__RC.SF_DEPTH} 전체 분석`;
-      subEl.textContent = `총 ${total}게임${cacheMsg}`;
+      const cacheMsg = [
+        cachedCount > 0 ? `${cachedCount}개 캐시 재사용` : null,
+        newlyAnalyzedCount > 0 ? `${newlyAnalyzedCount}개 Stockfish 신규` : null,
+        lichessSyncCount > 0 ? `리체스 ${lichessSyncCount}게임 동기화` : null
+      ].filter(Boolean).join(' · ');
+      subEl.textContent = `총 ${total}게임${cacheMsg ? ' · ' + cacheMsg : ''}`;
       renderStatsHTML(_statsCache);
     }
 
@@ -3778,10 +3813,101 @@
     };
 
     const PROXY_R = '/api/lichess-proxy';
+    /** 리체스 PGN %judgment + api-game 병합이 반영된 캐시 버전 (올리면 기존 캐시 자동 재동기화) */
+    const TACTIC_ANALYSIS_LICHESS_VERSION = 2;
+    /** 통계 탭 Stockfish-only 저장분 — 리체스 미동기화 */
+    const TACTIC_ANALYSIS_STOCKFISH_VERSION = 1;
+
     let _lichessAnalysisBusy = false;
+    /** 통계 탭에서 기보별 리체스 동기화 중이면 단일 기보 분석 버튼은 대기 */
+    let _statsLichessSyncActive = false;
+
+    function needsLichessTacticResync(ta) {
+      if (!ta || !ta.analyzedAt) return false;
+      const v = ta.analysisVersion;
+      if (v == null || typeof v !== 'number') return true;
+      return v < TACTIC_ANALYSIS_LICHESS_VERSION;
+    }
+
+    function normalizeLichessTacticEventsForSave(analysisResult) {
+      const _lichessThemeToType = { Fork: 'fork', AbsPin: 'absPin', RelPin: 'relPin', Skewer: 'skewer', Discovered: 'discovered' };
+      return (analysisResult.tacticEvents || []).map(function (ev) {
+        if (ev.themes && Array.isArray(ev.themes) && ev.moveIdx != null) {
+          let t = 'fork';
+          for (let ti = 0; ti < ev.themes.length; ti++) {
+            if (_lichessThemeToType[ev.themes[ti]]) { t = _lichessThemeToType[ev.themes[ti]]; break; }
+          }
+          return {
+            type: t,
+            subtype: 'found',
+            piece: ev.piece || '',
+            moveNum: Math.ceil(ev.moveIdx / 2),
+            san: ev.san || '',
+            plyIdx: Math.max(0, ev.moveIdx - 1),
+            bestMove: null,
+            themes: ev.themes,
+            moveIdx: ev.moveIdx
+          };
+        }
+        return ev;
+      });
+    }
+
+    /**
+     * PGN을 리체스에 올려 주석 PGN을 받아 processLichessPgn + api-game 병합까지 (UI 없음).
+     * @returns {{ gameId: string, analysisResult: object, tacticEventsNormalized: array }}
+     */
+    async function fetchLichessTacticAnalysisBundle(pgn, myColor) {
+      const importRes = await fetch(`${PROXY_R}?path=import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pgn, analyse: true }),
+      });
+      if (!importRes.ok) throw new Error(`import 실패 (HTTP ${importRes.status})`);
+      const importJson = await importRes.json();
+      const gameId = importJson.id;
+      if (!gameId) throw new Error('게임 ID를 받지 못했습니다.');
+
+      try {
+        await fetch(`${PROXY_R}?path=request-analysis&id=${gameId}&color=${myColor === 'w' ? 'white' : 'black'}`, { method: 'POST' });
+      } catch (e) { /* ignore */ }
+
+      let annotatedPgn = null;
+      const maxAttempts = 18;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise(r => setTimeout(r, attempt === 0 ? 2000 : 5000));
+        const expRes = await fetch(`${PROXY_R}?path=export&id=${gameId}&evals=true&literate=true`);
+        if (!expRes.ok) continue;
+        const pgnText = await expRes.text();
+        if (pgnText.includes('%eval') || pgnText.includes('%judgment')) {
+          annotatedPgn = pgnText;
+          if (pgnText.includes('%judgment')) break;
+        }
+      }
+      if (!annotatedPgn) throw new Error('Lichess 분석 결과 대기 시간 초과');
+
+      const analysisResult = processLichessPgn(annotatedPgn, myColor);
+      try {
+        const gjRes = await fetch(`${PROXY_R}?path=api-game&id=${encodeURIComponent(gameId)}`);
+        if (gjRes.ok) {
+          const gj = await gjRes.json();
+          mergeLichessGameApiStats(analysisResult, gj, myColor);
+        }
+      } catch (e) { /* ACPL·정확도 생략 */ }
+
+      return {
+        gameId,
+        analysisResult,
+        tacticEventsNormalized: normalizeLichessTacticEventsForSave(analysisResult),
+      };
+    }
 
     async function analyzePgnWithLichessRecord() {
       if (_lichessAnalysisBusy) return;
+      if (_statsLichessSyncActive) {
+        showToast('통계 탭에서 리체스 동기화 중입니다. 잠시 후 다시 시도하세요.');
+        return;
+      }
 
       if (!_currentRecord || !_currentRecord.pgn) {
         showToast('분석할 기보가 없습니다. 왼쪽에서 게임을 선택해주세요.');
@@ -3834,98 +3960,32 @@
       DBG.lines = [];
 
       try {
-        // [1] PGN import
-        DBG.log(`[1] PGN import 시작 — gameId in DB: ${recordId}`);
-        const importRes = await fetch(`${PROXY_R}?path=import`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pgn, analyse: true }),
-        });
-
-        if (!importRes.ok) throw new Error(`import 실패 (HTTP ${importRes.status})`);
-        const importJson = await importRes.json();
-        const gameId = importJson.id;
-        if (!gameId) throw new Error('게임 ID를 받지 못했습니다.');
-
-        // [1.5] 자동 분석 요청 (사용자가 웹사이트 안 가도 됨)
-        DBG.log(`[1.5] 분석 요청 전송 (request-analysis) — gameId: ${gameId}`);
-        try {
-          await fetch(`${PROXY_R}?path=request-analysis&id=${gameId}&color=${_viewMyColor === 'w' ? 'white' : 'black'}`, { method: 'POST' });
-        } catch (e) { DBG.log(`[1.5] 분석 요청 중 오류: ${e.message}`); }
-
-        // [2] %judgment 폴링
-        DBG.log(`[2] 폴링 시작 — gameId: ${gameId}`);
-        let annotatedPgn = null;
-        const maxAttempts = 18;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          await new Promise(r => setTimeout(r, attempt === 0 ? 2000 : 5000));
-          const expRes = await fetch(`${PROXY_R}?path=export&id=${gameId}&evals=true&literate=true`);
-          if (!expRes.ok) continue;
-          const pgnText = await expRes.text();
-          if (pgnText.includes('%eval') || pgnText.includes('%judgment')) {
-            annotatedPgn = pgnText;
-            if (pgnText.includes('%judgment')) break;
-          }
-        }
-
-        if (!annotatedPgn) throw new Error('Lichess 분석 결과 대기 시간 초과');
-
-        // [3] 공통 로직으로 분석 (PGN %judgment 우선)
-        const analysisResult = processLichessPgn(annotatedPgn, _viewMyColor);
-
-        try {
-          const gjRes = await fetch(`${PROXY_R}?path=api-game&id=${encodeURIComponent(gameId)}`);
-          if (gjRes.ok) {
-            const gj = await gjRes.json();
-            mergeLichessGameApiStats(analysisResult, gj, _viewMyColor);
-          } else {
-            DBG.log(`[2.5] api-game HTTP ${gjRes.status} (ACPL·정확도 생략)`);
-          }
-        } catch (e) {
-          DBG.log(`[2.5] api-game 오류: ${e.message}`);
-        }
-
-        const _lichessThemeToType = { Fork: 'fork', AbsPin: 'absPin', RelPin: 'relPin', Skewer: 'skewer', Discovered: 'discovered' };
-        const tacticEventsNormalized = (analysisResult.tacticEvents || []).map(function (ev) {
-          if (ev.themes && Array.isArray(ev.themes) && ev.moveIdx != null) {
-            let t = 'fork';
-            for (let ti = 0; ti < ev.themes.length; ti++) {
-              if (_lichessThemeToType[ev.themes[ti]]) { t = _lichessThemeToType[ev.themes[ti]]; break; }
-            }
-            return {
-              type: t,
-              subtype: 'found',
-              piece: ev.piece || '',
-              moveNum: Math.ceil(ev.moveIdx / 2),
-              san: ev.san || '',
-              plyIdx: Math.max(0, ev.moveIdx - 1),
-              bestMove: null,
-              themes: ev.themes,
-              moveIdx: ev.moveIdx
-            };
-          }
-          return ev;
-        });
+        // [1]–[3] 공통 파이프라인
+        DBG.log(`[1] PGN import 시작 — recordId: ${recordId}`);
+        const bundle = await fetchLichessTacticAnalysisBundle(pgn, _viewMyColor);
+        DBG.log(`[3] 분석 완료 — gameId: ${bundle.gameId}`);
 
         // [4] Firestore 캐시 저장
-        const savePayload = Object.assign({}, analysisResult, {
-          tacticEvents: tacticEventsNormalized,
-          analyzedAt: firebase.firestore.FieldValue.serverTimestamp()
+        const savePayload = Object.assign({}, bundle.analysisResult, {
+          tacticEvents: bundle.tacticEventsNormalized,
+          analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          analysisVersion: TACTIC_ANALYSIS_LICHESS_VERSION,
+          lichessGameId: bundle.gameId,
         });
         await firebase.firestore().collection('game_records').doc(recordId).update({ tacticAnalysis: savePayload });
         if (_currentRecord && _currentRecord.id === recordId) _currentRecord.tacticAnalysis = savePayload;
 
         // [5] 뷰어 적용
         for (let i = 1; i < _states.length; i++) {
-          if (analysisResult.moveJudgments[i - 1]) _states[i].judgment = analysisResult.moveJudgments[i - 1];
+          if (bundle.analysisResult.moveJudgments[i - 1]) _states[i].judgment = bundle.analysisResult.moveJudgments[i - 1];
         }
-        analysisResult.tacticEvents.forEach(evt => {
+        bundle.analysisResult.tacticEvents?.forEach(evt => {
           if (_states[evt.moveIdx]) _states[evt.moveIdx].tacticThemes = evt.themes;
         });
 
         renderMoveTokens();
         highlightMoveToken(_viewIdx);
-        showLichessStatsUI(analysisResult, gameId);
+        showLichessStatsUI(bundle.analysisResult, bundle.gameId);
 
       } catch (err) {
         DBG.log(`[ERR] ${err.message}`);
