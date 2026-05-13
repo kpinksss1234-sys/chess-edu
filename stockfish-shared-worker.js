@@ -75,6 +75,12 @@ function _initSF() {
 
   _initPromise = new Promise((resolve, reject) => {
     let uciReceived = false;
+    if (typeof Worker === 'undefined') {
+      const e = new Error('NESTED_WORKER_UNSUPPORTED');
+      _failInit(e);
+      reject(e);
+      return;
+    }
     try {
       _sfWorker = new Worker(SF_PATH);
     } catch (e) {

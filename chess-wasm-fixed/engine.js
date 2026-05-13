@@ -270,7 +270,13 @@ async function initEngine() {
         window.addEventListener('pagehide', releaseSharedMainEngine, { once: false });
         console.log('[Engine] 메인 엔진 — SharedWorker 스트림 (탭 간 WASM 1회)');
       } catch (swErr) {
-        console.warn('[Engine] SharedWorker 실패, 전용 Worker로 폴백:', swErr.message || swErr);
+        const swMsg = (swErr && (swErr.message || String(swErr))) || '';
+        // SharedWorker 전역에 Worker 생성자가 없는 브라우저(Safari 등)에서 흔함 — 전용 Worker 폴백이 정상 경로
+        if (/Worker is not defined|NESTED_WORKER_UNSUPPORTED/i.test(swMsg)) {
+          console.info('[Engine] SharedWorker 미사용 — 이 환경에서는 공유 워커 내부 전용 Worker를 쓸 수 없어 탭 전용 Worker로 Stockfish를 띄웁니다.');
+        } else {
+          console.warn('[Engine] SharedWorker 실패, 전용 Worker로 폴백:', swMsg || swErr);
+        }
         releaseSharedMainEngine();
         mainWorker = null;
         mainReady = false;

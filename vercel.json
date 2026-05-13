@@ -10,6 +10,7 @@
   "rewrites": [
     { "source": "/api/lichess-proxy", "destination": "/api/lichess-proxy.js" },
     { "source": "/api/lichess-token", "destination": "/api/lichess-token.js" },
+    { "source": "/favicon.ico", "destination": "/favicon.svg" },
     { "source": "/", "destination": "/chess-wasm-fixed.html" }
   ]
 }
