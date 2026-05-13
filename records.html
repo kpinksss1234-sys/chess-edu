@@ -3156,6 +3156,51 @@
       modal.classList.add('show');
     }
 
+    function openJudgmentModal(judgment, title, icon, label) {
+      const modal = document.getElementById('tactic-modal');
+      const titleEl = document.getElementById('tmodal-title');
+      const bodyEl = document.getElementById('tmodal-body');
+      titleEl.innerHTML = `<span>${icon}</span> ${title} 포함 게임 목록`;
+
+      const matchingGames = _statsGameDetails.filter(gd =>
+         gd.doc.tacticAnalysis && gd.doc.tacticAnalysis.moveJudgments && 
+         gd.doc.tacticAnalysis.moveJudgments.includes(judgment)
+      );
+
+      if (!matchingGames.length) {
+        bodyEl.innerHTML = `<div class="tmodal-empty">해당 분류의 기록이 없습니다</div>`;
+        modal.classList.add('show'); return;
+      }
+
+      let html = '';
+      for (const gd of matchingGames) {
+        const doc = gd.doc;
+        const myColor = doc.myColor || 'w', result = doc.result || '*';
+        const myWin = (result === '1-0' && myColor === 'w') || (result === '0-1' && myColor === 'b');
+        const myLose = (result === '0-1' && myColor === 'w') || (result === '1-0' && myColor === 'b');
+        const resLabel = myWin ? '승리' : myLose ? '패배' : '무승부';
+        const resCls = myWin ? 'win' : myLose ? 'lose' : 'draw';
+        const dateStr = doc.playedAt ? new Date(doc.playedAt.seconds * 1000).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) : '—';
+        
+        const moves = doc.tacticAnalysis.moveJudgments;
+        let moveHtml = '';
+        moves.forEach((m, idx) => {
+            if(m === judgment) moveHtml += `<span class="tg-tag" style="background:#cc333333; color:#cc3333">${Math.ceil((idx+1)/2)}수</span> `;
+        });
+
+        html += `<div class="tmodal-game-item" onclick="closeTacticModalAndOpen(${JSON.stringify(doc).replace(/"/g, '&quot;')})">
+          <div class="tg-header">
+            <div class="tg-players">⬜ ${doc.whiteName || '백'} vs ⬛ ${doc.blackName || '흑'}</div>
+            <div class="tg-result-badge ${resCls}">${resLabel}</div>
+          </div>
+          <div class="tg-meta"><span>${dateStr}</span></div>
+          <div class="tg-tactic-tags">${moveHtml}</div>
+        </div>`;
+      }
+      bodyEl.innerHTML = html;
+      modal.classList.add('show');
+    }
+
     function closeTacticModal() {
       document.getElementById('tactic-modal').classList.remove('show');
     }
@@ -3351,31 +3396,31 @@
       </div></div>
     </div>
     <div class="key-grid" style="margin-top:6px">
-      <!-- 나 -->
-      <div class="key-card danger"><div class="key-card-icon">💀</div><div class="key-card-body">
+      <!-- 내 분류 -->
+      <div class="key-card danger" onclick="openJudgmentModal('blunder', '내 블런더', '💀', '블런더')"><div class="key-card-icon">💀</div><div class="key-card-body">
         <div class="key-card-name">내 블런더</div><div class="key-card-num">${s.myBlunders}</div>
-        <div class="key-card-sub">EP 손실 &gt;0.20</div>
+        <div class="key-card-sub">클릭 시 게임 상세</div>
       </div></div>
-      <div class="key-card warn"><div class="key-card-icon">❗</div><div class="key-card-body">
+      <div class="key-card warn" onclick="openJudgmentModal('mistake', '내 실수', '❗', '실수')"><div class="key-card-icon">❗</div><div class="key-card-body">
         <div class="key-card-name">내 실수</div><div class="key-card-num">${s.myMistakes}</div>
-        <div class="key-card-sub">EP 손실 0.10~0.20</div>
+        <div class="key-card-sub">클릭 시 게임 상세</div>
       </div></div>
-      <div class="key-card"><div class="key-card-icon">🔶</div><div class="key-card-body">
+      <div class="key-card" onclick="openJudgmentModal('inaccuracy', '내 부정확', '🔶', '부정확')"><div class="key-card-icon">🔶</div><div class="key-card-body">
         <div class="key-card-name">내 부정확</div><div class="key-card-num">${s.myInaccuracies}</div>
-        <div class="key-card-sub">EP 손실 0.05~0.10</div>
+        <div class="key-card-sub">클릭 시 게임 상세</div>
       </div></div>
-      <!-- 상대 -->
-      <div class="key-card danger"><div class="key-card-icon">💀</div><div class="key-card-body">
+      <!-- 상대 분류 -->
+      <div class="key-card danger" onclick="openJudgmentModal('oppBlunder', '상대 블런더', '💀', '블런더')"><div class="key-card-icon">💀</div><div class="key-card-body">
         <div class="key-card-name">상대 블런더</div><div class="key-card-num">${s.oppBlunders}</div>
-        <div class="key-card-sub">EP 손실 &gt;0.20</div>
+        <div class="key-card-sub">클릭 시 게임 상세</div>
       </div></div>
-      <div class="key-card warn"><div class="key-card-icon">❗</div><div class="key-card-body">
+      <div class="key-card warn" onclick="openJudgmentModal('oppMistake', '상대 실수', '❗', '실수')"><div class="key-card-icon">❗</div><div class="key-card-body">
         <div class="key-card-name">상대 실수</div><div class="key-card-num">${s.oppMistakes}</div>
-        <div class="key-card-sub">EP 손실 0.10~0.20</div>
+        <div class="key-card-sub">클릭 시 게임 상세</div>
       </div></div>
-      <div class="key-card"><div class="key-card-icon">🔶</div><div class="key-card-body">
+      <div class="key-card" onclick="openJudgmentModal('oppInaccuracy', '상대 부정확', '🔶', '부정확')"><div class="key-card-icon">🔶</div><div class="key-card-body">
         <div class="key-card-name">상대 부정확</div><div class="key-card-num">${s.oppInaccuracies}</div>
-        <div class="key-card-sub">EP 손실 0.05~0.10</div>
+        <div class="key-card-sub">클릭 시 게임 상세</div>
       </div></div>
     </div>
 
