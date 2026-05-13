@@ -3171,9 +3171,16 @@
       }
 
       const matchingGames = _statsGameDetails.filter(gd => {
-         const hasJudgment = gd.doc.tacticAnalysis && gd.doc.tacticAnalysis.moveJudgments && 
-                             gd.doc.tacticAnalysis.moveJudgments.includes(judgment);
-         return hasJudgment;
+         // tacticAnalysis 내부 확인
+         const ja = gd.doc.tacticAnalysis;
+         const hasInTactic = ja && ja.moveJudgments && ja.moveJudgments.includes(judgment);
+         
+         // 혹은 객체 자체에 직접 있을 경우 확인
+         const hasInGd = gd.moveJudgments && gd.moveJudgments.includes(judgment);
+         
+         if (hasInTactic) return true;
+         if (hasInGd) return true;
+         return false;
       });
 
       console.log('Matching Games Count:', matchingGames.length);
