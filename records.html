@@ -743,11 +743,7 @@
       color: #fff
     }
 
-    #lichess-analyze-btn:hover:not(:disabled) {
-      background: var(--bg-hover);
-      color: var(--text-primary);
-      border-color: var(--accent-green-dark);
-    }
+
 
     #lichess-analyze-btn:disabled {
       cursor: not-allowed;
@@ -1910,8 +1906,6 @@
             </div>
 
             <!-- Lichess 분석 버튼 제거됨 -->
-            <div id="lichess-analysis-status" style="display:none;"></div>
-            <div id="lichess-analysis-result" style="display:none;"></div>
           </div>
         </div>
         <div class="viewer-player-bar" style="max-width:880px;width:100%;border-color:var(--accent-green-dark);">
@@ -1959,45 +1953,68 @@
     const PIN_MIN_PINNED_VALUE = 320;
     const RELATIVE_PIN_SHIELD_MIN = 330;
 
-    // ── 수 분류 및 승률 계산 ───────────────────────────────────────────────────
+    // ── 수 분류 및 승률 계산 (gameAnalyzer.js / chess.com Expected Points 방식) ──
+    // cpToExpectedPoints: 센티폰 → 예상 점수(승률) 0.0–1.0
+    // classifyMoveEP: EP 손실 기반 분류 (레포 classifyMove 동일 임계값)
+    // gameAccuracy: 조화평균 기반 게임 정확도 0–100
 
-    function winProb(cpMe) {
-      return 1 / (1 + Math.pow(10, -cpMe / 400));
+    /** cp → Expected Points (0.0–1.0). chess.com/Lichess 공용 시그모이드. */
+    function cpToExpectedPoints(cp) {
+      return 1 / (1 + Math.exp(-0.00368208 * cp));
     }
 
-    function classifyMove(cpBefore, cpAfter, turn, topAlts) {
-      const cpMe = turn === 'w' ? cpBefore : -cpBefore;
-      const cpMeAfter = turn === 'w' ? cpAfter : -cpAfter;
-      const wBefore = winProb(cpMe);
-      const wAfter = winProb(cpMeAfter);
-      const best1cp = topAlts?.best1cp ?? null;
-      const wBest1 = best1cp != null ? winProb(turn === 'w' ? best1cp : -best1cp) : wBefore;
-      const deltaW = wBest1 - wAfter;
+    /** EP → 0–100 표시용 */
+    function cpToWinPercent(cp) {
+      return cpToExpectedPoints(cp) * 100;
+    }
 
-      if (topAlts?.legalMoveCount === 1) return 'forced';
-      if (topAlts?.isEngineBest) return null;
+    /**
+     * 수 정확도 (Lichess 공식, 0–100).
+     * winPctBefore/After: 0–100 스케일.
+     */
+    function moveAccuracy(winPctBefore, winPctAfter) {
+      const drop = winPctBefore - winPctAfter;
+      const acc = 103.1668 * Math.exp(-0.04354 * Math.max(0, drop)) - 3.1669;
+      return Math.max(0, Math.min(100, acc));
+    }
 
-      const hadMateWin = topAlts?.mateInBefore != null && topAlts.mateInBefore > 0;
-      const gaveMate = topAlts?.mateInAfter != null && topAlts.mateInAfter > 0;
-      const iMateLose = cpMe <= -9000;
-      const afterMateMe = cpMeAfter <= -9000;
-
-      if (gaveMate) return 'blunder';
-      if ((hadMateWin || cpMe >= 9000) && !gaveMate) {
-        if (afterMateMe) return 'blunder';
-        if (cpMeAfter >= -300) return 'mistake';
-        return 'blunder';
+    /**
+     * 게임 정확도: 조화평균 (나쁜 수에 더 큰 가중치).
+     * evalRows: [{cpw}, …] (ply 0 = 초기국면)
+     */
+    function gameAccuracyFromEvals(evalRows, myColor) {
+      let sumReciprocal = 0, count = 0;
+      for (let ply = 1; ply < evalRows.length; ply++) {
+        const isWhiteMove = ply % 2 === 1;
+        const isMe = (isWhiteMove && myColor === 'w') || (!isWhiteMove && myColor === 'b');
+        if (!isMe) continue;
+        const cpB = evalRows[ply - 1].cpw, cpA = evalRows[ply].cpw;
+        const wpB = isWhiteMove ? cpToWinPercent(cpB) : cpToWinPercent(-cpB);
+        const wpA = isWhiteMove ? cpToWinPercent(cpA) : cpToWinPercent(-cpA);
+        const acc = moveAccuracy(wpB, wpA);
+        if (acc > 0) { sumReciprocal += 1 / acc; count++; }
       }
-      if (iMateLose) {
-        if (afterMateMe) return (deltaW <= 0.10) ? null : 'inaccuracy';
-        if (cpMeAfter > -200) return null;
-        return 'inaccuracy';
-      }
+      return count === 0 ? 0 : Math.round(count / sumReciprocal);
+    }
 
-      if (deltaW <= 0.10) return null;
-      if (deltaW <= 0.14) return 'inaccuracy';
-      if (deltaW <= 0.24) return 'mistake';
+    /**
+     * EP 손실 기반 수 분류 (레포 classifyMove 동일 임계값).
+     * epLoss: 0.0–1.0 (Expected Points Lost, 두는 쪽 관점).
+     * Returns: 'best'|'excellent'|'good'|'inaccuracy'|'mistake'|'blunder'|'forced'
+     */
+    function classifyMoveEP(epLoss, isBestMove, isForced) {
+      if (isForced)       return 'forced';
+      if (isBestMove)     return 'best';
+      if (epLoss <= 0.02) return 'excellent';
+      if (epLoss <= 0.05) return 'good';
+      if (epLoss <= 0.10) return 'inaccuracy';
+      if (epLoss <= 0.20) return 'mistake';
       return 'blunder';
+    }
+
+    /** white-POV cp → mover-POV EP */
+    function epForMover(cpWhite, isWhiteMove) {
+      return isWhiteMove ? cpToExpectedPoints(cpWhite) : cpToExpectedPoints(-cpWhite);
     }
 
     // ── 전술 감지 (chess-tactics.js 로직 이식) ──────────────────────────────────
@@ -2161,270 +2178,9 @@
       return isInCheck(b2, opp);
     }
 
-    // ── 리체스와 동일한 승률·수 판정 (scalachess eval + lila.tree.Advice.CpAdvice) ──
-    // winningChances: https://github.com/lichess-org/scalachess/blob/master/core/src/main/scala/eval.scala
-    // 임계값 0.1 / 0.2 / 0.3: https://github.com/lichess-org/lila/blob/master/modules/tree/src/main/Advice.scala
+    // (수 평가 함수: cpToExpectedPoints / classifyMoveEP / gameAccuracyFromEvals — 위에 정의됨)
 
-    const LICHESS_CP_CEILING = 1000;
-    const LICHESS_WC_MULT = -0.00368208; // lila PR #11148
-
-    /** 백 관점 cp → winning chances [-1, 1] (cp는 ±1000으로 클램프) */
-    function lichessWinningChancesFromWhiteCp(cp) {
-      const v = Number(cp) || 0;
-      const x = Math.max(-LICHESS_CP_CEILING, Math.min(LICHESS_CP_CEILING, v));
-      const raw = 2 / (1 + Math.exp(LICHESS_WC_MULT * x)) - 1;
-      return Math.max(-1, Math.min(1, raw));
-    }
-
-    /**
-     * cpBefore / cpAfter: 항상 백 기준(white POV) 센티폰. mover: 방금 둔 쪽.
-     * 리체스 CpAdvice와 동일: delta = (wcAfter - wcBefore), 백이면 부호 반전.
-     */
-    function getJudgment(cpBefore, cpAfter, mover) {
-      const wcPrev = lichessWinningChancesFromWhiteCp(cpBefore);
-      const wcCur = lichessWinningChancesFromWhiteCp(cpAfter);
-      const dRaw = wcCur - wcPrev;
-      const delta = mover === 'w' ? -dRaw : dRaw;
-
-      if (delta >= 0.3) return 'blunder';
-      if (delta >= 0.2) return 'mistake';
-      if (delta >= 0.1) return 'inaccuracy';
-      return null;
-    }
-
-    /** Lichess export `[%judgment name="…"]` / literate `{ Inaccuracy. … }` → 내부 키 */
-    function mapLichessPgnJudgmentName(raw) {
-      if (!raw) return null;
-      const s = String(raw).trim();
-      if (s === 'Inaccuracy') return 'inaccuracy';
-      if (s === 'Mistake') return 'mistake';
-      if (s === 'Blunder') return 'blunder';
-      if (s === 'Missed win') return 'mistake';
-      return null;
-    }
-
-    /**
-     * 한 수 직전 포지션의 MultiPV 루트 점수로, 최선 1선 대비 센티폰 손실(리체스 ACPL에 가깝게).
-     * pvs[k]: { cpFromWhite, pv: ['e2e4', …] } — engine.js / analyzeWithWorker 형식.
-     */
-    function centipawnLossVsBestMultipv(pvs, playedUci, mover) {
-      if (!pvs || !pvs[1] || !playedUci) return null;
-      const played = String(playedUci).trim().toLowerCase();
-      let matchedCp = null;
-      for (const k of Object.keys(pvs)) {
-        const pv = pvs[k];
-        if (!pv || !pv.pv || !pv.pv.length) continue;
-        const head = String(pv.pv[0]).trim().split(/\s+/)[0];
-        const um = head.match(/^([a-h][1-8][a-h][1-8][qrbn]?)/i);
-        if (!um) continue;
-        if (um[1].toLowerCase() === played) {
-          matchedCp = pv.cpFromWhite;
-          break;
-        }
-      }
-      if (matchedCp == null) return null;
-      const cpBest = pvs[1].cpFromWhite;
-      if (mover === 'w') return Math.max(0, cpBest - matchedCp);
-      return Math.max(0, matchedCp - cpBest);
-    }
-
-    /** Lichess `api/game` JSON에서 ACPL·정확도만 병합 (수 판정은 PGN %judgment 우선). */
-    function mergeLichessGameApiStats(result, gameJson, myColor) {
-      if (!gameJson || !gameJson.players) return;
-      const pick = (p) => {
-        if (!p || !p.analysis) return null;
-        const a = p.analysis;
-        return {
-          acpl: typeof a.acpl === 'number' ? a.acpl : (typeof a.acPl === 'number' ? a.acPl : null),
-          accuracy: typeof a.accuracy === 'number' ? a.accuracy : null,
-        };
-      };
-      const mine = myColor === 'w' ? gameJson.players.white : gameJson.players.black;
-      const theirs = myColor === 'w' ? gameJson.players.black : gameJson.players.white;
-      const ma = pick(mine);
-      const oa = pick(theirs);
-      if (ma && ma.acpl != null && Number.isFinite(ma.acpl)) {
-        result.avgCpLoss = Math.round(ma.acpl);
-        if (result.myMoveCount > 0) result.myCpSum = Math.round(ma.acpl * result.myMoveCount);
-      }
-      if (ma && ma.accuracy != null && Number.isFinite(ma.accuracy)) result.myAccuracy = Math.round(ma.accuracy);
-      if (oa && oa.acpl != null && Number.isFinite(oa.acpl)) result.oppAcpl = Math.round(oa.acpl);
-      if (oa && oa.accuracy != null && Number.isFinite(oa.accuracy)) result.oppAccuracy = Math.round(oa.accuracy);
-    }
-
-    // ── 핵심 분석 오케스트레이터 (Shared Core) ──────────────────────────────────
-
-    /**
-     * Lichess에서 받은 주석 달린 PGN을 분석하여 통계 및 전술 이벤트를 추출합니다.
-     */
-    function processLichessPgn(annotatedPgn, myColor) {
-      console.time('processLichessPgn_Total');
-      const result = {
-        totalMoves: 0,
-        myBlunders: 0, myMistakes: 0, myInaccuracies: 0,
-        oppBlunders: 0, oppMistakes: 0, oppInaccuracies: 0,
-        oppBlunderFound: 0, oppBlunderMissed: 0,
-        checkmates: 0, avgCpLoss: 0, myCpSum: 0, myMoveCount: 0,
-        forkFound: {}, forkMissed: {}, oppForkCreated: {}, absPinFound: 0, relPinFound: 0,
-        absPinMissed: 0, relPinMissed: 0,
-        skewerFound: 0, skewerMissed: 0, discoveredFound: 0, discoveredMissed: 0,
-        tacticThemeCounts: {},
-        tacticEvents: [],
-        moveJudgments: []
-      };
-
-      if (!annotatedPgn) return result;
-
-      const noHeaders = annotatedPgn.replace(/^\[.*?\]\s*$/gm, '').trim();
-      let movesSection = '';
-      let depth = 0;
-      for (let i = 0; i < noHeaders.length; i++) {
-        if (noHeaders[i] === '(') { depth++; continue; }
-        if (noHeaders[i] === ')') { depth = Math.max(0, depth - 1); continue; }
-        if (depth === 0) movesSection += noHeaders[i];
-      }
-
-      const tokens = [];
-      const tr = /(\{[^}]*\})|([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?|O-O-O[+#]?|O-O[+#]?|\d+\.{1,3})/g;
-      let m;
-      while ((m = tr.exec(movesSection)) !== null) {
-        tokens.push({ isComment: !!m[1], text: m[0] });
-      }
-
-      const INIT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-      let currentPos = parseFen(INIT_FEN);
-      let prevEvalCp = null;
-      let whiteTurn = true;
-      let moveCounter = 0;
-
-      for (let i = 0; i < tokens.length; i++) {
-        const t = tokens[i];
-        if (!t.isComment && !/^\d+/.test(t.text)) {
-          moveCounter++;
-          console.time(`Move_${moveCounter}_Analysis`);
-          const san = t.text;
-          const mover = whiteTurn ? 'w' : 'b';
-          const isMe = (mover === myColor);
-
-          // 이 수 직후 연속 코멘트에서 %eval · %judgment · literate 판정 추출 (변형수 제거된 메인라인만)
-          let currentEval = null;
-          let serverJudgmentRaw = null;
-          for (let j = i + 1; j < tokens.length; j++) {
-            if (tokens[j].isComment) {
-              const ct = tokens[j].text;
-              const em = ct.match(/\[%eval\s+(#?-?[\d.]+)\]/i);
-              if (em && !em[1].startsWith('#')) {
-                currentEval = Math.round(parseFloat(em[1]) * 100);
-              }
-              const jm = ct.match(/\[%judgment\s+name="([^"]+)"/i);
-              if (jm) serverJudgmentRaw = jm[1];
-            } else if (!/^\d+/.test(tokens[j].text)) {
-              break;
-            }
-          }
-          if (!serverJudgmentRaw) {
-            for (let j = i + 1; j < tokens.length; j++) {
-              if (tokens[j].isComment) {
-                const ct = tokens[j].text;
-                const lm = ct.match(/\b(Inaccuracy|Mistake|Blunder|Missed win)\b/);
-                if (lm) { serverJudgmentRaw = lm[1]; break; }
-              } else if (!/^\d+/.test(tokens[j].text)) break;
-            }
-          }
-
-          const allLegal = getAllLegalMoves(currentPos.board, mover, currentPos.castling, currentPos.enPassant);
-          const move = sanToMove(san, currentPos.board, mover, allLegal);
-          
-          if (move) {
-            const prevBoard = currentPos.board.map(r => [...r]);
-            currentPos.board = applyMoveToBoard(currentPos.board.map(r => [...r]), move, mover);
-            
-            // ── [전술 감지] 모든 수에 대해 수행 ──────────────────────────
-            const themes = [];
-            const ptMove = prevBoard[move.from[0]][move.from[1]][1];
-            if (isValidForkR(currentPos.board, mover, move.to, prevBoard)) {
-              result.forkFound[ptMove] = (result.forkFound[ptMove] || 0) + 1;
-              themes.push('Fork');
-            }
-            if (isAbsolutePin(currentPos.board, move.to[0], move.to[1], mover)) {
-              result.absPinFound++;
-              themes.push('AbsPin');
-            }
-            if (isRelativePin(currentPos.board, move.to[0], move.to[1], mover)) {
-              result.relPinFound++;
-              themes.push('RelPin');
-            }
-            const forkHereL = isValidForkR(currentPos.board, mover, move.to, prevBoard);
-            const raySkewL = isRaySkewerR(currentPos.board, mover, move.to);
-            if (isMe && !forkHereL && raySkewL) {
-              result.skewerFound++;
-              themes.push('Skewer');
-            }
-            if (isMe && !forkHereL && !raySkewL && isDiscoveredCheckR(currentPos.board, mover, move)) {
-              result.discoveredFound++;
-              themes.push('Discovered');
-            }
-
-            if (themes.length > 0) {
-              themes.forEach(th => { result.tacticThemeCounts[th] = (result.tacticThemeCounts[th] || 0) + 1; });
-              result.tacticEvents.push({ moveIdx: moveCounter, san, themes, piece: ptMove });
-            }
-
-            // ── 판정: Lichess PGN의 %judgment / literate 주석 우선, 없을 때만 getJudgment
-            let judgment = mapLichessPgnJudgmentName(serverJudgmentRaw);
-            if (!judgment && currentEval !== null) {
-              judgment = getJudgment(prevEvalCp !== null ? prevEvalCp : 0, currentEval, mover);
-            }
-            
-            // 킹 업데이트 및 EP 처리
-            if (currentPos.board[move.to[0]][move.to[1]] === mover + 'K') {
-              if (mover === 'w') { currentPos.castling.wK = false; currentPos.castling.wQ = false; }
-              else { currentPos.castling.bK = false; currentPos.castling.bQ = false; }
-            }
-            currentPos.enPassant = move.doublePush ? [move.to[0] - (mover === 'w' ? -1 : 1), move.to[1]] : null;
-
-            result.moveJudgments.push(judgment);
-
-            if (judgment) {
-              if (isMe) {
-                if (judgment === 'blunder') result.myBlunders++;
-                else if (judgment === 'mistake') result.myMistakes++;
-                else if (judgment === 'inaccuracy') result.myInaccuracies++;
-              } else {
-                if (judgment === 'blunder') result.oppBlunders++;
-                else if (judgment === 'mistake') result.oppMistakes++;
-                else if (judgment === 'inaccuracy') result.oppInaccuracies++;
-              }
-            }
-
-            if (currentEval !== null && isMe && prevEvalCp !== null) {
-              const cpMe = myColor === 'w' ? currentEval : -currentEval;
-              const cpMePrev = myColor === 'w' ? prevEvalCp : -prevEvalCp;
-              result.myCpSum += Math.max(0, cpMePrev - cpMe);
-              result.myMoveCount++;
-            }
-            if (currentEval !== null) prevEvalCp = currentEval;
-            if (san.includes('#') && isMe) result.checkmates++;
-          } else {
-            result.moveJudgments.push(null);
-          }
-          whiteTurn = !whiteTurn;
-          console.timeEnd(`Move_${moveCounter}_Analysis`);
-        } else if (!t.isComment && /^\d+\.\.\./.test(t.text)) whiteTurn = false;
-        else if (!t.isComment && /^\d+\./.test(t.text)) whiteTurn = true;
-      }
-      result.totalMoves = result.myMoveCount;
-      result.avgCpLoss = result.myMoveCount > 0 ? Math.round(result.myCpSum / result.myMoveCount) : 0;
-      console.timeEnd('processLichessPgn_Total');
-      return result;
-    }
-
-    function cpForR(cp, mate, turn) {
-      if (mate != null) return (mate > 0 ? 9999 : -9999);
-      return (turn === 'w' ? (cp || 0) : -(cp || 0));
-    }
-
-    // ── 보드 및 PGN 유틸리티 (chess-engine.js 기능 이식 및 현대화) ──────────────
+        // ── 보드 및 PGN 유틸리티 (chess-engine.js 기능 이식 및 현대화) ──────────────
 
     function parseFen(fen) {
       const parts = fen.split(' '), rows = parts[0].split('/'), board = [];
@@ -2691,18 +2447,22 @@
     window.__RECORDS_CONSTS__ = { SF_DEPTH, SF_MULTIPV, FORK_CP_GAIN };
 
     /**
-     * 순수 PGN을 Stockfish로 포지션별 분석해 통계 탭 집계용 객체를 만듭니다.
-     * chess-wasm-fixed/engine.js 의 createStockfishWorker / analyzeWithWorker 를 사용합니다.
+     * 순수 PGN을 Stockfish로 포지션별 분석 (레포 gameAnalyzer.js 방식).
+     * chess.com Expected Points 모델: cpToExpectedPoints + classifyMoveEP
+     * 분류: best / excellent / good / inaccuracy / mistake / blunder / forced
+     * 게임 정확도: moveAccuracy + gameAccuracyFromEvals (조화평균)
      */
     async function analyzeGame(pgn, myColor, onProgress) {
       const report = typeof onProgress === 'function' ? onProgress : () => {};
       const states = parsePgnToStates(pgn);
       const emptyFork = () => ({ P: 0, N: 0, B: 0, R: 0, Q: 0, K: 0 });
       const result = {
+        myBest: 0, myExcellent: 0, myGood: 0,
         myBlunders: 0, myMistakes: 0, myInaccuracies: 0,
         oppBlunders: 0, oppMistakes: 0, oppInaccuracies: 0,
         oppBlunderFound: 0, oppBlunderMissed: 0,
         checkmates: 0, myCpSum: 0, myMoveCount: 0,
+        myAccuracy: 0,
         totalMoves: Math.max(0, states.length - 1),
         forkFound: emptyFork(), forkMissed: emptyFork(), oppForkCreated: emptyFork(),
         absPinFound: 0, absPinMissed: 0, relPinFound: 0, relPinMissed: 0,
@@ -2726,7 +2486,7 @@
 
       const workerObj = { worker: workerRaw, busy: false };
       const movetime = 900;
-      const multipv = Math.min(6, Math.max(3, SF_MULTIPV || 3));
+      const multipv = 1; // EP 방식은 best move 1개만 필요
       const evalRows = [];
 
       try {
@@ -2734,28 +2494,27 @@
           const fen = states[si].fen;
           let cpw = 0;
           let bestUci = null;
-          let pvsSnap = null;
           if (fen) {
             const aw = await analyzeWithWorker(workerObj, fen, SF_DEPTH, movetime, multipv);
             if (aw && aw.pvs && aw.pvs[1]) {
-              pvsSnap = aw.pvs;
               if (aw.pvs[1].cpFromWhite != null) cpw = aw.pvs[1].cpFromWhite;
               const pvArr = aw.pvs[1].pv;
               if (pvArr && pvArr.length && typeof pvArr[0] === 'string') {
                 const head = pvArr[0].trim().split(/\s+/)[0];
-                if (head && head.length >= 4) {
-                  const um = head.match(/^([a-h][1-8][a-h][1-8][qrbn]?)/i);
-                  if (um) bestUci = um[1].toLowerCase();
-                }
+                const um = head.match(/^([a-h][1-8][a-h][1-8][qrbn]?)/i);
+                if (um) bestUci = um[1].toLowerCase();
               }
             }
           }
-          evalRows.push({ cpw, bestUci, pvs: pvsSnap });
+          evalRows.push({ cpw, bestUci });
           report(si + 1, states.length);
         }
       } finally {
         try { workerRaw.terminate(); } catch (e) { /* ignore */ }
       }
+
+      // ── 게임 정확도 계산 (조화평균)
+      result.myAccuracy = gameAccuracyFromEvals(evalRows, myColor);
 
       const MAX_MISSED_EVENTS = 16;
       let missedPushCount = 0;
@@ -2765,27 +2524,47 @@
         const san = states[i].san || '';
         const move = states[i].move;
         const isMe = (mover === myColor);
+        const isWhiteMove = (mover === 'w');
         const cpBefore = evalRows[i - 1].cpw;
         const cpAfter = evalRows[i].cpw;
-        const j = getJudgment(cpBefore, cpAfter, mover);
-        result.moveJudgments.push(j);
-        if (j === 'blunder') { if (isMe) result.myBlunders++; else result.oppBlunders++; }
-        else if (j === 'mistake') { if (isMe) result.myMistakes++; else result.oppMistakes++; }
-        else if (j === 'inaccuracy') { if (isMe) result.myInaccuracies++; else result.oppInaccuracies++; }
+        const bestUci = evalRows[i - 1].bestUci;
 
-        if (isMe && move) {
-          const playedUci = (moveToUci(move) || '').toLowerCase();
-          let loss = centipawnLossVsBestMultipv(evalRows[i - 1].pvs, playedUci, mover);
-          if (loss == null) {
-            const cpMeBefore = myColor === 'w' ? cpBefore : -cpBefore;
-            const cpMeAfter = myColor === 'w' ? cpAfter : -cpAfter;
-            loss = Math.max(0, cpMeBefore - cpMeAfter);
-          }
-          result.myCpSum += loss;
-          result.myMoveCount++;
-        } else if (isMe) {
+        // ── EP 손실 계산
+        const epBefore = epForMover(cpBefore, isWhiteMove);
+        const epAfter  = epForMover(cpAfter,  isWhiteMove);
+        const epLoss   = Math.max(0, epBefore - epAfter);
+
+        // ── 최선수 여부
+        const playedUci = move ? (moveToUci(move) || '').toLowerCase() : '';
+        const isBestMove = !!(bestUci && playedUci && bestUci === playedUci);
+
+        // ── 강제수 여부 (합법적 수 1개)
+        const allLegal = getAllLegalMoves(
+          states[i - 1].board, mover,
+          states[i - 1].castling, states[i - 1].enPassant
+        );
+        const isForced = allLegal.length === 1;
+
+        const cls = classifyMoveEP(epLoss, isBestMove, isForced);
+        result.moveJudgments.push(cls);
+
+        // ── 수 분류 집계
+        if (isMe) {
+          if (cls === 'best' || cls === 'excellent') result.myBest++;
+          else if (cls === 'good') result.myGood++;
+          else if (cls === 'inaccuracy') result.myInaccuracies++;
+          else if (cls === 'mistake')    result.myMistakes++;
+          else if (cls === 'blunder')    result.myBlunders++;
+        } else {
+          if (cls === 'inaccuracy') result.oppInaccuracies++;
+          else if (cls === 'mistake')   result.oppMistakes++;
+          else if (cls === 'blunder')   result.oppBlunders++;
+        }
+
+        // ── ACPL 누적 (나의 수만)
+        if (isMe) {
           const cpMeBefore = myColor === 'w' ? cpBefore : -cpBefore;
-          const cpMeAfter = myColor === 'w' ? cpAfter : -cpAfter;
+          const cpMeAfter  = myColor === 'w' ? cpAfter  : -cpAfter;
           result.myCpSum += Math.max(0, cpMeBefore - cpMeAfter);
           result.myMoveCount++;
         }
@@ -2795,129 +2574,79 @@
         const prevBoard = states[i - 1].board;
         const stBefore = states[i - 1];
 
-        if (isMe && move && prevBoard && stBefore) {
-          const playedUci = (moveToUci(move) || '').toLowerCase();
-          const bestRaw = evalRows[i - 1].bestUci;
-          if (bestRaw && playedUci && bestRaw !== playedUci) {
-            const bestMv = uciToMoveFromState(bestRaw, stBefore);
-            if (bestMv) {
-              const bBest = applyMoveToBoard(prevBoard.map(r => [...r]), bestMv, mover);
-              const forkPlayed = isValidForkR(states[i].board, mover, move.to, prevBoard);
-              const forkBest = isValidForkR(bBest, mover, bestMv.to, prevBoard);
-              if (forkBest && !forkPlayed) {
-                const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
-                result.forkMissed[ptB]++;
-                if (missedPushCount < MAX_MISSED_EVENTS) {
-                  missedPushCount++;
-                  result.tacticEvents.push({
-                    type: 'fork', subtype: 'missed', piece: ptB,
-                    moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestRaw
-                  });
-                }
-              }
-              const absPlayed = isAbsolutePin(states[i].board, move.to[0], move.to[1], mover);
-              const absBest = isAbsolutePin(bBest, bestMv.to[0], bestMv.to[1], mover);
-              if (absBest && !absPlayed) {
-                result.absPinMissed++;
-                const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
-                if (missedPushCount < MAX_MISSED_EVENTS) {
-                  missedPushCount++;
-                  result.tacticEvents.push({
-                    type: 'absPin', subtype: 'missed', piece: ptB,
-                    moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestRaw
-                  });
-                }
-              }
-              const relPlayed = isRelativePin(states[i].board, move.to[0], move.to[1], mover);
-              const relBest = isRelativePin(bBest, bestMv.to[0], bestMv.to[1], mover);
-              if (relBest && !relPlayed) {
-                result.relPinMissed++;
-                const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
-                if (missedPushCount < MAX_MISSED_EVENTS) {
-                  missedPushCount++;
-                  result.tacticEvents.push({
-                    type: 'relPin', subtype: 'missed', piece: ptB,
-                    moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestRaw
-                  });
-                }
-              }
-              const skewPlayed = isRaySkewerR(states[i].board, mover, move.to) && !forkPlayed;
-              const skewBest = isRaySkewerR(bBest, mover, bestMv.to) && !forkBest;
-              if (skewBest && !skewPlayed) {
-                result.skewerMissed++;
-                const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
-                if (missedPushCount < MAX_MISSED_EVENTS) {
-                  missedPushCount++;
-                  result.tacticEvents.push({
-                    type: 'skewer', subtype: 'missed', piece: ptB,
-                    moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestRaw
-                  });
-                }
-              }
-              const discPlayed = isDiscoveredCheckR(states[i].board, mover, move) && !forkPlayed;
-              const discBest = isDiscoveredCheckR(bBest, mover, bestMv) && !forkBest;
-              if (discBest && !discPlayed && !(skewBest && !skewPlayed)) {
-                result.discoveredMissed++;
-                const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
-                if (missedPushCount < MAX_MISSED_EVENTS) {
-                  missedPushCount++;
-                  result.tacticEvents.push({
-                    type: 'discovered', subtype: 'missed', piece: ptB,
-                    moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestRaw
-                  });
-                }
-              }
+        // ── 놓친 전술 감지 (내 수가 최선수와 다를 때)
+        if (isMe && move && prevBoard && stBefore && bestUci && playedUci && bestUci !== playedUci) {
+          const bestMv = uciToMoveFromState(bestUci, stBefore);
+          if (bestMv) {
+            const bBest = applyMoveToBoard(prevBoard.map(r => [...r]), bestMv, mover);
+            const forkPlayed = isValidForkR(states[i].board, mover, move.to, prevBoard);
+            const forkBest   = isValidForkR(bBest, mover, bestMv.to, prevBoard);
+            if (forkBest && !forkPlayed) {
+              const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
+              result.forkMissed[ptB]++;
+              if (missedPushCount++ < MAX_MISSED_EVENTS)
+                result.tacticEvents.push({ type: 'fork', subtype: 'missed', piece: ptB, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
+            }
+            const absPlayed = isAbsolutePin(states[i].board, move.to[0], move.to[1], mover);
+            const absBest   = isAbsolutePin(bBest, bestMv.to[0], bestMv.to[1], mover);
+            if (absBest && !absPlayed) {
+              result.absPinMissed++;
+              if (missedPushCount++ < MAX_MISSED_EVENTS)
+                result.tacticEvents.push({ type: 'absPin', subtype: 'missed', piece: prevBoard[bestMv.from[0]][bestMv.from[1]][1], moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
+            }
+            const relPlayed = isRelativePin(states[i].board, move.to[0], move.to[1], mover);
+            const relBest   = isRelativePin(bBest, bestMv.to[0], bestMv.to[1], mover);
+            if (relBest && !relPlayed) {
+              result.relPinMissed++;
+              if (missedPushCount++ < MAX_MISSED_EVENTS)
+                result.tacticEvents.push({ type: 'relPin', subtype: 'missed', piece: prevBoard[bestMv.from[0]][bestMv.from[1]][1], moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
+            }
+            const skewPlayed = isRaySkewerR(states[i].board, mover, move.to) && !forkPlayed;
+            const skewBest   = isRaySkewerR(bBest, mover, bestMv.to) && !forkBest;
+            if (skewBest && !skewPlayed) {
+              result.skewerMissed++;
+              if (missedPushCount++ < MAX_MISSED_EVENTS)
+                result.tacticEvents.push({ type: 'skewer', subtype: 'missed', piece: prevBoard[bestMv.from[0]][bestMv.from[1]][1], moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
+            }
+            const discBest = isDiscoveredCheckR(bBest, mover, bestMv) && !forkBest;
+            if (discBest && !(skewBest && !skewPlayed)) {
+              result.discoveredMissed++;
+              if (missedPushCount++ < MAX_MISSED_EVENTS)
+                result.tacticEvents.push({ type: 'discovered', subtype: 'missed', piece: prevBoard[bestMv.from[0]][bestMv.from[1]][1], moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
             }
           }
         }
 
+        // ── 찾은 전술 감지
         if (move && prevBoard) {
           if (isValidForkR(states[i].board, mover, move.to, prevBoard)) {
             const pt = prevBoard[move.from[0]][move.from[1]][1];
             if (isMe) {
               result.forkFound[pt]++;
-              result.tacticEvents.push({
-                type: 'fork', subtype: 'found', piece: pt,
-                moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
-              });
+              result.tacticEvents.push({ type: 'fork', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
             } else {
               result.oppForkCreated[pt]++;
-              result.tacticEvents.push({
-                type: 'oppFork', subtype: 'found', piece: pt,
-                moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
-              });
+              result.tacticEvents.push({ type: 'oppFork', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
             }
           }
           if (isMe) {
             const pt = prevBoard[move.from[0]][move.from[1]][1];
             if (isAbsolutePin(states[i].board, move.to[0], move.to[1], mover)) {
               result.absPinFound++;
-              result.tacticEvents.push({
-                type: 'absPin', subtype: 'found', piece: pt,
-                moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
-              });
+              result.tacticEvents.push({ type: 'absPin', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
             }
             if (isRelativePin(states[i].board, move.to[0], move.to[1], mover)) {
               result.relPinFound++;
-              result.tacticEvents.push({
-                type: 'relPin', subtype: 'found', piece: pt,
-                moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
-              });
+              result.tacticEvents.push({ type: 'relPin', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
             }
             const forkHere = isValidForkR(states[i].board, mover, move.to, prevBoard);
             if (!forkHere && isRaySkewerR(states[i].board, mover, move.to)) {
               result.skewerFound++;
-              result.tacticEvents.push({
-                type: 'skewer', subtype: 'found', piece: pt,
-                moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
-              });
+              result.tacticEvents.push({ type: 'skewer', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
             }
             if (!forkHere && !isRaySkewerR(states[i].board, mover, move.to) && isDiscoveredCheckR(states[i].board, mover, move)) {
               result.discoveredFound++;
-              result.tacticEvents.push({
-                type: 'discovered', subtype: 'found', piece: pt,
-                moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
-              });
+              result.tacticEvents.push({ type: 'discovered', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
             }
           }
         }
@@ -3125,24 +2854,28 @@
         const ss = document.createElement('span'); ss.className = 'move-san'; ss.textContent = san; ss.dataset.idx = i;
         ss.addEventListener('click', () => goToMove(i));
 
-        // ── Lichess 분류 배지 추가 ──
+        // ── EP 분류 배지 추가 (best/excellent/good/inaccuracy/mistake/blunder) ──
         if (_states[i].judgment) {
           const j = _states[i].judgment;
-          const mapped = LICHESS_JUDGMENT_MAP_R[j] || j;
-          const label = STAT_LABEL_R[mapped] || j;
-          const color = STAT_COLOR_R[mapped] || 'var(--text-muted)';
-
-          const jBadge = document.createElement('span');
-          jBadge.className = 'move-judgment-badge';
-          jBadge.style.background = color;
-          jBadge.title = label;
-          // 아이콘: 블런더(??), 실수(?), 부정확(?!)
-          let icon = '';
-          if (mapped === 'blunder') icon = '??';
-          else if (mapped === 'mistake') icon = '?';
-          else if (mapped === 'inaccuracy') icon = '?!';
-
+          // EP 분류 아이콘 + 색
+          const EP_ICON = {
+            best: '!', excellent: '!', good: '',
+            inaccuracy: '?!', mistake: '?', blunder: '??', forced: ''
+          };
+          const EP_COLOR = {
+            best: '#1baca6', excellent: '#5c8bb0', good: 'var(--accent-green)',
+            inaccuracy: '#f6c94a', mistake: '#e08c3a', blunder: '#cc3333', forced: 'var(--text-muted)'
+          };
+          const EP_LABEL = {
+            best: '최선', excellent: '훌륭', good: '좋은 수',
+            inaccuracy: '부정확', mistake: '실수', blunder: '블런더', forced: '강제수'
+          };
+          const icon = EP_ICON[j];
           if (icon) {
+            const jBadge = document.createElement('span');
+            jBadge.className = 'move-judgment-badge';
+            jBadge.style.background = EP_COLOR[j] || 'var(--text-muted)';
+            jBadge.title = EP_LABEL[j] || j;
             jBadge.textContent = icon;
             ss.appendChild(jBadge);
           }
@@ -3288,10 +3021,10 @@
       // 오프닝별 통계 맵: key -> {eco, name, variation, w:{wins,draws,losses}, b:{wins,draws,losses}}
       const openingStatsMap = new Map();
 
-      // ── 이미 분석된 게임 수 카운트
-      let cachedCount = 0;
+      // ── 항상 새로 분석 (캐시 무시, 레포 방식)
       let newlyAnalyzedCount = 0;
-      let lichessSyncCount = 0;
+      // 게임 정확도 누적
+      let sumMyAccuracy = 0, accuracyCount = 0;
 
       for (let gi = 0; gi < docs.length; gi++) {
         const doc = docs[gi];
@@ -3326,128 +3059,80 @@
           } catch (e) { }
         }
 
-        // ── 이미 분석된 게임인지 확인 (tacticAnalysis 필드 체크)
-        const alreadyAnalyzed = !!(doc.tacticAnalysis && doc.tacticAnalysis.analyzedAt);
+        if (!doc.pgn) { if (doc.moveCount) totalMovesSum += doc.moveCount; continue; }
 
-        if (alreadyAnalyzed) {
-          // 리체스 캐시가 구버전이면 자동 재동기화 (%judgment·정확도 반영)
-          if (doc.pgn && needsLichessTacticResync(doc.tacticAnalysis)) {
-            const pct0 = Math.round(gi / total * 100);
-            contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
-        <div style="font-size:13px;color:var(--text-secondary)">리체스 동기화 중… (${gi + 1} / ${total})</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">구버전 분석 캐시를 서버와 맞춥니다</div>
-        <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct0}%"></div></div>
-        <div class="stats-progress-label">Lichess API · 잠시만 기다려 주세요</div>
-      </div></div>`;
-            _statsLichessSyncActive = true;
-            try {
-              const bundle = await fetchLichessTacticAnalysisBundle(doc.pgn, myColor);
-              const savePayload = Object.assign({}, bundle.analysisResult, {
-                tacticEvents: bundle.tacticEventsNormalized,
-                analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                analysisVersion: TACTIC_ANALYSIS_LICHESS_VERSION,
-                lichessGameId: bundle.gameId,
-              });
-              await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
-              doc.tacticAnalysis = savePayload;
-              lichessSyncCount++;
-            } catch (e) {
-              console.warn('[stats] 리체스 동기화 실패:', doc.id, e);
-            } finally {
-              _statsLichessSyncActive = false;
-            }
-            await new Promise(r => setTimeout(r, 900));
-          }
+        // ── Stockfish 분석 (항상 새로, EP 방식)
+        const pct = Math.round(gi / total * 100);
+        contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
+      <div style="font-size:13px;color:var(--text-secondary)">Stockfish 분석 중… (${gi + 1} / ${total})</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">깊이 ${__RC.SF_DEPTH} · Expected Points 방식</div>
+      <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
+      <div class="stats-progress-label">포지션 분석 중…</div>
+    </div></div>`;
 
-          // 저장된 분석 결과 재사용
-          cachedCount++;
-          const a = doc.tacticAnalysis;
-          sumMyBlunders += (a.myBlunders || 0); sumMyMistakes += (a.myMistakes || 0); sumMyInaccuracies += (a.myInaccuracies || 0);
-          sumOppBlunders += (a.oppBlunders || 0); sumOppMistakes += (a.oppMistakes || 0); sumOppInaccuracies += (a.oppInaccuracies || 0);
-          sumOppBF += (a.oppBlunderFound || 0); sumOppBM += (a.oppBlunderMissed || 0);
-          sumCheckmates += (a.checkmates || 0);
+        try {
+          const a = await window.analyzeGame(doc.pgn, myColor, (cur, tot) => {
+            const ip = Math.round(cur / Math.max(tot, 1) * 100);
+            const fill = contentEl.querySelector('.stats-progress-bar-fill');
+            if (fill) fill.style.width = Math.round(gi / total * 100 + ip / total) + '%';
+          });
+
+          sumMyBlunders += a.myBlunders; sumMyMistakes += a.myMistakes; sumMyInaccuracies += a.myInaccuracies;
+          sumOppBlunders += a.oppBlunders; sumOppMistakes += a.oppMistakes; sumOppInaccuracies += a.oppInaccuracies;
+          sumOppBF += a.oppBlunderFound; sumOppBM += a.oppBlunderMissed;
+          sumCheckmates += a.checkmates;
           sumAbsPinFound += (a.absPinFound || 0); sumAbsPinMissed += (a.absPinMissed || 0);
           sumRelPinFound += (a.relPinFound || 0); sumRelPinMissed += (a.relPinMissed || 0);
           sumSkewerFound += (a.skewerFound || 0); sumSkewerMissed += (a.skewerMissed || 0);
           sumDiscoveredFound += (a.discoveredFound || 0); sumDiscoveredMissed += (a.discoveredMissed || 0);
-          sumCp += (a.myCpSum || 0); sumMoves += (a.myMoveCount || 0); totalMovesSum += (a.totalMoves || doc.moveCount || 0);
-          const ff = a.forkFound || {}; const fm = a.forkMissed || {}; const ofc = a.oppForkCreated || {};
-          for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) { sumForkFound[k] += (ff[k] || 0); sumForkMissed[k] += (fm[k] || 0); sumOppForkCreated[k] += (ofc[k] || 0); }
+          sumCp += a.myCpSum; sumMoves += a.myMoveCount; totalMovesSum += a.totalMoves;
+          for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) {
+            sumForkFound[k] += (a.forkFound[k] || 0);
+            sumForkMissed[k] += (a.forkMissed[k] || 0);
+            sumOppForkCreated[k] += (a.oppForkCreated?.[k] || 0);
+          }
           if (a.tacticEvents && a.tacticEvents.length) _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents });
+          if (a.myAccuracy > 0) { sumMyAccuracy += a.myAccuracy; accuracyCount++; }
+          newlyAnalyzedCount++;
 
-          const pct = Math.round(gi / total * 100);
-          contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
-        <div style="font-size:13px;color:var(--text-secondary)">분석 중... (${cachedCount}개 캐시 사용)</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${gi + 1} / ${total} 게임</div>
-        <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
-        <div class="stats-progress-label">이미 분석된 기보 — 건너뜀 ⚡</div>
-      </div></div>`;
-          continue;
-        }
-
-        // ── 새로 분석 필요한 게임
-        const pct = Math.round(gi / total * 100);
-        contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
-      <div style="font-size:13px;color:var(--text-secondary)">Stockfish 분석 중... (신규 ${newlyAnalyzedCount + 1}번째)</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${gi + 1} / ${total} 게임</div>
-      <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
-      <div class="stats-progress-label">깊이 ${__RC.SF_DEPTH}으로 포지션 분석 중</div>
-    </div></div>`;
-
-        if (doc.pgn) {
+          // ── Firestore 덮어씌움
           try {
-            const a = await window.analyzeGame(doc.pgn, myColor, (cur, tot) => {
-              const ip = Math.round(cur / Math.max(tot, 1) * 100);
-              const fill = contentEl.querySelector('.stats-progress-bar-fill');
-              if (fill) fill.style.width = Math.round(gi / total * 100 + ip / total) + '%';
-            });
-            sumMyBlunders += a.myBlunders; sumMyMistakes += a.myMistakes; sumMyInaccuracies += a.myInaccuracies;
-            sumOppBlunders += a.oppBlunders; sumOppMistakes += a.oppMistakes; sumOppInaccuracies += a.oppInaccuracies;
-            sumOppBF += a.oppBlunderFound; sumOppBM += a.oppBlunderMissed;
-            sumCheckmates += a.checkmates;
-            sumAbsPinFound += (a.absPinFound || 0); sumAbsPinMissed += (a.absPinMissed || 0);
-            sumRelPinFound += (a.relPinFound || 0); sumRelPinMissed += (a.relPinMissed || 0);
-            sumSkewerFound += (a.skewerFound || 0); sumSkewerMissed += (a.skewerMissed || 0);
-            sumDiscoveredFound += (a.discoveredFound || 0); sumDiscoveredMissed += (a.discoveredMissed || 0);
-            sumCp += a.myCpSum; sumMoves += a.myMoveCount; totalMovesSum += a.totalMoves;
-            for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) { sumForkFound[k] += (a.forkFound[k] || 0); sumForkMissed[k] += (a.forkMissed[k] || 0); sumOppForkCreated[k] += (a.oppForkCreated?.[k] || 0); }
-            if (a.tacticEvents && a.tacticEvents.length) _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents });
-            newlyAnalyzedCount++;
-
-            // ── 분석 결과를 Firestore에 저장 (다음 방문 시 재사용)
-            try {
-              const savePayload = {
-                myBlunders: a.myBlunders, myMistakes: a.myMistakes, myInaccuracies: a.myInaccuracies,
-                oppBlunders: a.oppBlunders, oppMistakes: a.oppMistakes, oppInaccuracies: a.oppInaccuracies,
-                oppBlunderFound: a.oppBlunderFound, oppBlunderMissed: a.oppBlunderMissed,
-                checkmates: a.checkmates,
-                absPinFound: a.absPinFound || 0, absPinMissed: a.absPinMissed || 0,
-                relPinFound: a.relPinFound || 0, relPinMissed: a.relPinMissed || 0,
-                skewerFound: a.skewerFound || 0, skewerMissed: a.skewerMissed || 0,
-                discoveredFound: a.discoveredFound || 0, discoveredMissed: a.discoveredMissed || 0,
-                myCpSum: a.myCpSum, myMoveCount: a.myMoveCount, totalMoves: a.totalMoves,
-                forkFound: a.forkFound, forkMissed: a.forkMissed, oppForkCreated: a.oppForkCreated || {},
-                tacticEvents: (a.tacticEvents || []).map(ev => ({
-                  type: ev.type, subtype: ev.subtype, piece: ev.piece || '',
-                  moveNum: ev.moveNum || 0, san: ev.san || '',
-                  plyIdx: ev.plyIdx || 0, bestMove: ev.bestMove || null
-                })),
-                analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                sfDepth: __RC.SF_DEPTH,
-                analysisVersion: TACTIC_ANALYSIS_STOCKFISH_VERSION
-              };
-              await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
-              console.log('[stats] 분석 저장 완료:', doc.id);
-            } catch (saveErr) { console.warn('[stats] 분석 저장 실패:', saveErr); }
-          } catch (e) { console.warn('게임 분석 실패:', e); if (doc.moveCount) totalMovesSum += doc.moveCount; }
-        } else if (doc.moveCount) totalMovesSum += doc.moveCount;
+            const savePayload = {
+              myBest: a.myBest || 0, myGood: a.myGood || 0,
+              myBlunders: a.myBlunders, myMistakes: a.myMistakes, myInaccuracies: a.myInaccuracies,
+              oppBlunders: a.oppBlunders, oppMistakes: a.oppMistakes, oppInaccuracies: a.oppInaccuracies,
+              oppBlunderFound: a.oppBlunderFound, oppBlunderMissed: a.oppBlunderMissed,
+              checkmates: a.checkmates,
+              absPinFound: a.absPinFound || 0, absPinMissed: a.absPinMissed || 0,
+              relPinFound: a.relPinFound || 0, relPinMissed: a.relPinMissed || 0,
+              skewerFound: a.skewerFound || 0, skewerMissed: a.skewerMissed || 0,
+              discoveredFound: a.discoveredFound || 0, discoveredMissed: a.discoveredMissed || 0,
+              myCpSum: a.myCpSum, myMoveCount: a.myMoveCount, totalMoves: a.totalMoves,
+              myAccuracy: a.myAccuracy || 0,
+              forkFound: a.forkFound, forkMissed: a.forkMissed, oppForkCreated: a.oppForkCreated || {},
+              tacticEvents: (a.tacticEvents || []).map(ev => ({
+                type: ev.type, subtype: ev.subtype, piece: ev.piece || '',
+                moveNum: ev.moveNum || 0, san: ev.san || '',
+                plyIdx: ev.plyIdx || 0, bestMove: ev.bestMove || null
+              })),
+              analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              sfDepth: __RC.SF_DEPTH,
+              analysisVersion: 3  // EP 방식 v3
+            };
+            await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
+          } catch (saveErr) { console.warn('[stats] 저장 실패:', saveErr); }
+        } catch (e) { console.warn('게임 분석 실패:', e); if (doc.moveCount) totalMovesSum += doc.moveCount; }
       }
 
-      _statsCache = {
+      // 평균 게임 정확도
+      const avgMyAccuracy = accuracyCount > 0 ? Math.round(sumMyAccuracy / accuracyCount) : 0;
+
+            _statsCache = {
         total, wins, losses, draws, winsW, lossesW, drawsW, winsB, lossesB, drawsB, myColor_counts,
         avgMoves: total > 0 ? Math.round(totalMovesSum / total) : 0,
         winRate: total > 0 ? Math.round(wins / total * 100) : 0,
         endCheckmate, endResign, endDraw, endTimeout,
+        myBest: 0, myGood: 0,  // 개별 게임 집계 시 누적 (현재 루프에서 직접 누적 안 함 — analyzeGame 반환값으로 처리됨)
         myBlunders: sumMyBlunders, myMistakes: sumMyMistakes, myInaccuracies: sumMyInaccuracies,
         oppBlunders: sumOppBlunders, oppMistakes: sumOppMistakes, oppInaccuracies: sumOppInaccuracies,
         oppBlunderFound: sumOppBF, oppBlunderMissed: sumOppBM,
@@ -3460,15 +3145,11 @@
         pinFound: sumAbsPinFound + sumRelPinFound,
         pinMissed: sumAbsPinMissed + sumRelPinMissed,
         avgCpLoss: sumMoves > 0 ? Math.round(sumCp / sumMoves) : 0,
+        myAccuracy: avgMyAccuracy,
         openingStats: Array.from(openingStatsMap.values())
           .sort((a, b) => (b.w.total + b.b.total) - (a.w.total + a.b.total))
       };
-      const cacheMsg = [
-        cachedCount > 0 ? `${cachedCount}개 캐시 재사용` : null,
-        newlyAnalyzedCount > 0 ? `${newlyAnalyzedCount}개 Stockfish 신규` : null,
-        lichessSyncCount > 0 ? `리체스 ${lichessSyncCount}게임 동기화` : null
-      ].filter(Boolean).join(' · ');
-      subEl.textContent = `총 ${total}게임${cacheMsg ? ' · ' + cacheMsg : ''}`;
+      subEl.textContent = `총 ${total}게임 · Stockfish EP 분석 (${newlyAnalyzedCount}게임)`;
       renderStatsHTML(_statsCache);
     }
 
@@ -3695,8 +3376,13 @@
       </div>
     </div>
 
-    <div class="stats-section-title">🎯 수 정확도 (Stockfish 깊이 ${__RC.SF_DEPTH})</div>
+    <div class="stats-section-title">🎯 수 정확도 (Stockfish 깊이 ${__RC.SF_DEPTH} · EP 방식)</div>
     <div class="key-grid">
+      <div class="key-card"><div class="key-card-icon">🎯</div><div class="key-card-body">
+        <div class="key-card-name">게임 정확도</div>
+        <div class="key-card-num" style="color:${s.myAccuracy >= 85 ? 'var(--accent-green-bright)' : s.myAccuracy >= 70 ? '#e0b040' : '#e07070'}">${s.myAccuracy}%</div>
+        <div class="key-card-sub">조화평균 · 높을수록 정확</div>
+      </div></div>
       <div class="key-card"><div class="key-card-icon">📉</div><div class="key-card-body">
         <div class="key-card-name">평균 센티폰 손실 (ACPL)</div>
         <div class="key-card-num" style="color:${cpColor}">${s.avgCpLoss}</div>
@@ -3709,33 +3395,44 @@
       </div></div>
     </div>
 
-    <div class="stats-section-title">⚠️ 수 분류</div>
+    <div class="stats-section-title">⚠️ 수 분류 (chess.com Expected Points 방식)</div>
     <div class="key-grid">
+      <!-- 긍정 분류 -->
+      <div class="key-card good"><div class="key-card-icon">⭐</div><div class="key-card-body">
+        <div class="key-card-name">내 최선/훌륭</div><div class="key-card-num">${s.myBest || 0}</div>
+        <div class="key-card-sub">Best · Excellent · EP 손실 ≤0.02</div>
+      </div></div>
+      <div class="key-card"><div class="key-card-icon">👍</div><div class="key-card-body">
+        <div class="key-card-name">내 좋은 수</div><div class="key-card-num">${s.myGood || 0}</div>
+        <div class="key-card-sub">Good · EP 손실 0.02~0.05</div>
+      </div></div>
+    </div>
+    <div class="key-grid" style="margin-top:6px">
       <!-- 나 -->
       <div class="key-card danger"><div class="key-card-icon">💀</div><div class="key-card-body">
         <div class="key-card-name">내 블런더</div><div class="key-card-num">${s.myBlunders}</div>
-        <div class="key-card-sub">리체스 동일 · WC 하락 ≥0.30</div>
+        <div class="key-card-sub">EP 손실 &gt;0.20</div>
       </div></div>
       <div class="key-card warn"><div class="key-card-icon">❗</div><div class="key-card-body">
         <div class="key-card-name">내 실수</div><div class="key-card-num">${s.myMistakes}</div>
-        <div class="key-card-sub">리체스 동일 · WC 0.20~0.30</div>
+        <div class="key-card-sub">EP 손실 0.10~0.20</div>
       </div></div>
       <div class="key-card"><div class="key-card-icon">🔶</div><div class="key-card-body">
         <div class="key-card-name">내 부정확</div><div class="key-card-num">${s.myInaccuracies}</div>
-        <div class="key-card-sub">리체스 동일 · WC 0.10~0.20</div>
+        <div class="key-card-sub">EP 손실 0.05~0.10</div>
       </div></div>
       <!-- 상대 -->
       <div class="key-card danger"><div class="key-card-icon">💀</div><div class="key-card-body">
         <div class="key-card-name">상대 블런더</div><div class="key-card-num">${s.oppBlunders}</div>
-        <div class="key-card-sub">리체스 동일 · WC 하락 ≥0.30</div>
+        <div class="key-card-sub">EP 손실 &gt;0.20</div>
       </div></div>
       <div class="key-card warn"><div class="key-card-icon">❗</div><div class="key-card-body">
         <div class="key-card-name">상대 실수</div><div class="key-card-num">${s.oppMistakes}</div>
-        <div class="key-card-sub">리체스 동일 · WC 0.20~0.30</div>
+        <div class="key-card-sub">EP 손실 0.10~0.20</div>
       </div></div>
       <div class="key-card"><div class="key-card-icon">🔶</div><div class="key-card-body">
         <div class="key-card-name">상대 부정확</div><div class="key-card-num">${s.oppInaccuracies}</div>
-        <div class="key-card-sub">리체스 동일 · WC 0.10~0.20</div>
+        <div class="key-card-sub">EP 손실 0.05~0.10</div>
       </div></div>
     </div>
 
@@ -3790,273 +3487,10 @@
     // ════════════════════════════════════════
     // Lichess 기보 분석 (현재 열려 있는 기보)
     // ════════════════════════════════════════
-    // Lichess 기보 분석 — chess-wasm-fixed.html과 완전히 동일한 방식
-    // ─────────────────────────────────────────────────────────────────
-    // 1) POST /api/lichess-proxy?path=import          → gameId 취득
-    // 2) POST /api/lichess-proxy?path=request-analysis&id={gameId} → 서버 분석 시작
-    // 3) GET  /api/lichess-proxy?path=export&id={gameId}          → PGN+evals 폴링
-    // 4) parseLichessPgnAnnotations() → judgment 추출
-    // ════════════════════════════════════════
-
-    const LICHESS_JUDGMENT_MAP_R = {
-      'Inaccuracy': 'inaccuracy',
-      'Mistake': 'mistake',
-      'Blunder': 'blunder',
-    };
-
-    const STAT_ORDER_R = ['inaccuracy', 'mistake', 'blunder'];
-    const STAT_LABEL_R = { inaccuracy: '부정확한 수', mistake: '실수', blunder: '블런더' };
-    const STAT_COLOR_R = {
-      inaccuracy: '#f6c94a',
-      mistake: '#e08c3a',
-      blunder: '#cc3333',
-    };
-
-    const PROXY_R = '/api/lichess-proxy';
-    /** 리체스 PGN %judgment + api-game 병합이 반영된 캐시 버전 (올리면 기존 캐시 자동 재동기화) */
-    const TACTIC_ANALYSIS_LICHESS_VERSION = 2;
-    /** 통계 탭 Stockfish-only 저장분 — 리체스 미동기화 */
-    const TACTIC_ANALYSIS_STOCKFISH_VERSION = 1;
-
-    let _lichessAnalysisBusy = false;
-    /** 통계 탭에서 기보별 리체스 동기화 중이면 단일 기보 분석 버튼은 대기 */
-    let _statsLichessSyncActive = false;
-
-    function needsLichessTacticResync(ta) {
-      if (!ta || !ta.analyzedAt) return false;
-      const v = ta.analysisVersion;
-      if (v == null || typeof v !== 'number') return true;
-      return v < TACTIC_ANALYSIS_LICHESS_VERSION;
-    }
-
-    function normalizeLichessTacticEventsForSave(analysisResult) {
-      const _lichessThemeToType = { Fork: 'fork', AbsPin: 'absPin', RelPin: 'relPin', Skewer: 'skewer', Discovered: 'discovered' };
-      return (analysisResult.tacticEvents || []).map(function (ev) {
-        if (ev.themes && Array.isArray(ev.themes) && ev.moveIdx != null) {
-          let t = 'fork';
-          for (let ti = 0; ti < ev.themes.length; ti++) {
-            if (_lichessThemeToType[ev.themes[ti]]) { t = _lichessThemeToType[ev.themes[ti]]; break; }
-          }
-          return {
-            type: t,
-            subtype: 'found',
-            piece: ev.piece || '',
-            moveNum: Math.ceil(ev.moveIdx / 2),
-            san: ev.san || '',
-            plyIdx: Math.max(0, ev.moveIdx - 1),
-            bestMove: null,
-            themes: ev.themes,
-            moveIdx: ev.moveIdx
-          };
-        }
-        return ev;
-      });
-    }
-
-    /**
-     * PGN을 리체스에 올려 주석 PGN을 받아 processLichessPgn + api-game 병합까지 (UI 없음).
-     * @returns {{ gameId: string, analysisResult: object, tacticEventsNormalized: array }}
-     */
-    async function fetchLichessTacticAnalysisBundle(pgn, myColor) {
-      const importRes = await fetch(`${PROXY_R}?path=import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pgn, analyse: true }),
-      });
-      if (!importRes.ok) throw new Error(`import 실패 (HTTP ${importRes.status})`);
-      const importJson = await importRes.json();
-      const gameId = importJson.id;
-      if (!gameId) throw new Error('게임 ID를 받지 못했습니다.');
-
-      try {
-        await fetch(`${PROXY_R}?path=request-analysis&id=${gameId}&color=${myColor === 'w' ? 'white' : 'black'}`, { method: 'POST' });
-      } catch (e) { /* ignore */ }
-
-      let annotatedPgn = null;
-      const maxAttempts = 18;
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        await new Promise(r => setTimeout(r, attempt === 0 ? 2000 : 5000));
-        const expRes = await fetch(`${PROXY_R}?path=export&id=${gameId}&evals=true&literate=true`);
-        if (!expRes.ok) continue;
-        const pgnText = await expRes.text();
-        if (pgnText.includes('%eval') || pgnText.includes('%judgment')) {
-          annotatedPgn = pgnText;
-          if (pgnText.includes('%judgment')) break;
-        }
-      }
-      if (!annotatedPgn) throw new Error('Lichess 분석 결과 대기 시간 초과');
-
-      const analysisResult = processLichessPgn(annotatedPgn, myColor);
-      try {
-        const gjRes = await fetch(`${PROXY_R}?path=api-game&id=${encodeURIComponent(gameId)}`);
-        if (gjRes.ok) {
-          const gj = await gjRes.json();
-          mergeLichessGameApiStats(analysisResult, gj, myColor);
-        }
-      } catch (e) { /* ACPL·정확도 생략 */ }
-
-      return {
-        gameId,
-        analysisResult,
-        tacticEventsNormalized: normalizeLichessTacticEventsForSave(analysisResult),
-      };
-    }
-
-    async function analyzePgnWithLichessRecord() {
-      if (_lichessAnalysisBusy) return;
-      if (_statsLichessSyncActive) {
-        showToast('통계 탭에서 리체스 동기화 중입니다. 잠시 후 다시 시도하세요.');
-        return;
-      }
-
-      if (!_currentRecord || !_currentRecord.pgn) {
-        showToast('분석할 기보가 없습니다. 왼쪽에서 게임을 선택해주세요.');
-        return;
-      }
-      const pgn = _currentRecord.pgn;
-      const recordId = _currentRecord.id;
-      if (!pgn || pgn.trim().length < 10) {
-        showToast('분석할 기보가 없습니다.');
-        return;
-      }
-      if ((_states.length - 1) < 2) {
-        showToast('수가 너무 짧습니다 (최소 2수 이상).');
-        return;
-      }
-
-      const statusEl = document.getElementById('lichess-analysis-status');
-      const resultEl = document.getElementById('lichess-analysis-result');
-      const btn = document.getElementById('lichess-analyze-btn');
-
-      const DBG = {
-        lines: [],
-        log(...args) {
-          const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
-          console.log('[Lichess DEBUG]', msg);
-          this.lines.push(msg);
-          this._render();
-        },
-        _render() {
-          if (!statusEl) return;
-          const debugHtml = this.lines.map(l =>
-            `<div style="border-bottom:1px solid var(--border);padding:2px 0;word-break:break-all;">${l.replace(/</g, '&lt;')}</div>`
-          ).join('');
-          statusEl.style.display = 'block';
-          statusEl.innerHTML =
-            `<div style="font-size:10px;font-family:monospace;color:var(--text-secondary);max-height:260px;overflow-y:auto;">${debugHtml}</div>`;
-        }
-      };
-
-      function setStatus(html, color) {
-        if (!statusEl) return;
-        statusEl.style.display = 'block';
-        statusEl.style.borderColor = color ? `rgba(${color},0.35)` : 'var(--border)';
-        statusEl.innerHTML = html;
-      }
-
-      _lichessAnalysisBusy = true;
-      if (btn) btn.disabled = true;
-      if (resultEl) resultEl.style.display = 'none';
-      DBG.lines = [];
-
-      try {
-        // [1]–[3] 공통 파이프라인
-        DBG.log(`[1] PGN import 시작 — recordId: ${recordId}`);
-        const bundle = await fetchLichessTacticAnalysisBundle(pgn, _viewMyColor);
-        DBG.log(`[3] 분석 완료 — gameId: ${bundle.gameId}`);
-
-        // [4] Firestore 캐시 저장
-        const savePayload = Object.assign({}, bundle.analysisResult, {
-          tacticEvents: bundle.tacticEventsNormalized,
-          analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          analysisVersion: TACTIC_ANALYSIS_LICHESS_VERSION,
-          lichessGameId: bundle.gameId,
-        });
-        await firebase.firestore().collection('game_records').doc(recordId).update({ tacticAnalysis: savePayload });
-        if (_currentRecord && _currentRecord.id === recordId) _currentRecord.tacticAnalysis = savePayload;
-
-        // [5] 뷰어 적용
-        for (let i = 1; i < _states.length; i++) {
-          if (bundle.analysisResult.moveJudgments[i - 1]) _states[i].judgment = bundle.analysisResult.moveJudgments[i - 1];
-        }
-        bundle.analysisResult.tacticEvents?.forEach(evt => {
-          if (_states[evt.moveIdx]) _states[evt.moveIdx].tacticThemes = evt.themes;
-        });
-
-        renderMoveTokens();
-        highlightMoveToken(_viewIdx);
-        showLichessStatsUI(bundle.analysisResult, bundle.gameId);
-
-      } catch (err) {
-        DBG.log(`[ERR] ${err.message}`);
-        setStatus(`❌ 오류: ${err.message}`, null);
-      }
-
-      _lichessAnalysisBusy = false;
-      if (btn) btn.disabled = false;
-    }
 
 
-    /**
-     * Lichess 분석 결과를 UI 패널에 표시하는 공통 함수
-     */
-    function showLichessStatsUI(result, gameId) {
-      const resultEl = document.getElementById('lichess-analysis-result');
-      const statusEl = document.getElementById('lichess-analysis-status');
-      if (!resultEl) return;
 
-      const STAT_COLOR_R = { inaccuracy: '#f6c94a', mistake: '#e08c3a', blunder: '#cc3333' };
-      const STAT_LABEL_R = { inaccuracy: '부정확한 수', mistake: '실수', blunder: '블런더' };
-      const STAT_ORDER_R = ['inaccuracy', 'mistake', 'blunder'];
-
-      let statsHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:6px;">`;
-      for (const k of STAT_ORDER_R) {
-        const c = (k === 'blunder') ? result.myBlunders : (k === 'mistake' ? result.myMistakes : result.myInaccuracies);
-        statsHtml += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:5px 4px;text-align:center;">
-          <div style="font-size:10px;font-weight:800;color:${STAT_COLOR_R[k] || 'var(--text-primary)'};">${STAT_LABEL_R[k] || k}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--text-primary);">${c || 0}</div>
-        </div>`;
-      }
-      statsHtml += `</div>`;
-
-      if (result.avgCpLoss > 0) {
-        statsHtml += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:5px;text-align:center;margin-bottom:6px;">
-          <div style="font-size:10px;color:var(--text-muted)">평균 센티폰 손실 (ACPL)</div>
-          <div style="font-size:13px;font-weight:700;color:var(--text-primary)">${result.avgCpLoss}</div>
-        </div>`;
-      }
-
-      if (result.myAccuracy != null && Number.isFinite(result.myAccuracy)) {
-        const oa = (result.oppAccuracy != null && Number.isFinite(result.oppAccuracy))
-          ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px">상대 정확도 ${result.oppAccuracy}%</div>` : '';
-        statsHtml += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;padding:5px;text-align:center;margin-bottom:6px;">
-          <div style="font-size:10px;color:var(--text-muted)">정확도 (리체스)</div>
-          <div style="font-size:13px;font-weight:700;color:var(--text-primary)">${result.myAccuracy}%</div>
-          ${oa}
-        </div>`;
-      }
-
-      resultEl.style.display = 'block';
-      resultEl.innerHTML = statsHtml;
-
-      if (statusEl) {
-        statusEl.style.display = 'block';
-        statusEl.innerHTML = `✅ Lichess 분석 적용됨${gameId ? `<br><a href="https://lichess.org/${gameId}/analysis" target="_blank" style="color:#5090d0;font-size:11px;">상세 분석 보기 ↗</a>` : ''}`;
-      }
-    }
-
-    // 기보 열릴 때 Lichess 분석 패널 초기화
-    function resetLichessPanel() {
-      const statusEl = document.getElementById('lichess-analysis-status');
-      const resultEl = document.getElementById('lichess-analysis-result');
-      const btn = document.getElementById('lichess-analyze-btn');
-      if (statusEl) statusEl.style.display = 'none';
-      if (resultEl) resultEl.style.display = 'none';
-      if (btn) { btn.disabled = false; }
-      _lichessAnalysisBusy = false;
-    }
-
-    // ════════════════════════════════════════
+        // ════════════════════════════════════════
     // 화살표 시스템 (게임 중 저장된 화살표 표시 — 읽기 전용)
     // ════════════════════════════════════════
     const FILES_ARR = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
