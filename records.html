@@ -2006,11 +2006,6 @@
       return 'good';
     }
 
-    /** white-POV cp → mover-POV EP */
-    function epForMover(cpWhite, isWhiteMove) {
-      return isWhiteMove ? cpToExpectedPoints(cpWhite) : cpToExpectedPoints(-cpWhite);
-    }
-
     // ── 전술 감지 (chess-tactics.js 로직 이식) ──────────────────────────────────
 
     function isSacrifice(h) {
@@ -2522,11 +2517,6 @@
         const cpBefore = evalRows[i - 1].cpw;
         const cpAfter = evalRows[i].cpw;
         const bestUci = evalRows[i - 1].bestUci;
-
-        // ── EP 손실 계산
-        const epBefore = epForMover(cpBefore, isWhiteMove);
-        const epAfter  = epForMover(cpAfter,  isWhiteMove);
-        const epLoss   = Math.max(0, epBefore - epAfter);
 
         // ── 승률 기반 수 분류
         const wpB = isWhiteMove ? cpToWinPercent(cpBefore) : cpToWinPercent(-cpBefore);
