@@ -2829,56 +2829,23 @@
         const ss = document.createElement('span'); ss.className = 'move-san'; ss.textContent = san; ss.dataset.idx = i;
         ss.addEventListener('click', () => goToMove(i));
 
-        // ── EP 분류 배지 추가 (best/excellent/good/inaccuracy/mistake/blunder) ──
+        // ── 승률 기반 수 분류 표시 (Blunder, Mistake, Inaccuracy) ──
         if (_states[i].judgment) {
           const j = _states[i].judgment;
-          // EP 분류 아이콘 + 색
-          const EP_ICON = {
-            best: '!', excellent: '!', good: '',
-            inaccuracy: '?!', mistake: '?', blunder: '??', forced: ''
-          };
-          const EP_COLOR = {
-            best: '#1baca6', excellent: '#5c8bb0', good: 'var(--accent-green)',
-            inaccuracy: '#f6c94a', mistake: '#e08c3a', blunder: '#cc3333', forced: 'var(--text-muted)'
-          };
-          const EP_LABEL = {
-            best: '최선', excellent: '훌륭', good: '좋은 수',
-            inaccuracy: '부정확', mistake: '실수', blunder: '블런더', forced: '강제수'
-          };
-          const icon = EP_ICON[j];
-          if (icon) {
+          const J_LABEL = { blunder: '??', mistake: '?', inaccuracy: '?!' };
+          const J_COLOR = { blunder: '#cc3333', mistake: '#e08c3a', inaccuracy: '#f6c94a' };
+          const J_TITLE = { blunder: '블런더', mistake: '실수', inaccuracy: '부정확' };
+          
+          if (J_LABEL[j]) {
             const jBadge = document.createElement('span');
             jBadge.className = 'move-judgment-badge';
-            jBadge.style.background = EP_COLOR[j] || 'var(--text-muted)';
-            jBadge.title = EP_LABEL[j] || j;
-            jBadge.textContent = icon;
+            jBadge.style.background = J_COLOR[j];
+            jBadge.title = J_TITLE[j];
+            jBadge.textContent = J_LABEL[j];
             ss.appendChild(jBadge);
           }
         }
 
-        // ── 화살표 배지 ──
-        const arrows = _moveArrows[i];
-        if (arrows && arrows.length > 0) {
-          const candArrows = arrows.filter(a => !a.seq);
-          const seqArrows = arrows.filter(a => a.seq);
-          // 후보수 배지 (주황)
-          if (candArrows.length > 0) {
-            const badge = document.createElement('span');
-            badge.className = 'move-arrow-badge';
-            badge.title = '후보수: ' + candArrows.map(a => sqName(a.fromCol, a.fromRow) + '→' + sqName(a.toCol, a.toRow)).join(', ');
-            badge.innerHTML = `<svg width="9" height="9" viewBox="0 0 10 10"><line x1="1" y1="9" x2="9" y2="1" stroke="rgba(255,165,0,.9)" stroke-width="1.8" stroke-linecap="round" marker-end="url(#badge-arrow-head-o)"/><defs><marker id="badge-arrow-head-o" markerUnits="strokeWidth" markerWidth="3" markerHeight="3" refX="1.5" refY="1.5" orient="auto"><path d="M0,0 L3,1.5 L0,3 L0.8,1.5 Z" fill="rgba(255,165,0,.9)"/></marker></defs></svg><span style="font-size:9px">${candArrows.length}</span>`;
-            ss.appendChild(badge);
-          }
-          // 수순 배지 (파랑)
-          if (seqArrows.length > 0) {
-            const badge2 = document.createElement('span');
-            badge2.className = 'move-arrow-badge';
-            badge2.style.color = 'rgba(80,160,255,.9)';
-            badge2.title = '수순: ' + seqArrows.map(a => sqName(a.fromCol, a.fromRow) + '→' + sqName(a.toCol, a.toRow)).join(', ');
-            badge2.innerHTML = `<svg width="9" height="9" viewBox="0 0 10 10"><line x1="1" y1="9" x2="9" y2="1" stroke="rgba(80,160,255,.88)" stroke-width="1.8" stroke-linecap="round" marker-end="url(#badge-arrow-head-b)"/><defs><marker id="badge-arrow-head-b" markerUnits="strokeWidth" markerWidth="3" markerHeight="3" refX="1.5" refY="1.5" orient="auto"><path d="M0,0 L3,1.5 L0,3 L0.8,1.5 Z" fill="rgba(80,160,255,.88)"/></marker></defs></svg><span style="font-size:9px">${seqArrows.length}</span>`;
-            ss.appendChild(badge2);
-          }
-        }
         if (!currentRow) {
           currentRow = document.createElement('div');
           currentRow.className = 'move-row';
