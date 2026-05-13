@@ -1958,14 +1958,9 @@
     // classifyMoveEP: EP 손실 기반 분류 (레포 classifyMove 동일 임계값)
     // gameAccuracy: 조화평균 기반 게임 정확도 0–100
 
-    /** cp → Expected Points (0.0–1.0). chess.com/Lichess 공용 시그모이드. */
-    function cpToExpectedPoints(cp) {
-      return 1 / (1 + Math.exp(-0.00368208 * cp));
-    }
-
-    /** EP → 0–100 표시용 */
+    /** cp → WinPercent (0–100%). 공식: 1 / (1 + 10^(-cp/400)) */
     function cpToWinPercent(cp) {
-      return cpToExpectedPoints(cp) * 100;
+      return (1 / (1 + Math.pow(10, -cp / 400))) * 100;
     }
 
     /**
@@ -1998,18 +1993,17 @@
     }
 
     /**
-     * EP 손실 기반 수 분류 (레포 classifyMove 동일 임계값).
-     * epLoss: 0.0–1.0 (Expected Points Lost, 두는 쪽 관점).
-     * Returns: 'best'|'excellent'|'good'|'inaccuracy'|'mistake'|'blunder'|'forced'
+     * 승률 하락폭(Delta) 기반 수 분류.
+     * winPctBefore, winPctAfter: 0–100 스케일.
      */
-    function classifyMoveEP(epLoss, isBestMove, isForced) {
+    function classifyMoveByDelta(winPctBefore, winPctAfter, isBestMove, isForced) {
       if (isForced)       return 'forced';
       if (isBestMove)     return 'best';
-      if (epLoss <= 0.02) return 'excellent';
-      if (epLoss <= 0.05) return 'good';
-      if (epLoss <= 0.10) return 'inaccuracy';
-      if (epLoss <= 0.20) return 'mistake';
-      return 'blunder';
+      const delta = winPctBefore - winPctAfter;
+      if (delta >= 30) return 'blunder';
+      if (delta >= 20) return 'mistake';
+      if (delta >= 10) return 'inaccuracy';
+      return 'good';
     }
 
     /** white-POV cp → mover-POV EP */
@@ -2534,25 +2528,15 @@
         const epAfter  = epForMover(cpAfter,  isWhiteMove);
         const epLoss   = Math.max(0, epBefore - epAfter);
 
-        // ── 최선수 여부
-        const playedUci = move ? (moveToUci(move) || '').toLowerCase() : '';
-        const isBestMove = !!(bestUci && playedUci && bestUci === playedUci);
-
-        // ── 강제수 여부 (합법적 수 1개)
-        const allLegal = getAllLegalMoves(
-          states[i - 1].board, mover,
-          states[i - 1].castling, states[i - 1].enPassant
-        );
-        const isForced = allLegal.length === 1;
-
-        const cls = classifyMoveEP(epLoss, isBestMove, isForced);
+        // ── 승률 기반 수 분류
+        const wpB = isWhiteMove ? cpToWinPercent(cpBefore) : cpToWinPercent(-cpBefore);
+        const wpA = isWhiteMove ? cpToWinPercent(cpAfter) : cpToWinPercent(-cpAfter);
+        const cls = classifyMoveByDelta(wpB, wpA);
         result.moveJudgments.push(cls);
 
         // ── 수 분류 집계
         if (isMe) {
-          if (cls === 'best' || cls === 'excellent') result.myBest++;
-          else if (cls === 'good') result.myGood++;
-          else if (cls === 'inaccuracy') result.myInaccuracies++;
+          if (cls === 'inaccuracy') result.myInaccuracies++;
           else if (cls === 'mistake')    result.myMistakes++;
           else if (cls === 'blunder')    result.myBlunders++;
         } else {
