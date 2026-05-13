@@ -2836,16 +2836,22 @@
         // ── 승률 기반 수 분류 표시 (Blunder, Mistake, Inaccuracy) ──
         if (_states[i].judgment) {
           const j = _states[i].judgment;
+          // 접두사(my/opp)를 떼고 baseJudgment 추출 (예: myBlunder -> blunder)
+          const baseJudgment = j.replace(/^(my|opp)/, '').toLowerCase();
           const J_LABEL = { blunder: '??', mistake: '?', inaccuracy: '?!' };
           const J_COLOR = { blunder: '#cc3333', mistake: '#e08c3a', inaccuracy: '#f6c94a' };
           const J_TITLE = { blunder: '블런더', mistake: '실수', inaccuracy: '부정확' };
           
-          if (J_LABEL[j]) {
+          if (J_LABEL[baseJudgment]) {
             const jBadge = document.createElement('span');
             jBadge.className = 'move-judgment-badge';
-            jBadge.style.background = J_COLOR[j];
-            jBadge.title = J_TITLE[j];
-            jBadge.textContent = J_LABEL[j];
+            jBadge.style.background = J_COLOR[baseJudgment];
+            jBadge.style.color = '#fff';
+            jBadge.style.padding = '1px 4px';
+            jBadge.style.borderRadius = '4px';
+            jBadge.style.fontSize = '10px';
+            jBadge.title = J_TITLE[baseJudgment];
+            jBadge.textContent = J_LABEL[baseJudgment];
             ss.appendChild(jBadge);
           }
         }
