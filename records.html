@@ -3164,16 +3164,26 @@
       const bodyEl = document.getElementById('tmodal-body');
       titleEl.innerHTML = `<span>${icon}</span> ${title} 포함 게임 목록`;
 
-      const matchingGames = _statsGameDetails.filter(gd =>
-         gd.doc.tacticAnalysis && gd.doc.tacticAnalysis.moveJudgments && 
-         gd.doc.tacticAnalysis.moveJudgments.includes(judgment)
-      );
+      console.log('Judgment Target:', judgment);
+      console.log('Total Game Details Available:', _statsGameDetails.length);
+      if (_statsGameDetails.length > 0) {
+        console.log('Sample Data Structure:', _statsGameDetails[0]);
+      }
+
+      const matchingGames = _statsGameDetails.filter(gd => {
+         const hasJudgment = gd.doc.tacticAnalysis && gd.doc.tacticAnalysis.moveJudgments && 
+                             gd.doc.tacticAnalysis.moveJudgments.includes(judgment);
+         return hasJudgment;
+      });
+
+      console.log('Matching Games Count:', matchingGames.length);
 
       if (!matchingGames.length) {
         bodyEl.innerHTML = `<div class="tmodal-empty">해당 분류의 기록이 없습니다</div>`;
         modal.classList.add('show'); return;
       }
-
+      
+      // ... (기존 HTML 생성 로직 유지)
       let html = '';
       for (const gd of matchingGames) {
         const doc = gd.doc;
