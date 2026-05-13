@@ -139,7 +139,6 @@ function createStockfishWorker(threads = 1, hashMb = 64) {
           worker.postMessage('setoption name UCI_AnalyseMode value true');
           worker.postMessage('setoption name Move Overhead value 0');
           worker.postMessage('setoption name Contempt value 0');
-          worker.postMessage('setoption name Analysis Contempt value Off');
           worker.postMessage('setoption name Skill Level value 20');
           worker.postMessage('isready');
         } else if (line.includes('readyok') && !ready) {
