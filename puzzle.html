@@ -2702,9 +2702,10 @@ let _gamePuzzleLoaded = false;
 // 전술 이벤트 타입 → 이름/아이콘 매핑
 const TACTIC_META = {
   fork:      { icon:'🍴', name:'포크',      tagCls:'fork',     desc:'두 개 이상의 적 말을 동시에 위협' },
+  oppFork:   { icon:'⚔️', name:'상대 포크', tagCls:'fork',     desc:'상대 포크 장면 (기보에서)' },
   pin:       { icon:'📌', name:'핀',        tagCls:'pin',      desc:'핀으로 더 가치 있는 말 보호' },
   absPin:    { icon:'📌', name:'절대 핀',   tagCls:'pin',      desc:'킹을 보호하는 절대 핀' },
-  relPin:    { icon:'📌', name:'상대 핀',   tagCls:'pin',      desc:'높은 가치 말을 보호하는 상대 핀' },
+  relPin:    { icon:'🔗', name:'상대 핀',   tagCls:'pin',      desc:'높은 가치 말을 보호하는 상대 핀' },
   skewer:    { icon:'🏹', name:'스큐어',    tagCls:'skewer',   desc:'가치 있는 말을 이동시켜 뒤의 말 포획' },
   oppBlunder:{ icon:'💥', name:'블런더 포착',tagCls:'blunder', desc:'상대방 실수를 이용한 기물 획득' },
   checkmate: { icon:'👑', name:'체크메이트', tagCls:'checkmate',desc:'킹을 잡는 결정적인 수' },
@@ -2740,12 +2741,13 @@ async function loadGamePuzzles() {
     // ── 이미 records.html에서 분석된 경우: tacticAnalysis.tacticEvents 활용
     if (doc.tacticAnalysis && doc.tacticAnalysis.tacticEvents && doc.tacticAnalysis.tacticEvents.length > 0) {
       try {
-        const positions = parsePgnToPositions(doc.pgn);
+        const pgnClean = (doc.pgn || '').replace(/\[[^\]]*\]/g, '').trim();
+        const positions = parsePgnToPositions(pgnClean);
         for (const ev of doc.tacticAnalysis.tacticEvents) {
           if (ev.subtype !== 'missed') continue;
           const meta = TACTIC_META[ev.type] || TACTIC_META['fork'];
           // plyIdx=0은 잘못 저장된 경우 moveNum으로 보정
-          let plyIdx = (ev.plyIdx != null && ev.plyIdx > 0) ? ev.plyIdx : (ev.moveNum ? ev.moveNum * 2 - 1 : null);
+          let plyIdx = (ev.plyIdx != null && ev.plyIdx >= 0) ? ev.plyIdx : (ev.moveNum ? ev.moveNum * 2 - 1 : null);
           if (plyIdx == null || plyIdx >= positions.length - 1) continue;
           const pos = positions[plyIdx];
           if (!pos || !pos.fen) continue;
@@ -2766,7 +2768,7 @@ async function loadGamePuzzles() {
             tacticType: ev.type,
             tacticPiece: ev.piece || '',
             moveNum: ev.moveNum || Math.ceil(plyIdx / 2),
-            title: `${meta.name} 기회 — ${dateStr} ${myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`}`,
+            title: `${meta.name} 놓침 — ${dateStr} ${myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`}`,
             icon: meta.icon,
             desc: meta.desc,
             tagCls: meta.tagCls,
@@ -2803,7 +2805,8 @@ async function loadGamePuzzles() {
       : '';
 
     try {
-      const positions = parsePgnToPositions(doc.pgn);
+      const pgnClean = (doc.pgn || '').replace(/\[[^\]]*\]/g, '').trim();
+      const positions = parsePgnToPositions(pgnClean);
       if (!positions || positions.length < 4) continue;
 
       // 구버전 tacticEvents 필드 활용 (레거시 지원)
@@ -2811,7 +2814,7 @@ async function loadGamePuzzles() {
         for (const ev of doc.tacticEvents) {
           if (ev.subtype !== 'missed') continue;
           const meta = TACTIC_META[ev.type] || TACTIC_META['fork'];
-          let plyIdx = (ev.plyIdx != null && ev.plyIdx > 0) ? ev.plyIdx : (ev.moveNum ? ev.moveNum * 2 - 1 : null);
+          let plyIdx = (ev.plyIdx != null && ev.plyIdx >= 0) ? ev.plyIdx : (ev.moveNum ? ev.moveNum * 2 - 1 : null);
           if (plyIdx == null || plyIdx >= positions.length - 1) continue;
           const pos = positions[plyIdx];
           if (!pos || !pos.fen) continue;
@@ -2827,7 +2830,7 @@ async function loadGamePuzzles() {
             gameResult: doc.result, myColor,
             tacticType: ev.type, tacticPiece: ev.piece || '',
             moveNum: ev.moveNum || Math.ceil(plyIdx / 2),
-            title: `${meta.name} 기회 — ${dateStr} ${myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`}`,
+            title: `${meta.name} 놓침 — ${dateStr} ${myColor === 'w' ? `vs ${blackName}` : `vs ${whiteName}`}`,
             icon: meta.icon, desc: meta.desc, tagCls: meta.tagCls,
             rating: 1200 + Math.floor(Math.random() * 400),
             fen: pos.fen, opponentMove: pos.lastMove || null,
@@ -2852,7 +2855,7 @@ async function loadGamePuzzles() {
     }
   }
 
-  return puzzles.slice(0, 20);
+  return puzzles.slice(0, 40);
 }
 
 // 경량 전술 탐지: 포크/핀/매이트 기회를 수읽기로 탐지
@@ -3013,9 +3016,18 @@ async function loadGamePuzzleCount() {
     const snap = await _fbDb.collection('game_records')
       .where('uid', '==', _fbUser.uid)
       .limit(30).get();
-    const cnt = Math.min(snap.size * 2, 20);
+    let missed = 0;
+    snap.forEach(d => {
+      const ta = d.data().tacticAnalysis;
+      if (ta && Array.isArray(ta.tacticEvents)) {
+        missed += ta.tacticEvents.filter(e => e && e.subtype === 'missed').length;
+      }
+    });
     const badge = document.getElementById('game-puzzle-count-badge');
-    if (badge) badge.textContent = cnt > 0 ? `약 ${cnt}개 발견` : '기보 분석';
+    if (badge) {
+      if (missed > 0) badge.textContent = `놓친 전술 ${missed}개`;
+      else badge.textContent = snap.size > 0 ? '기보에서 생성' : '기보 분석';
+    }
   } catch(e) {
     const badge = document.getElementById('game-puzzle-count-badge');
     if (badge) badge.textContent = '기보 분석';
@@ -3029,7 +3041,7 @@ async function openGamePuzzleModal() {
 
   if (!_gamePuzzleLoaded) {
     const body = document.getElementById('gpm-body');
-    body.innerHTML = `<div class="gp-loading"><div class="lichess-spinner"></div><div>기보 분석 중… Stockfish 불필요, 패턴 기반 추출</div></div>`;
+    body.innerHTML = `<div class="gp-loading"><div class="lichess-spinner"></div><div>기보에서 퍼즐 추출 중… (기록 페이지 통계 분석 후 놓친 전술이 저장됩니다)</div></div>`;
 
     if (!_firebaseReady || !_fbUser) {
       // 로그인 안 된 경우: 빈 배열 + 로그인 유도 메시지
@@ -3285,9 +3297,11 @@ window.tryMove = function(fr, fc, tr, tc, moveStr) {
 // ── 기보 기반 퍼즐 그리드 렌더링 ─────────────────────────
 const GAME_PUZZLE_THEME_DEFS = [
   { type: 'checkmate', icon: '👑', name: '체크메이트 기회',  desc: '실제 대국에서 내가 놓쳤던 체크메이트 기회를 다시 훈련하세요', tagCls: 'checkmate', color: '#c04040' },
-  { type: 'fork',      icon: '🍴', name: '포크 기회',       desc: '실제 대국에서 두 기물을 동시에 공격할 수 있었던 포크를 연습하세요', tagCls: 'fork',     color: '#e08030' },
+  { type: 'fork',      icon: '🍴', name: '포크 (놓침)',     desc: '기록 통계 분석에서 놓친 포크 — Stockfish 최선수를 다시 찾아보세요', tagCls: 'fork',     color: '#e08030' },
+  { type: 'oppFork',   icon: '⚔️', name: '상대 포크',       desc: '상대가 건 포크 장면을 기보에서 복습합니다', tagCls: 'fork',     color: '#c06060' },
   { type: 'pin',       icon: '📌', name: '핀 기회',         desc: '실제 대국에서 상대 기물을 고정시킬 수 있었던 핀 전술을 훈련하세요', tagCls: 'pin',     color: '#5090d0' },
-  { type: 'absPin',    icon: '📌', name: '절대 핀 기회',    desc: '킹을 직접 노출시키는 절대 핀 기회를 실제 대국에서 추출', tagCls: 'pin',     color: '#5090d0' },
+  { type: 'absPin',    icon: '📌', name: '절대 핀 (놓침)',  desc: '통계 분석에서 놓친 절대 핀 최선수를 연습하세요', tagCls: 'pin',     color: '#5090d0' },
+  { type: 'relPin',    icon: '🔗', name: '상대 핀 (놓침)',  desc: '통계 분석에서 놓친 상대 핀 최선수를 연습하세요', tagCls: 'pin',     color: '#4070b0' },
   { type: 'skewer',    icon: '🏹', name: '스큐어 기회',     desc: '실제 대국에서 스큐어로 기물을 획득할 수 있었던 순간을 연습하세요', tagCls: 'skewer',  color: '#2aada6' },
   { type: 'oppBlunder',icon: '💥', name: '블런더 포착',     desc: '상대방 실수를 바로 이용하지 못했던 순간들을 다시 공략하세요', tagCls: 'blunder', color: '#8855cc' },
   { type: 'discoveredAttack',icon:'⚡',name:'발견 공격 기회',desc:'실제 대국에서 발견 공격으로 기물을 획득할 수 있었던 기회를 연습하세요',tagCls:'fork',color:'#cc3333'},
