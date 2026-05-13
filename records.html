@@ -2071,6 +2071,50 @@
         return false;
     }
 
+    /** 직선 기물(B/R/Q)이 한 방향으로 앞쪽 약한 적 기물 뒤에 더 강한 적 기물을 동시에 겨냥하는 스큐어 (포크와 중복 시 포크만 사용) */
+    function isRaySkewerR(board, color, toPos) {
+      const [tr, tc] = toPos;
+      const p = board[tr][tc];
+      if (!p || p[0] !== color || !['B', 'R', 'Q'].includes(p[1])) return false;
+      const enemy = enemyColor(color);
+      const diag = [['-1', '-1'], ['-1', '1'], ['1', '-1'], ['1', '1']];
+      const orth = [['-1', '0'], ['1', '0'], ['0', '-1'], ['0', '1']];
+      const dirs = p[1] === 'B' ? diag : p[1] === 'R' ? orth : [...diag, ...orth];
+      for (const [dr, dc] of dirs) {
+        let nr = tr + parseInt(dr, 10), nc = tc + parseInt(dc, 10);
+        let first = null;
+        while (isInBounds(nr, nc)) {
+          const cell = board[nr][nc];
+          if (cell) {
+            if (!first) {
+              if (cell[0] !== enemy) break;
+              if (cell[1] === 'K') break;
+              first = { piece: cell, r: nr, c: nc };
+            } else {
+              if (cell[0] === enemy && cell[1] !== 'K') {
+                const v1 = PIECE_VALUE_TACTICS[first.piece[1]] || 0;
+                const v2 = PIECE_VALUE_TACTICS[cell[1]] || 0;
+                if (v2 > v1 && v1 >= 100) return true;
+              }
+              break;
+            }
+          }
+          nr += parseInt(dr, 10); nc += parseInt(dc, 10);
+        }
+      }
+      return false;
+    }
+
+    /** 이동 후 상대에게 체크인데, 도착 칸의 말을 제거해도 체크가 남으면 발견 체크(또는 이중 공격 성격) */
+    function isDiscoveredCheckR(board, mover, move) {
+      const opp = enemyColor(mover);
+      if (!isInCheck(board, opp)) return false;
+      const tr = move.to[0], tc = move.to[1];
+      const b2 = board.map(row => row.map(c => c));
+      b2[tr][tc] = null;
+      return isInCheck(b2, opp);
+    }
+
     // ── 새로운 승률 및 판단 로직 ──────────────────────────────────────────
 
     function calculateWinProb(cp) {
@@ -2109,6 +2153,7 @@
         checkmates: 0, avgCpLoss: 0, myCpSum: 0, myMoveCount: 0,
         forkFound: {}, forkMissed: {}, oppForkCreated: {}, absPinFound: 0, relPinFound: 0,
         absPinMissed: 0, relPinMissed: 0,
+        skewerFound: 0, skewerMissed: 0, discoveredFound: 0, discoveredMissed: 0,
         tacticThemeCounts: {},
         tacticEvents: [],
         moveJudgments: []
@@ -2166,9 +2211,9 @@
             
             // ── [전술 감지] 모든 수에 대해 수행 ──────────────────────────
             const themes = [];
+            const ptMove = prevBoard[move.from[0]][move.from[1]][1];
             if (isValidForkR(currentPos.board, mover, move.to, prevBoard)) {
-              const pt = prevBoard[move.from[0]][move.from[1]][1];
-              result.forkFound[pt] = (result.forkFound[pt] || 0) + 1;
+              result.forkFound[ptMove] = (result.forkFound[ptMove] || 0) + 1;
               themes.push('Fork');
             }
             if (isAbsolutePin(currentPos.board, move.to[0], move.to[1], mover)) {
@@ -2179,10 +2224,20 @@
               result.relPinFound++;
               themes.push('RelPin');
             }
-            
+            const forkHereL = isValidForkR(currentPos.board, mover, move.to, prevBoard);
+            const raySkewL = isRaySkewerR(currentPos.board, mover, move.to);
+            if (isMe && !forkHereL && raySkewL) {
+              result.skewerFound++;
+              themes.push('Skewer');
+            }
+            if (isMe && !forkHereL && !raySkewL && isDiscoveredCheckR(currentPos.board, mover, move)) {
+              result.discoveredFound++;
+              themes.push('Discovered');
+            }
+
             if (themes.length > 0) {
               themes.forEach(th => { result.tacticThemeCounts[th] = (result.tacticThemeCounts[th] || 0) + 1; });
-              result.tacticEvents.push({ moveIdx: moveCounter, san, themes });
+              result.tacticEvents.push({ moveIdx: moveCounter, san, themes, piece: ptMove });
             }
 
             // ── 로컬 판단 (Judgment) 처리 ──────────────────────────
@@ -2521,6 +2576,7 @@
         totalMoves: Math.max(0, states.length - 1),
         forkFound: emptyFork(), forkMissed: emptyFork(), oppForkCreated: emptyFork(),
         absPinFound: 0, absPinMissed: 0, relPinFound: 0, relPinMissed: 0,
+        skewerFound: 0, skewerMissed: 0, discoveredFound: 0, discoveredMissed: 0,
         tacticEvents: [], moveJudgments: []
       };
 
@@ -2643,6 +2699,32 @@
                   });
                 }
               }
+              const skewPlayed = isRaySkewerR(states[i].board, mover, move.to) && !forkPlayed;
+              const skewBest = isRaySkewerR(bBest, mover, bestMv.to) && !forkBest;
+              if (skewBest && !skewPlayed) {
+                result.skewerMissed++;
+                const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
+                if (missedPushCount < MAX_MISSED_EVENTS) {
+                  missedPushCount++;
+                  result.tacticEvents.push({
+                    type: 'skewer', subtype: 'missed', piece: ptB,
+                    moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestRaw
+                  });
+                }
+              }
+              const discPlayed = isDiscoveredCheckR(states[i].board, mover, move) && !forkPlayed;
+              const discBest = isDiscoveredCheckR(bBest, mover, bestMv) && !forkBest;
+              if (discBest && !discPlayed && !(skewBest && !skewPlayed)) {
+                result.discoveredMissed++;
+                const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
+                if (missedPushCount < MAX_MISSED_EVENTS) {
+                  missedPushCount++;
+                  result.tacticEvents.push({
+                    type: 'discovered', subtype: 'missed', piece: ptB,
+                    moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestRaw
+                  });
+                }
+              }
             }
           }
         }
@@ -2677,6 +2759,21 @@
               result.relPinFound++;
               result.tacticEvents.push({
                 type: 'relPin', subtype: 'found', piece: pt,
+                moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
+              });
+            }
+            const forkHere = isValidForkR(states[i].board, mover, move.to, prevBoard);
+            if (!forkHere && isRaySkewerR(states[i].board, mover, move.to)) {
+              result.skewerFound++;
+              result.tacticEvents.push({
+                type: 'skewer', subtype: 'found', piece: pt,
+                moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
+              });
+            }
+            if (!forkHere && !isRaySkewerR(states[i].board, mover, move.to) && isDiscoveredCheckR(states[i].board, mover, move)) {
+              result.discoveredFound++;
+              result.tacticEvents.push({
+                type: 'discovered', subtype: 'found', piece: pt,
                 moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null
               });
             }
@@ -3041,6 +3138,7 @@
       let sumMyBlunders = 0, sumMyMistakes = 0, sumMyInaccuracies = 0;
       let sumOppBlunders = 0, sumOppMistakes = 0, sumOppInaccuracies = 0, sumOppBF = 0, sumOppBM = 0;
       let sumCheckmates = 0, sumAbsPinFound = 0, sumAbsPinMissed = 0, sumRelPinFound = 0, sumRelPinMissed = 0;
+      let sumSkewerFound = 0, sumSkewerMissed = 0, sumDiscoveredFound = 0, sumDiscoveredMissed = 0;
       let sumForkFound = { P: 0, N: 0, B: 0, R: 0, Q: 0, K: 0 }, sumForkMissed = { P: 0, N: 0, B: 0, R: 0, Q: 0, K: 0 }, sumOppForkCreated = { P: 0, N: 0, B: 0, R: 0, Q: 0, K: 0 };
       let sumCp = 0, sumMoves = 0;
       const total = docs.length;
@@ -3098,6 +3196,8 @@
           sumCheckmates += (a.checkmates || 0);
           sumAbsPinFound += (a.absPinFound || 0); sumAbsPinMissed += (a.absPinMissed || 0);
           sumRelPinFound += (a.relPinFound || 0); sumRelPinMissed += (a.relPinMissed || 0);
+          sumSkewerFound += (a.skewerFound || 0); sumSkewerMissed += (a.skewerMissed || 0);
+          sumDiscoveredFound += (a.discoveredFound || 0); sumDiscoveredMissed += (a.discoveredMissed || 0);
           sumCp += (a.myCpSum || 0); sumMoves += (a.myMoveCount || 0); totalMovesSum += (a.totalMoves || doc.moveCount || 0);
           const ff = a.forkFound || {}; const fm = a.forkMissed || {}; const ofc = a.oppForkCreated || {};
           for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) { sumForkFound[k] += (ff[k] || 0); sumForkMissed[k] += (fm[k] || 0); sumOppForkCreated[k] += (ofc[k] || 0); }
@@ -3135,6 +3235,8 @@
             sumCheckmates += a.checkmates;
             sumAbsPinFound += (a.absPinFound || 0); sumAbsPinMissed += (a.absPinMissed || 0);
             sumRelPinFound += (a.relPinFound || 0); sumRelPinMissed += (a.relPinMissed || 0);
+            sumSkewerFound += (a.skewerFound || 0); sumSkewerMissed += (a.skewerMissed || 0);
+            sumDiscoveredFound += (a.discoveredFound || 0); sumDiscoveredMissed += (a.discoveredMissed || 0);
             sumCp += a.myCpSum; sumMoves += a.myMoveCount; totalMovesSum += a.totalMoves;
             for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) { sumForkFound[k] += (a.forkFound[k] || 0); sumForkMissed[k] += (a.forkMissed[k] || 0); sumOppForkCreated[k] += (a.oppForkCreated?.[k] || 0); }
             if (a.tacticEvents && a.tacticEvents.length) _statsGameDetails.push({ doc, tacticEvents: a.tacticEvents });
@@ -3149,6 +3251,8 @@
                 checkmates: a.checkmates,
                 absPinFound: a.absPinFound || 0, absPinMissed: a.absPinMissed || 0,
                 relPinFound: a.relPinFound || 0, relPinMissed: a.relPinMissed || 0,
+                skewerFound: a.skewerFound || 0, skewerMissed: a.skewerMissed || 0,
+                discoveredFound: a.discoveredFound || 0, discoveredMissed: a.discoveredMissed || 0,
                 myCpSum: a.myCpSum, myMoveCount: a.myMoveCount, totalMoves: a.totalMoves,
                 forkFound: a.forkFound, forkMissed: a.forkMissed, oppForkCreated: a.oppForkCreated || {},
                 tacticEvents: (a.tacticEvents || []).map(ev => ({
@@ -3178,6 +3282,8 @@
         forkFound: sumForkFound, forkMissed: sumForkMissed, oppForkCreated: sumOppForkCreated,
         absPinFound: sumAbsPinFound, absPinMissed: sumAbsPinMissed,
         relPinFound: sumRelPinFound, relPinMissed: sumRelPinMissed,
+        skewerFound: sumSkewerFound, skewerMissed: sumSkewerMissed,
+        discoveredFound: sumDiscoveredFound, discoveredMissed: sumDiscoveredMissed,
         pinFound: sumAbsPinFound + sumRelPinFound,
         pinMissed: sumAbsPinMissed + sumRelPinMissed,
         avgCpLoss: sumMoves > 0 ? Math.round(sumCp / sumMoves) : 0,
@@ -3197,7 +3303,7 @@
       const titleEl = document.getElementById('tmodal-title');
       const bodyEl = document.getElementById('tmodal-body');
 
-      const typeLabel = { fork: '포크', oppFork: '상대 포크', absPin: '절대 핀', relPin: '상대 핀', pin: '핀', oppBlunder: '상대 블런더 포착' }[tacticType] || tacticType;
+      const typeLabel = { fork: '포크', oppFork: '상대 포크', absPin: '절대 핀', relPin: '상대 핀', pin: '핀', oppBlunder: '상대 블런더 포착', skewer: '스큐어', discovered: '발견 체크' }[tacticType] || tacticType;
       const subtypeLabel = subtypeFilter === 'found' ? '찾음' : subtypeFilter === 'missed' ? '놓침' : '';
       titleEl.innerHTML = `<span>${icon}</span> ${name} — ${typeLabel}${subtypeLabel ? ' (' + subtypeLabel + ')' : ''} 게임 목록`;
 
@@ -3378,6 +3484,10 @@
       </div>`);
         return rows.join('');
       })();
+      const skewDiscHtml = [
+        fvmRow('↗', '스큐어 (직선)', '', s.skewerFound || 0, s.skewerMissed || 0, 'skewer', ''),
+        fvmRow('◎', '발견 체크', '', s.discoveredFound || 0, s.discoveredMissed || 0, 'discovered', '')
+      ].join('');
       const obHtml = fvmRow('🎯', '상대 실수', '', s.oppBlunderFound, s.oppBlunderMissed, 'oppBlunder', '');
       const cpColor = s.avgCpLoss < 30 ? 'var(--accent-green-bright)' : s.avgCpLoss < 75 ? '#e0b040' : '#e07070';
 
@@ -3475,6 +3585,11 @@
     <div class="stats-section-title">📌 찾은 vs 놓친 핀</div>
     <div class="fvm-section">${pinHtml || '<div class="stats-note" style="padding:12px 0">핀 데이터 없음</div>'}</div>
     <div class="stats-note">※ 상대 기물이 움직이면 상대 킹 노출되는 절대 핀. Stockfish 베스트가 핀이었는데 안 뒀으면 "놓침". <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록을 확인할 수 있습니다</span></div>
+
+    <div class="stats-section-title">🔭 스큐어 · 발견 체크</div>
+    <div class="fvm-section">${skewDiscHtml || '<div class="stats-note" style="padding:12px 0">스큐어·발견 체크 데이터 없음</div>'}</div>
+    <div class="stats-note">※ 스큐어: 비숍·룩·퀸이 약한 적 기물 앞에 더 값비싼 적 기물이 있는 직선 패턴입니다. 발견 체크: 말을 도착 칸에서 제거해도 상대에게 체크가 남는 경우입니다. 포크와 겹치면 포크만 집계합니다. <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록</span></div>
+    <div class="stats-note" style="margin-top:4px;color:var(--text-muted)">데스페라도, 기물 과부하, X-ray, 간섭·방해, 추크츠방, 사잇수(Zwischenzug), 오포지션, 정리 희생, 트래핑·트랩, 속임수 등은 포크·핀·스큐어 등과 신호가 겹쳐 자동 통계에서 안정적으로 구별하기 어려워 제외했습니다.</div>
 
     ${renderOpeningStats(s.openingStats || [])}
 
@@ -3617,7 +3732,7 @@
         // [3] 공통 로직으로 분석
         const analysisResult = processLichessPgn(annotatedPgn, _viewMyColor);
 
-        const _lichessThemeToType = { Fork: 'fork', AbsPin: 'absPin', RelPin: 'relPin' };
+        const _lichessThemeToType = { Fork: 'fork', AbsPin: 'absPin', RelPin: 'relPin', Skewer: 'skewer', Discovered: 'discovered' };
         const tacticEventsNormalized = (analysisResult.tacticEvents || []).map(function (ev) {
           if (ev.themes && Array.isArray(ev.themes) && ev.moveIdx != null) {
             let t = 'fork';
