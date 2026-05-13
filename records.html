@@ -3430,19 +3430,8 @@
       </div></div>
     </div>
 
-    <div class="stats-section-title">⚠️ 수 분류 (chess.com Expected Points 방식)</div>
+    <div class="stats-section-title">⚠️ 수 분류 결과 (Delta 기반)</div>
     <div class="key-grid">
-      <!-- 긍정 분류 -->
-      <div class="key-card good"><div class="key-card-icon">⭐</div><div class="key-card-body">
-        <div class="key-card-name">내 최선/훌륭</div><div class="key-card-num">${s.myBest || 0}</div>
-        <div class="key-card-sub">Best · Excellent · EP 손실 ≤0.02</div>
-      </div></div>
-      <div class="key-card"><div class="key-card-icon">👍</div><div class="key-card-body">
-        <div class="key-card-name">내 좋은 수</div><div class="key-card-num">${s.myGood || 0}</div>
-        <div class="key-card-sub">Good · EP 손실 0.02~0.05</div>
-      </div></div>
-    </div>
-    <div class="key-grid" style="margin-top:6px">
     <!-- 내 분류 -->
       <div class="key-card danger" onclick="openJudgmentModal('myBlunder', '내 블런더', '??', '블런더')"><div class="key-card-body">
         <div class="key-card-name">내 블런더 ??</div><div class="key-card-num">${s.myBlunders}</div>
