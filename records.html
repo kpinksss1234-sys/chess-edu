@@ -1953,58 +1953,109 @@
     const PIN_MIN_PINNED_VALUE = 320;
     const RELATIVE_PIN_SHIELD_MIN = 330;
 
-    // ── 수 분류 및 승률 계산 (gameAnalyzer.js / chess.com Expected Points 방식) ──
-    // cpToExpectedPoints: 센티폰 → 예상 점수(승률) 0.0–1.0
-    // classifyMoveEP: EP 손실 기반 분류 (레포 classifyMove 동일 임계값)
-    // gameAccuracy: 조화평균 기반 게임 정확도 0–100
+    // ── 리체스와 동일한 수 판정 (클라이언트 전용, PGN %judgment·API 불필요) ──
+    // winningChances / WinPercent: scalachess core/src/main/scala/eval.scala
+    // CpAdvice 임계값: lila modules/tree/src/main/Advice.scala (0.1 / 0.2 / 0.3 on wc)
+    // 수별 Accuracy%: lila modules/analyse/src/main/AccuracyPercent.scala (raw + 1)
 
-    /** cp → WinPercent (0–100%). 공식: 1 / (1 + 10^(-(cp-10)/400)) */
-    function cpToWinPercent(cp) {
-      const adjustedCp = cp;
-      return (1 / (1 + Math.pow(10, -adjustedCp / 400))) * 100;
+    const LICHESS_WC_MULT = -0.00368208;
+    const LICHESS_CP_CEIL = 1000;
+
+    /** 엔진 cp(백 기준 white POV) → ±1000 클램프 (메이트 ±9900 → ±1000, scalachess ceiled와 동일 취지) */
+    function lichessCeiledWhiteCp(cp) {
+      let v = Number(cp) || 0;
+      if (Math.abs(v) >= 9000) v = Math.sign(v) * LICHESS_CP_CEIL;
+      return Math.max(-LICHESS_CP_CEIL, Math.min(LICHESS_CP_CEIL, v));
+    }
+
+    /** 엔진 cp(white POV) → winning chances [-1, 1] */
+    function lichessWinningChancesWhitePov(cpWhite) {
+      const x = lichessCeiledWhiteCp(cpWhite);
+      const raw = 2 / (1 + Math.exp(LICHESS_WC_MULT * x)) - 1;
+      return Math.max(-1, Math.min(1, raw));
+    }
+
+    /** 엔진 cp(white POV) → Win% [0, 100] (= 50 + 50 * wc) */
+    function lichessWinPercentFromWhitePov(cpWhite) {
+      return 50 + 50 * lichessWinningChancesWhitePov(cpWhite);
+    }
+
+    /** 말을 둔 쪽 관점 Win% (수 직전·직후 FEN의 cpFromWhite로 계산) */
+    function lichessWinPercentForMover(cpWhite, mover) {
+      const w = lichessWinPercentFromWhitePov(cpWhite);
+      return mover === 'w' ? w : (100 - w);
     }
 
     /**
-     * 수 정확도 (Lichess 공식, 0–100).
-     * winPctBefore/After: 0–100 스케일.
+     * lila.tree.CpAdvice와 동일: cpBefore/cpAfter = 백 기준 센티폰, mover = 방금 둔 색.
+     * @returns {'inaccuracy'|'mistake'|'blunder'|null}
      */
-    function moveAccuracy(winPctBefore, winPctAfter) {
-      const drop = winPctBefore - winPctAfter;
-      const acc = 103.1668 * Math.exp(-0.04354 * Math.max(0, drop)) - 3.1669;
-      return Math.max(0, Math.min(100, acc));
+    function lichessCpAdviceJudgment(cpBeforeWhite, cpAfterWhite, mover) {
+      const wcPrev = lichessWinningChancesWhitePov(cpBeforeWhite);
+      const wcCur = lichessWinningChancesWhitePov(cpAfterWhite);
+      const dRaw = wcCur - wcPrev;
+      const delta = mover === 'w' ? -dRaw : dRaw;
+      const tiers = [[0.3, 'blunder'], [0.2, 'mistake'], [0.1, 'inaccuracy']];
+      for (let ti = 0; ti < tiers.length; ti++) {
+        if (tiers[ti][0] <= delta) return tiers[ti][1];
+      }
+      return null;
+    }
+
+    /** 한 수의 Accuracy% (리체스 AccuracyPercent.fromWinPercents, Win%는 말을 둔 쪽 기준) */
+    function lichessMoveAccuracyPercent(wpBefore, wpAfter) {
+      if (wpAfter >= wpBefore) return 100;
+      const winDiff = wpBefore - wpAfter;
+      const raw = 103.1668100711649 * Math.exp(-0.04354415386753951 * winDiff) + -3.166924740191411;
+      return Math.max(0, Math.min(100, raw + 1));
     }
 
     /**
-     * 게임 정확도: 조화평균 (나쁜 수에 더 큰 가중치).
-     * evalRows: [{cpw}, …] (ply 0 = 초기국면)
+     * 게임 정확도: 내 수만 조화평균 (리체스는 추가로 창·가중이 있으나, 수식은 동일 계열).
+     * evalRows: [{cpw}, …]
      */
     function gameAccuracyFromEvals(evalRows, myColor) {
       let sumReciprocal = 0, count = 0;
       for (let ply = 1; ply < evalRows.length; ply++) {
         const isWhiteMove = ply % 2 === 1;
+        const mover = isWhiteMove ? 'w' : 'b';
         const isMe = (isWhiteMove && myColor === 'w') || (!isWhiteMove && myColor === 'b');
         if (!isMe) continue;
         const cpB = evalRows[ply - 1].cpw, cpA = evalRows[ply].cpw;
-        const wpB = isWhiteMove ? cpToWinPercent(cpB) : cpToWinPercent(-cpB);
-        const wpA = isWhiteMove ? cpToWinPercent(cpA) : cpToWinPercent(-cpA);
-        const acc = moveAccuracy(wpB, wpA);
+        const wpB = lichessWinPercentForMover(cpB, mover);
+        const wpA = lichessWinPercentForMover(cpA, mover);
+        const acc = lichessMoveAccuracyPercent(wpB, wpA);
         if (acc > 0) { sumReciprocal += 1 / acc; count++; }
       }
       return count === 0 ? 0 : Math.round(count / sumReciprocal);
     }
 
     /**
-     * 승률 하락폭(Delta) 기반 수 분류.
-     * winPctBefore, winPctAfter: 0–100 스케일.
+     * 내 색 (w|b). Firestore myColor 우선, 없으면 PGN [White]/[Black]과 playerName·로그인 표시명 매칭.
+     * 잘못되면 내 수 집계·정확도·ACPL이 전부 어긋납니다.
      */
-    function classifyMoveByDelta(winPctBefore, winPctAfter, isBestMove, isForced) {
-      if (isForced)       return 'forced';
-      if (isBestMove)     return 'best';
-      const delta = winPctBefore - winPctAfter;
-      if (delta >= 30) return 'blunder';
-      if (delta >= 20) return 'mistake';
-      if (delta >= 10) return 'inaccuracy';
-      return 'good';
+    function resolveMyColor(doc) {
+      const c = doc && doc.myColor;
+      if (c === 'w' || c === 'b') return c;
+      const pgn = (doc && doc.pgn) || '';
+      const wm = pgn.match(/\[White\s+"([^"]*)"\]/i);
+      const bm = pgn.match(/\[Black\s+"([^"]*)"\]/i);
+      const pn = ((doc && doc.playerName) || '').trim();
+      if (wm && bm && pn) {
+        const wn = wm[1].trim();
+        const bn = bm[1].trim();
+        if (pn === wn) return 'w';
+        if (pn === bn) return 'b';
+      }
+      if (typeof _user !== 'undefined' && _user) {
+        const dn = (_user.displayName || (_user.email && _user.email.split('@')[0]) || '').trim();
+        if (wm && bm && dn) {
+          if (dn === wm[1].trim()) return 'w';
+          if (dn === bm[1].trim()) return 'b';
+        }
+      }
+      console.warn('[records] myColor 없음 — PGN 헤더와도 불일치, 백(w)으로 가정:', doc && doc.id);
+      return 'w';
     }
 
     // ── 전술 감지 (chess-tactics.js 로직 이식) ──────────────────────────────────
@@ -2168,7 +2219,7 @@
       return isInCheck(b2, opp);
     }
 
-    // (수 평가 함수: cpToExpectedPoints / classifyMoveEP / gameAccuracyFromEvals — 위에 정의됨)
+    // (수 판정: lichessCpAdviceJudgment / 게임 정확도: gameAccuracyFromEvals — 위에 정의됨)
 
         // ── 보드 및 PGN 유틸리티 (chess-engine.js 기능 이식 및 현대화) ──────────────
 
@@ -2437,10 +2488,9 @@
     window.__RECORDS_CONSTS__ = { SF_DEPTH, SF_MULTIPV, FORK_CP_GAIN };
 
     /**
-     * 순수 PGN을 Stockfish로 포지션별 분석 (레포 gameAnalyzer.js 방식).
-     * chess.com Expected Points 모델: cpToExpectedPoints + classifyMoveEP
-     * 분류: best / excellent / good / inaccuracy / mistake / blunder / forced
-     * 게임 정확도: moveAccuracy + gameAccuracyFromEvals (조화평균)
+     * 순수 PGN을 Stockfish로 포지션별 분석.
+     * 수 분류: 리체스 lila.tree.CpAdvice와 동일 (winningChances Δ, 임계 0.1/0.2/0.3).
+     * 게임 정확도: 리체스 AccuracyPercent 수식 기반 조화평균(내 수만).
      */
     async function analyzeGame(pgn, myColor, onProgress) {
       const report = typeof onProgress === 'function' ? onProgress : () => {};
@@ -2476,7 +2526,7 @@
 
       const workerObj = { worker: workerRaw, busy: false };
       const movetime = 900;
-      const multipv = 1; // EP 방식은 best move 1개만 필요
+      const multipv = 1; // 수 분류는 루트 PV 평가만 사용 (CpAdvice와 동일 구조)
       const evalRows = [];
 
       try {
@@ -2514,30 +2564,25 @@
         const san = states[i].san || '';
         const move = states[i].move;
         const isMe = (mover === myColor);
-        const isWhiteMove = (mover === 'w');
         const cpBefore = evalRows[i - 1].cpw;
         const cpAfter = evalRows[i].cpw;
         const bestUci = evalRows[i - 1].bestUci;
         const playedUci = move ? (moveToUci(move) || '').toLowerCase() : '';
 
-        // ── 승률 기반 수 분류
-        const wpB = isWhiteMove ? cpToWinPercent(cpBefore) : cpToWinPercent(-cpBefore);
-        const wpA = isWhiteMove ? cpToWinPercent(cpAfter) : cpToWinPercent(-cpAfter);
-        const cls = classifyMoveByDelta(wpB, wpA);
-        
-        // ── 수 분류 및 저장 (상대/나 구분)
-        const judgmentTag = (isMe ? 'my' : 'opp') + cls.charAt(0).toUpperCase() + cls.slice(1);
+        const bad = lichessCpAdviceJudgment(cpBefore, cpAfter, mover);
+        const judgmentTag = bad
+          ? ((isMe ? 'my' : 'opp') + bad.charAt(0).toUpperCase() + bad.slice(1))
+          : null;
         result.moveJudgments.push(judgmentTag);
 
-        // ── 수 분류 집계
         if (isMe) {
-          if (cls === 'inaccuracy') result.myInaccuracies++;
-          else if (cls === 'mistake')    result.myMistakes++;
-          else if (cls === 'blunder')    result.myBlunders++;
+          if (bad === 'inaccuracy') result.myInaccuracies++;
+          else if (bad === 'mistake') result.myMistakes++;
+          else if (bad === 'blunder') result.myBlunders++;
         } else {
-          if (cls === 'inaccuracy') result.oppInaccuracies++;
-          else if (cls === 'mistake')   result.oppMistakes++;
-          else if (cls === 'blunder')   result.oppBlunders++;
+          if (bad === 'inaccuracy') result.oppInaccuracies++;
+          else if (bad === 'mistake') result.oppMistakes++;
+          else if (bad === 'blunder') result.oppBlunders++;
         }
 
         // ── ACPL 누적 (나의 수만)
@@ -2709,7 +2754,7 @@
         listEl.innerHTML = '';
         docs.forEach(doc => {
           const item = document.createElement('div'); item.className = 'record-item'; item.dataset.id = doc.id;
-          const myColor = doc.myColor || 'w', result = doc.result || '*';
+          const myColor = resolveMyColor(doc), result = doc.result || '*';
           let badge = '🤝', badgeClass = 'draw', label = '무승부';
           if (result === '1-0') { badge = myColor === 'w' ? 'W' : 'L'; badgeClass = myColor === 'w' ? 'win' : 'lose'; label = myColor === 'w' ? '승리' : '패배'; }
           if (result === '0-1') { badge = myColor === 'b' ? 'W' : 'L'; badgeClass = myColor === 'b' ? 'win' : 'lose'; label = myColor === 'b' ? '승리' : '패배'; }
@@ -2736,7 +2781,7 @@
     function openRecord(doc, itemEl) {
       document.querySelectorAll('.record-item').forEach(i => i.classList.remove('active'));
       itemEl.classList.add('active');
-      _currentRecord = doc; _viewMyColor = doc.myColor || 'w';
+      _currentRecord = doc; _viewMyColor = resolveMyColor(doc);
       if (!doc.pgn) { showToast('기보 데이터가 없습니다'); return; }
       _states = parsePgnToStates(doc.pgn);
       if (!_states.length) { showToast('기보 파싱 실패'); return; }
@@ -2764,8 +2809,7 @@
       renderViewerBoard();
 
       if (typeof resetLichessPanel === 'function') resetLichessPanel();
-      // 캐시된 결과가 있으면 통계 UI에 미리 표시
-      if (doc.tacticAnalysis && doc.tacticAnalysis.moveJudgments) {
+      if (doc.tacticAnalysis && doc.tacticAnalysis.moveJudgments && typeof showLichessStatsUI === 'function') {
         showLichessStatsUI(doc.tacticAnalysis);
       }
       const myName = _viewMyColor === 'w' ? (doc.whiteName || '나') : (doc.blackName || '나');
@@ -2980,7 +3024,7 @@
 
       for (let gi = 0; gi < docs.length; gi++) {
         const doc = docs[gi];
-        const myColor = doc.myColor || 'w', result = doc.result || '*';
+        const myColor = resolveMyColor(doc), result = doc.result || '*';
         myColor_counts[myColor]++;
         const myWin = (result === '1-0' && myColor === 'w') || (result === '0-1' && myColor === 'b');
         const myLose = (result === '0-1' && myColor === 'w') || (result === '1-0' && myColor === 'b');
@@ -3013,11 +3057,11 @@
 
         if (!doc.pgn) { if (doc.moveCount) totalMovesSum += doc.moveCount; continue; }
 
-        // ── Stockfish 분석 (항상 새로, EP 방식)
+        // ── Stockfish 분석 (리체스 CpAdvice와 동일한 wc·임계값으로 수 분류)
         const pct = Math.round(gi / total * 100);
         contentEl.innerHTML = `<div class="stats-loading"><div class="stats-spinner"></div><div class="stats-progress-wrap">
       <div style="font-size:13px;color:var(--text-secondary)">Stockfish 분석 중… (${gi + 1} / ${total})</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">깊이 ${__RC.SF_DEPTH} · Expected Points 방식</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">깊이 ${__RC.SF_DEPTH} · 수 분류 = 리체스 CpAdvice(winningChances)</div>
       <div class="stats-progress-bar-outer"><div class="stats-progress-bar-fill" style="width:${pct}%"></div></div>
       <div class="stats-progress-label">포지션 분석 중…</div>
     </div></div>`;
@@ -3069,9 +3113,10 @@
                 moveNum: ev.moveNum || 0, san: ev.san || '',
                 plyIdx: ev.plyIdx || 0, bestMove: ev.bestMove || null
               })),
+              moveJudgments: a.moveJudgments || [],
               analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
               sfDepth: __RC.SF_DEPTH,
-              analysisVersion: 3  // EP 방식 v3
+              analysisVersion: 4  // 리체스 wc + CpAdvice 클라이언트 (PGN %judgment 불사용)
             };
             await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
           } catch (saveErr) { console.warn('[stats] 저장 실패:', saveErr); }
@@ -3103,7 +3148,7 @@
         openingStats: Array.from(openingStatsMap.values())
           .sort((a, b) => (b.w.total + b.b.total) - (a.w.total + a.b.total))
       };
-      subEl.textContent = `총 ${total}게임 · Stockfish EP 분석 (${newlyAnalyzedCount}게임)`;
+      subEl.textContent = `총 ${total}게임 · Stockfish + 리체스 CpAdvice 동일 로직 (${newlyAnalyzedCount}게임 신규 분석)`;
       renderStatsHTML(_statsCache);
     }
 
@@ -3137,7 +3182,7 @@
       let html = '';
       for (const gd of matchingGames) {
         const doc = gd.doc;
-        const myColor = doc.myColor || 'w', result = doc.result || '*';
+        const myColor = resolveMyColor(doc), result = doc.result || '*';
         const myWin = (result === '1-0' && myColor === 'w') || (result === '0-1' && myColor === 'b');
         const myLose = (result === '0-1' && myColor === 'w') || (result === '1-0' && myColor === 'b');
         const resLabel = myWin ? '승리' : myLose ? '패배' : '무승부';
@@ -3203,7 +3248,7 @@
       let html = '';
       for (const gd of matchingGames) {
         const doc = gd.doc;
-        const myColor = doc.myColor || 'w', result = doc.result || '*';
+        const myColor = resolveMyColor(doc), result = doc.result || '*';
         const myWin = (result === '1-0' && myColor === 'w') || (result === '0-1' && myColor === 'b');
         const myLose = (result === '0-1' && myColor === 'w') || (result === '1-0' && myColor === 'b');
         const resLabel = myWin ? '승리' : myLose ? '패배' : '무승부';
@@ -3411,7 +3456,7 @@
       </div>
     </div>
 
-    <div class="stats-section-title">🎯 수 정확도 (Stockfish 깊이 ${__RC.SF_DEPTH} · EP 방식)</div>
+    <div class="stats-section-title">🎯 수 정확도 (Stockfish 깊이 ${__RC.SF_DEPTH} · 리체스 Accuracy%식)</div>
     <div class="key-grid">
       <div class="key-card"><div class="key-card-icon">🎯</div><div class="key-card-body">
         <div class="key-card-name">게임 정확도</div>
