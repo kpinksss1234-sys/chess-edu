@@ -5049,15 +5049,15 @@
     /**
      * 게임 정확도: 내 수만 조화평균.
      * evalRows: [{cpw}, …] (fens[0] 포함, fens 배열과 같은 길이)
+     * movers: evalRows[i] 를 두기 전 차례 플레이어 배열 (game.history[i].turn 기반)
      */
-    function _gameAccuracyFromEvals(evalRows, myColor) {
+    function _gameAccuracyFromEvals(evalRows, myColor, movers) {
       let sumReciprocal = 0, count = 0;
-      for (let ply = 1; ply < evalRows.length; ply++) {
-        const isWhiteMove = ply % 2 === 1;
-        const mover = isWhiteMove ? 'w' : 'b';
-        const isMe = (isWhiteMove && myColor === 'w') || (!isWhiteMove && myColor === 'b');
+      for (let i = 0; i < (evalRows.length - 1); i++) {
+        const mover = movers ? movers[i] : (i % 2 === 0 ? 'w' : 'b');
+        const isMe = mover === myColor;
         if (!isMe) continue;
-        const cpB = evalRows[ply - 1].cpw, cpA = evalRows[ply].cpw;
+        const cpB = evalRows[i].cpw, cpA = evalRows[i + 1].cpw;
         const wpB = _lichessWinPercentForMover(cpB, mover);
         const wpA = _lichessWinPercentForMover(cpA, mover);
         const acc = _lichessMoveAccuracyPercent(wpB, wpA);
@@ -5155,7 +5155,9 @@
       }
 
       // ── 게임 정확도 (records.html 의 gameAccuracyFromEvals 와 동일 방식) ──
-      const myAccuracy = _gameAccuracyFromEvals(evalRows, myColor);
+      // movers[i] = evalRows[i]→[i+1] 구간을 둔 플레이어 = game.history[i].turn
+      const movers = game.history.map(h => h.turn);
+      const myAccuracy = _gameAccuracyFromEvals(evalRows, myColor, movers);
 
       // ── 수별 분류 및 annotation 적용 ──
       let myBlunders = 0, myMistakes = 0, myInaccuracies = 0;
@@ -5163,7 +5165,7 @@
 
       for (let i = 0; i < game.history.length; i++) {
         if (i + 1 >= evalRows.length) break;
-        const mover = game.history[i].turn; // 'w' or 'b'
+        const mover = movers[i]; // game.history[i].turn — records.html 의 states[i-1].turn 과 동일
         const isMe = mover === myColor;
 
         const cpB = evalRows[i].cpw;
