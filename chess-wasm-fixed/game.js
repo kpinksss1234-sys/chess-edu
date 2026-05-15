@@ -102,7 +102,10 @@ class ChessGame {
     if (move.from[0]===0&&move.from[1]===7) castAfter.bK=false;
     if (move.from[0]===0&&move.from[1]===0) castAfter.bQ=false;
     const epAfter = move.doublePush ? [move.to[0]-(this.turn==='w'?-1:1), move.to[1]] : null;
-    const hmAfter = this.halfMove + 1;
+    const movingPiece = this.board[move.from[0]][move.from[1]];
+    const isCapture = !!this.board[move.to[0]][move.to[1]] || !!move.enPassant;
+    const isPawnMove = movingPiece && movingPiece[1] === 'P';
+    const hmAfter = (isPawnMove || isCapture) ? 0 : this.halfMove + 1;
     const fmAfter = this.turn === 'b' ? this.fullMove + 1 : this.fullMove;
     const fenAfter = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, hmAfter, fmAfter);
 
@@ -135,7 +138,10 @@ class ChessGame {
 
     this.enPassant = move.doublePush ? [move.to[0]-(this.turn==='w'?-1:1), move.to[1]] : null;
     if (this.turn==='b') this.fullMove++;
-    this.halfMove++;
+    const _movingPiece0 = this.board[move.to[0]][move.to[1]]; // applyMoveToBoard 후이므로 이미 이동됨
+    // halfMove 리셋: 폰 이동 또는 기물 잡기 → 0, 그 외 → +1
+    // movingPiece는 위에서 구한 값(applyMove 전) 재사용
+    if (isPawnMove || isCapture) { this.halfMove = 0; } else { this.halfMove++; }
     this.turn = enemyColor(this.turn);
     this.lastMove = move;
     this.selectedSq = null;
@@ -690,7 +696,11 @@ class ChessGame {
     if (move.from[0]===0&&move.from[1]===7) castAfter.bK=false;
     if (move.from[0]===0&&move.from[1]===0) castAfter.bQ=false;
     const epAfter = move.doublePush ? [move.to[0]-(turn==='w'?-1:1), move.to[1]] : null;
-    const fenAfter = boardToFen(boardAfter, turn==='w'?'b':'w', castAfter, epAfter, halfMove, fullMove);
+    const _svMovingPiece = board[move.from[0]][move.from[1]];
+    const _svIsCapture = !!board[move.to[0]][move.to[1]] || !!move.enPassant;
+    const _svIsPawn = _svMovingPiece && _svMovingPiece[1] === 'P';
+    const hmAfterSV = (_svIsPawn || _svIsCapture) ? 0 : halfMove;
+    const fenAfter = boardToFen(boardAfter, turn==='w'?'b':'w', castAfter, epAfter, hmAfterSV, fullMove);
 
     const varState = {
       // board 제거 — fenBefore/fenAfter로 복원 가능 (메모리 절감)
@@ -714,7 +724,7 @@ class ChessGame {
     this.castling = castAfter;
     this.enPassant = epAfter;
     if (turn==='b') this.fullMove++;
-    this.halfMove++;
+    if (_svIsPawn || _svIsCapture) { this.halfMove = 0; } else { this.halfMove++; }
     this.lastMove = move;
     this.selectedSq = null;
     this.possibleMoves = [];
@@ -755,7 +765,11 @@ class ChessGame {
     if (move.from[0]===0&&move.from[1]===0) castAfter.bQ=false;
     const epAfter = move.doublePush ? [move.to[0]-(this.turn==='w'?-1:1), move.to[1]] : null;
     const fmAfter = this.turn==='b' ? this.fullMove+1 : this.fullMove;
-    const fenAfter = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, this.halfMove+1, fmAfter);
+    const _avMovingPiece = this.board[move.from[0]][move.from[1]];
+    const _avIsCapture = !!this.board[move.to[0]][move.to[1]] || !!move.enPassant;
+    const _avIsPawn = _avMovingPiece && _avMovingPiece[1] === 'P';
+    const hmAfterAV = (_avIsPawn || _avIsCapture) ? 0 : this.halfMove + 1;
+    const fenAfter = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, hmAfterAV, fmAfter);
 
     const varState = {
       // board 제거 — fenBefore/fenAfter로 복원 가능 (메모리 절감)
@@ -777,7 +791,7 @@ class ChessGame {
     this.castling = castAfter;
     this.enPassant = epAfter;
     if (this.turn==='w') this.fullMove++;
-    this.halfMove++;
+    if (_avIsPawn || _avIsCapture) { this.halfMove = 0; } else { this.halfMove++; }
     this.lastMove = move;
     this.selectedSq = null;
     this.possibleMoves = [];
@@ -819,10 +833,14 @@ class ChessGame {
     if (move.from[0]===0&&move.from[1]===0) castAfter.bQ=false;
     const epAfter = move.doublePush ? [move.to[0]-(this.turn==='w'?-1:1), move.to[1]] : null;
     const fmAfter = this.turn==='b' ? this.fullMove+1 : this.fullMove;
+    const _emMovingPiece = this.board[move.from[0]][move.from[1]];
+    const _emIsCapture = !!this.board[move.to[0]][move.to[1]] || !!move.enPassant;
+    const _emIsPawn = _emMovingPiece && _emMovingPiece[1] === 'P';
+    const hmAfterEM = (_emIsPawn || _emIsCapture) ? 0 : this.halfMove + 1;
 
     // board/boardAfter 대신 FEN 저장 (메모리 절감: 8×8 배열 2개 → 문자열 2개)
     const emFenBefore = boardToFen(this.board, this.turn, this.castling, this.enPassant, this.halfMove, this.fullMove);
-    const emFenAfter  = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, this.halfMove+1, fmAfter);
+    const emFenAfter  = boardToFen(boardAfter, this.turn==='w'?'b':'w', castAfter, epAfter, hmAfterEM, fmAfter);
     lineData.extraMoves.push({
       san, move, turn: this.turn,
       captured: this.board[move.to[0]][move.to[1]] || (move.enPassant ? 'ep' : null),
@@ -838,7 +856,7 @@ class ChessGame {
     this.turn = this.turn === 'w' ? 'b' : 'w';
     this.castling = castAfter;
     this.enPassant = epAfter;
-    this.halfMove++;
+    if (_emIsPawn || _emIsCapture) { this.halfMove = 0; } else { this.halfMove++; }
     if (this.turn==='w') this.fullMove++;
     this.lastMove = move;
     this.selectedSq = null;
@@ -1194,10 +1212,14 @@ class ChessGame {
       if (matched.from[0]===0&&matched.from[1]===0) castAfter.bQ=false;
       const epAfter = matched.doublePush ? [matched.to[0]-(curTurn==='w'?-1:1), matched.to[1]] : null;
       const fmAfter = curTurn==='b' ? curFM+1 : curFM;
+      const _pgMovingPiece = curBoard[matched.from[0]][matched.from[1]];
+      const _pgIsCapture = !!curBoard[matched.to[0]][matched.to[1]] || !!matched.enPassant;
+      const _pgIsPawn = _pgMovingPiece && _pgMovingPiece[1] === 'P';
+      const hmAfterPG = (_pgIsPawn || _pgIsCapture) ? 0 : curHM + 1;
       states.push({
         board: boardAfter, turn: curTurn==='w'?'b':'w',
         castling: castAfter, enPassant: epAfter,
-        halfMove: curHM+1, fullMove: fmAfter, lastMove: matched,
+        halfMove: hmAfterPG, fullMove: fmAfter, lastMove: matched,
         // ★ 사운드 재생용: 착수 전 보드/턴/캡처 저장
         boardBefore: curBoard.map(r=>[...r]),
         turnBefore: curTurn,
@@ -1207,7 +1229,7 @@ class ChessGame {
       curTurn = curTurn==='w'?'b':'w';
       curCast = castAfter;
       curEP = epAfter;
-      curHM++;
+      curHM = hmAfterPG;
       if (curTurn==='w') curFM++;
     }
 
