@@ -3262,13 +3262,18 @@ function openInAnalysis() {
   try {
     var fen = null;
 
-    // state.currentPuzzle에서 FEN 가져오기
-    if (state && state.currentPuzzle) {
+    // 1순위: 현재 진행 중인 보드 상태 (_legalChess 에 solution 수가 반영돼 있음)
+    if (state && state._legalChess && typeof state._legalChess.fen === 'function') {
+      fen = state._legalChess.fen();
+    }
+
+    // 2순위: state.currentPuzzle 초기 FEN (퍼즐 시작 전이거나 _legalChess 없을 때)
+    if (!fen && state && state.currentPuzzle) {
       var p = state.currentPuzzle;
       fen = p.fen || p.startFen || p.initialFen || null;
     }
 
-    // fallback: puzzles 배열에서
+    // 3순위: puzzles 배열에서
     if (!fen && state && state.puzzles && typeof state.currentPuzzleIdx === 'number') {
       var pz = state.puzzles[state.currentPuzzleIdx];
       if (pz) fen = pz.fen || pz.startFen || null;
