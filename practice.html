@@ -128,7 +128,7 @@ body {
 }
 .player-info {
   display: flex; align-items: center; gap: 10px;
-  width: 100%; max-width: 520px; padding: 8px 0;
+  width: 100%; max-width: 640px; padding: 8px 0;
 }
 .player-avatar {
   width: 36px; height: 36px; border-radius: 50%;
@@ -152,9 +152,9 @@ body {
 .captured-pieces { flex: 1; display: flex; flex-wrap: wrap; gap: 1px; align-items: center; font-size: 14px; }
 .captured-pieces img { width: 18px; height: 18px; }
 
-#eval-container { display: flex; align-items: stretch; gap: 8px; width: 100%; max-width: 540px; }
+#eval-container { display: flex; align-items: stretch; gap: 8px; width: 100%; max-width: 660px; }
 #eval-bar-wrap {
-  width: 20px; height: min(80vmin, 520px);
+  width: 20px; height: min(88vmin, 640px);
   background: #2a2a2a; border-radius: 6px; overflow: visible;
   border: 1px solid var(--border); flex-shrink: 0; position: relative;
 }
@@ -181,8 +181,8 @@ body {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
-  width: min(80vmin, 520px);
-  height: min(80vmin, 520px);
+  width: min(88vmin, 640px);
+  height: min(88vmin, 640px);
   border: 2px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
@@ -226,7 +226,7 @@ body {
 
 #board-controls {
   display: flex; align-items: center; gap: 6px;
-  width: 100%; max-width: 520px; padding: 10px 0 4px;
+  width: 100%; max-width: 640px; padding: 10px 0 4px;
 }
 .ctrl-btn {
   width: 36px; height: 36px; border-radius: 8px;
@@ -527,6 +527,70 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 }
 
 
+/* ── 힌트 버튼 & 패널 (비활성 - 참조용) ── */
+#hint-toggle-btn { display: none; }
+#hint-panel { display: none; }
+
+/* ── 기물 편집 모드 ── */
+#piece-editor-bar {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  background: rgba(80,144,208,0.07);
+  border: 1px solid rgba(80,144,208,0.25);
+  border-radius: 8px;
+}
+#piece-editor-bar.visible { display: flex; }
+.editor-label {
+  font-size: 10px; font-weight: 700; color: #7eb8e8;
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.editor-piece-palette {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.palette-piece {
+  width: 36px; height: 36px;
+  border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s; position: relative;
+}
+.palette-piece:hover { border-color: #5090d0; background: rgba(80,144,208,0.15); }
+.palette-piece.selected { border-color: #5090d0; background: rgba(80,144,208,0.3); box-shadow: 0 0 0 2px rgba(80,144,208,0.5); }
+.palette-piece img { width: 28px; height: 28px; object-fit: contain; }
+.palette-erase {
+  width: 36px; height: 36px;
+  border-radius: 6px; border: 1px solid rgba(192,64,64,0.4);
+  background: rgba(192,64,64,0.1);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 16px; transition: all 0.15s;
+  color: #e07070;
+}
+.palette-erase:hover, .palette-erase.selected { background: rgba(192,64,64,0.25); border-color: #c04040; }
+.editor-turn-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text-secondary);
+}
+.editor-turn-btn {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-tertiary); color: var(--text-secondary);
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  font-family: var(--font-main); transition: all 0.15s;
+}
+.editor-turn-btn.active-w { border-color: #ddd; background: rgba(240,240,240,0.15); color: #eee; }
+.editor-turn-btn.active-b { border-color: #666; background: rgba(80,80,80,0.3); color: #aaa; }
+.editor-done-btn {
+  padding: 6px 14px; border-radius: 7px; border: none;
+  background: var(--accent-green-dark); color: #fff;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  font-family: var(--font-main); margin-left: auto;
+}
+.editor-done-btn:hover { background: var(--accent-green); }
+#chessboard.edit-mode .square { cursor: crosshair !important; }
+#chessboard.edit-mode .square:hover { outline: 2px solid rgba(80,144,208,0.7); outline-offset: -2px; }
+
 /* ── 우클릭 화살표 오버레이 ── */
 .board-arrow-overlay {
   position: absolute;
@@ -660,6 +724,9 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
       <button class="ctrl-btn" onclick="practiceNewGame()" title="같은 조건으로 새 게임">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
       </button>
+      <button class="ctrl-btn" id="edit-mode-btn" onclick="togglePieceEditor()" title="기물 편집 모드" style="border-color:rgba(80,144,208,0.4);color:#7eb8e8;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      </button>
     </div>
   </div>
 
@@ -680,14 +747,29 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
       </div>
       <button type="button" class="btn-newgame" id="practice-new-game">이 단계로 새 게임</button>
 
-      <button type="button" id="hint-toggle-btn" title="힌트 보기" onclick="toggleHintPanel()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
-        💡 힌트 보기
-      </button>
-      <div id="hint-panel">
-        <div id="hint-content"></div>
+      <!-- 기물 편집 패널 -->
+      <div id="piece-editor-bar">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="editor-label">✏️ 편집 모드</span>
+          <span style="font-size:10px;color:var(--text-muted);">클릭: 배치 | 우클릭: 삭제</span>
+          <button class="editor-done-btn" onclick="togglePieceEditor()">✓ 완료</button>
+        </div>
+        <div>
+          <div class="editor-label" style="margin-bottom:4px;">백 기물</div>
+          <div class="editor-piece-palette" id="palette-white"></div>
+        </div>
+        <div>
+          <div class="editor-label" style="margin-bottom:4px;">흑 기물</div>
+          <div class="editor-piece-palette" id="palette-black"></div>
+        </div>
+        <div class="editor-turn-row">
+          <span>차례:</span>
+          <button class="editor-turn-btn" id="turn-btn-w" onclick="setEditorTurn('w')">⬜ 백</button>
+          <button class="editor-turn-btn" id="turn-btn-b" onclick="setEditorTurn('b')">⬛ 흑</button>
+          <div class="palette-erase" id="erase-btn" onclick="selectEraseMode()" title="기물 삭제">🗑</div>
+        </div>
       </div>
-    </div>
+    </div><!-- /practice-panel-header -->
 
     <div id="analysis-panel">
       <div class="analysis-header">
@@ -932,6 +1014,184 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
   } else {
     attachEvents();
   }
+})();
+</script>
+<script>
+// ══════════════════════════════════════════════════════
+//  기물 편집 모드
+// ══════════════════════════════════════════════════════
+(function() {
+  const PIECE_IMGS = 'https://lichess1.org/assets/piece/cburnett/';
+  const PIECES = ['K','Q','R','B','N','P'];
+  const LABELS = {K:'킹',Q:'퀸',R:'룩',B:'비숍',N:'나이트',P:'폰'};
+
+  let _editMode = false;
+  let _selectedPiece = null; // {color:'w'|'b', type:'K'|'Q'|...} or 'erase'
+
+  function pieceImgSrc(color, type) {
+    return PIECE_IMGS + (color === 'w' ? 'w' : 'b') + type + '.svg';
+  }
+
+  function buildPalette() {
+    ['white','black'].forEach(side => {
+      const color = side === 'white' ? 'w' : 'b';
+      const container = document.getElementById('palette-' + side);
+      if (!container) return;
+      container.innerHTML = '';
+      PIECES.forEach(type => {
+        const btn = document.createElement('div');
+        btn.className = 'palette-piece';
+        btn.title = LABELS[type];
+        btn.dataset.color = color;
+        btn.dataset.type = type;
+        btn.innerHTML = `<img src="${pieceImgSrc(color, type)}" alt="${type}">`;
+        btn.addEventListener('click', function() { selectPiece(color, type); });
+        container.appendChild(btn);
+      });
+    });
+  }
+
+  function selectPiece(color, type) {
+    _selectedPiece = { color, type };
+    document.getElementById('erase-btn').classList.remove('selected');
+    document.querySelectorAll('.palette-piece').forEach(el => {
+      el.classList.toggle('selected',
+        el.dataset.color === color && el.dataset.type === type);
+    });
+  }
+
+  window.selectEraseMode = function() {
+    _selectedPiece = 'erase';
+    document.getElementById('erase-btn').classList.add('selected');
+    document.querySelectorAll('.palette-piece').forEach(el => el.classList.remove('selected'));
+  };
+
+  window.setEditorTurn = function(turn) {
+    // game.turn 직접 변경 (game 객체에 따라 다를 수 있음)
+    if (typeof game !== 'undefined' && game) {
+      try { game.turn = turn; } catch(e) {}
+    }
+    document.getElementById('turn-btn-w').classList.toggle('active-w', turn === 'w');
+    document.getElementById('turn-btn-b').classList.toggle('active-b', turn === 'b');
+  };
+
+  function getSquareFromEvent(e) {
+    const board = document.getElementById('chessboard');
+    if (!board) return null;
+    const rect = board.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+    const col = Math.max(0, Math.min(7, Math.floor(x / rect.width * 8)));
+    const row = Math.max(0, Math.min(7, Math.floor(y / rect.height * 8)));
+    return { col, row };
+  }
+
+  function applyEditToSquare(sq) {
+    if (!sq || !_selectedPiece) return;
+    if (typeof game === 'undefined' || !game || !game.board) return;
+
+    const flipped = game.flipped;
+    // row 0 = 화면 맨 위, flipped 여부에 따라 rank가 달라짐
+    const rank = flipped ? sq.row + 1 : 8 - sq.row;
+    const file = flipped ? 7 - sq.col : sq.col;
+    // board는 [rank][file] 또는 [row][col] 구조인지 확인 필요
+    // game.board[row][col] 형태로 접근 (대부분의 체스 구현)
+    try {
+      if (_selectedPiece === 'erase') {
+        game.board[sq.row][sq.col] = null;
+      } else {
+        // 기물 표현: {type: 'p', color: 'w'} 등 게임 내부 포맷에 맞춤
+        // chess-wasm 엔진에서 사용하는 포맷 추정
+        const p = _selectedPiece;
+        // 여러 포맷 시도
+        if (game.board[sq.row][sq.col] !== undefined) {
+          game.board[sq.row][sq.col] = {
+            type: p.type.toLowerCase(),
+            color: p.color,
+            // 일부 구현에서 piece 문자열 사용
+            piece: (p.color === 'w' ? p.type.toUpperCase() : p.type.toLowerCase()),
+          };
+        }
+      }
+      // 보드 다시 렌더링
+      if (typeof renderBoard === 'function') renderBoard();
+      else if (typeof game.renderBoard === 'function') game.renderBoard();
+      else if (typeof analyzePosition === 'function') analyzePosition(false);
+      // FEN 갱신
+      if (typeof boardToFen === 'function') {
+        var fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
+        if (typeof game.loadFromFen === 'function') {
+          // 조용히 재로드해서 상태 동기화
+        }
+      }
+    } catch(err) {
+      console.warn('[editor] board set 실패:', err);
+    }
+  }
+
+  function attachEditorBoardEvents() {
+    const board = document.getElementById('chessboard');
+    if (!board) { setTimeout(attachEditorBoardEvents, 500); return; }
+
+    board.addEventListener('click', function(e) {
+      if (!_editMode) return;
+      // 기존 클릭 이벤트가 기물이동을 처리하므로 편집 모드에서는 stopPropagation 안 함
+      // 대신 편집 핸들러가 먼저 처리
+      const sq = getSquareFromEvent(e);
+      if (sq) {
+        e.stopImmediatePropagation();
+        applyEditToSquare(sq);
+      }
+    }, true); // capture phase
+
+    board.addEventListener('contextmenu', function(e) {
+      if (!_editMode) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const sq = getSquareFromEvent(e);
+      if (sq) {
+        const prev = _selectedPiece;
+        _selectedPiece = 'erase';
+        applyEditToSquare(sq);
+        _selectedPiece = prev;
+      }
+    }, true);
+  }
+
+  window.togglePieceEditor = function() {
+    _editMode = !_editMode;
+    const bar = document.getElementById('piece-editor-bar');
+    const board = document.getElementById('chessboard');
+    const btn = document.getElementById('edit-mode-btn');
+
+    if (_editMode) {
+      buildPalette();
+      bar.classList.add('visible');
+      board.classList.add('edit-mode');
+      if (btn) { btn.style.background = 'rgba(80,144,208,0.25)'; btn.style.borderColor = '#5090d0'; }
+      // 기본 선택: 백 킹
+      selectPiece('w', 'Q');
+      // 현재 차례 표시
+      const t = (typeof game !== 'undefined' && game) ? game.turn : 'w';
+      setEditorTurn(t || 'w');
+      // 엔진 연습 모드 일시 정지
+      window._editorSavedPracticeMode = window._enginePracticeMode;
+      window._enginePracticeMode = null;
+    } else {
+      bar.classList.remove('visible');
+      board.classList.remove('edit-mode');
+      if (btn) { btn.style.background = ''; btn.style.borderColor = 'rgba(80,144,208,0.4)'; }
+      _selectedPiece = null;
+      // 엔진 연습 모드 복원 + 포지션 분석 재시작
+      window._enginePracticeMode = window._editorSavedPracticeMode || null;
+      if (typeof analyzePosition === 'function') analyzePosition(true);
+      if (typeof window._enginePracticeAfterHumanMove === 'function') {
+        window._enginePracticeAfterHumanMove();
+      }
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', attachEditorBoardEvents);
 })();
 </script>
 </body>
