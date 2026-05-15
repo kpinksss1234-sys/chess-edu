@@ -453,7 +453,7 @@ function _sendGoCommand(fen, myId, mpv, movetime) {
   };
   console.log('[CMD] → setoption MultiPV', mpv);
   mainWorker.postMessage(`setoption name MultiPV value ${mpv}`);
-  console.log('[CMD] → position fen', fen.slice(0,30));
+  console.log('[CMD] → position fen', fen);
   mainWorker.postMessage(`position fen ${fen}`);
   // depth와 movetime 동시 지정 — 둘 중 먼저 도달하는 조건에서 종료
   const targetDepth = Math.max(analysisDepth, 25);
