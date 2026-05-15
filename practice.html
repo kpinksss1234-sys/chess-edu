@@ -1050,8 +1050,14 @@ function loadPositionFromInput() {
         btn.title = LABELS[type];
         btn.dataset.color = color;
         btn.dataset.type = type;
-        btn.innerHTML = `<img src="${pieceImgSrc(color, type)}" alt="${type}">`;
+        btn.draggable = true; // Drag support
+        btn.innerHTML = `<img src="${pieceImgSrc(color, type)}" alt="${type}" draggable="false">`;
         btn.addEventListener('click', function() { selectPiece(color, type); });
+        // Drag events
+        btn.addEventListener('dragstart', function(e) {
+          selectPiece(color, type);
+          e.dataTransfer.setData('text/plain', JSON.stringify({color, type}));
+        });
         container.appendChild(btn);
       });
     });
@@ -1141,14 +1147,32 @@ function loadPositionFromInput() {
 
     board.addEventListener('click', function(e) {
       if (!_editMode) return;
-      // 기존 클릭 이벤트가 기물이동을 처리하므로 편집 모드에서는 stopPropagation 안 함
-      // 대신 편집 핸들러가 먼저 처리
       const sq = getSquareFromEvent(e);
       if (sq) {
         e.stopImmediatePropagation();
         applyEditToSquare(sq);
       }
-    }, true); // capture phase
+    }, true); 
+
+    // Add dragover and drop events
+    board.addEventListener('dragover', function(e) {
+      if (!_editMode) return;
+      e.preventDefault();
+    }, true);
+
+    board.addEventListener('drop', function(e) {
+      if (!_editMode) return;
+      e.preventDefault();
+      const sq = getSquareFromEvent(e);
+      const data = e.dataTransfer.getData('text/plain');
+      if (sq && data) {
+        try {
+          const piece = JSON.parse(data);
+          _selectedPiece = piece;
+          applyEditToSquare(sq);
+        } catch(err) {}
+      }
+    }, true);
 
     board.addEventListener('contextmenu', function(e) {
       if (!_editMode) return;
