@@ -2497,10 +2497,9 @@ function showHint() {
   const puzzle = state.currentPuzzle;
   const move = puzzle.solution[state.solutionMoveIdx] || puzzle.solution[0];
   if (!move) return;
-  const { fr, fc, tr, tc } = uciToCoords(move);
+  const { fr, fc } = uciToCoords(move);
   clearHighlights();
   getSquareEl(fr, fc)?.classList.add('hint');
-  getSquareEl(tr, tc)?.classList.add('hint');
   state.hintShown = true;
 }
 
