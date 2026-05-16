@@ -879,8 +879,17 @@ function toggleThreatPanel() {
   } else {
     panel.style.display = 'none';
     btn.style.color = 'var(--text-muted)';
-    btn.style.borderColor = 'var(--border-color)';
+    btn.style.borderColor = 'var(--border)';
   }
+}
+
+function toggleThreatCollapse() {
+  const body = document.getElementById('threat-body');
+  const btn  = document.getElementById('threat-collapse-btn');
+  if (!body) return;
+  const collapsed = body.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▼' : '▲';
+  btn.title = collapsed ? '펼치기' : '접기';
 }
 
 async function runThreatAnalysis() {
@@ -894,7 +903,7 @@ async function runThreatAnalysis() {
   const panel     = document.getElementById('threat-panel');
   const contentEl = document.getElementById('threat-content');
   if (panel) panel.style.display = 'block';
-  if (contentEl) contentEl.innerHTML = '<div class="threat-loading">⚡ 위협 분석 중...</div>';
+  if (contentEl) contentEl.innerHTML = '<div class="threat-loading">🔍 최선수 분석 중...</div>';
   threatLoading   = true;
   lastThreatFen   = fenKey;
 
@@ -905,9 +914,9 @@ async function runThreatAnalysis() {
 
     if (isMate) {
       const mateText = [
-        `**핵심 계획:** ${mover}은 ${ctx.bestMove}로 즉각 체크메이트를 만들 수 있습니다.`,
+        `**아이디어:** ${mover}은 ${ctx.bestMove}로 즉각 체크메이트를 만들 수 있습니다.`,
         `**문제점:** 즉각적인 체크메이트가 있어 문제점 없음.`,
-        `**최선책:** ${ctx.bestMove}를 바로 두어 게임을 끝내세요.`,
+        `**해결책:** ${ctx.bestMove}를 바로 두어 게임을 끝내세요.`,
       ].join('\n');
       renderThreatPanel(mateText);
       return;
@@ -948,9 +957,9 @@ You MUST analyze the engine lines for tactical patterns.
 Identify these BEFORE writing the sections.
 
 Analyze the position using the provided engine data and write three sections:
-**핵심 계획:** — What does ${mover} want to do? State the concrete threat using the ACTUAL moves from the engine line provided. Format: "${mover}은 [move]로 [goal]을 노린다: [line] → [result]."
+**아이디어:** — What does ${mover} want to do? State the concrete threat using the ACTUAL moves from the engine line provided. Format: "${mover}은 [move]로 [goal]을 노린다: [line] → [result]."
 **문제점:** — What can ${opponent} do to counter? If engine line 2 or 3 shows a defensive resource, describe it with exact moves. If there's immediate checkmate or no counter, write "즉각적인 결정타가 있어 문제점 없음."
-**최선책:** — What is ${mover}'s best response to the problem? Use the engine 1st line moves. Explain why it solves the issue.
+**해결책:** — What is ${mover}'s best response to the problem? Use the engine 1st line moves. Explain why it solves the issue.
 
 Rules:
 - Use ONLY moves from the engine lines provided. Do not invent any move.
@@ -971,7 +980,7 @@ Rules:
     ctx.pgnMoves  ? `기보: ${ctx.pgnMoves}` : '',
     `FEN: ${ctx.fen}`,
     ``,
-    `위 엔진 라인의 실제 수만 사용해서 핵심 계획/문제점/최선책을 분석하세요.`,
+    `위 엔진 라인의 실제 수만 사용해서 아이디어/문제점/해결책을 분석하세요.`,
     `엔진 라인에 없는 수(예시에서 본 수, 상상한 수)를 절대 쓰지 마세요.`,
   ].filter(Boolean).join('\n');
 
@@ -1001,13 +1010,13 @@ function renderThreatPanel(text) {
   if (!text) { el.innerHTML = '<div class="threat-loading">분석 결과 없음</div>'; return; }
 
   const SECTIONS = [
-    { key: '핵심 계획', cls: 'idea', icon: '💡', labelCls: 'threat-label-idea' },
-    { key: '문제점',    cls: 'prob', icon: '⚠️', labelCls: 'threat-label-prob' },
-    { key: '최선책',    cls: 'sol',  icon: '✅', labelCls: 'threat-label-sol'  },
+    { key: '아이디어', cls: 'idea', icon: '💡', labelCls: 'threat-label-idea' },
+    { key: '문제점',   cls: 'prob', icon: '⚠️', labelCls: 'threat-label-prob' },
+    { key: '해결책',   cls: 'sol',  icon: '✅', labelCls: 'threat-label-sol'  },
   ];
 
   const parsed  = {};
-  const allKeys = ['핵심 계획', '문제점', '최선책'];
+  const allKeys = ['아이디어', '문제점', '해결책'];
   let remaining = text;
 
   for (let ki = 0; ki < allKeys.length; ki++) {

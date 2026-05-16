@@ -2263,7 +2263,18 @@
       background: var(--bg-card);
       border-radius: 8px;
       overflow: hidden;
-      border: 1px solid var(--border-color);
+      border: 1px solid var(--border);
+    }
+
+    #threat-body {
+      max-height: 180px;
+      overflow-y: auto;
+      transition: max-height 0.25s ease;
+    }
+
+    #threat-body.collapsed {
+      max-height: 0;
+      overflow: hidden;
     }
 
     .threat-header {
@@ -3174,10 +3185,10 @@
               <span id="engine-name">Stockfish 18 WASM</span>
             </div>
             <div style="display:flex;align-items:center;gap:6px;">
-              <button id="threat-toggle" onclick="toggleThreatPanel()" title="위협 분석 패널" style="background:none;border:1px solid var(--border-color);border-radius:4px;
+              <button id="threat-toggle" onclick="toggleThreatPanel()" title="최선수 찾기 패널" style="background:none;border:1px solid var(--border);border-radius:4px;
                      color:var(--text-muted);cursor:pointer;font-size:10px;padding:2px 6px;
                      transition:all 0.15s;white-space:nowrap;">
-                ⚡ 위협
+                🔍 최선수 찾기
               </button>
               <button id="best-explain-toggle" onclick="toggleBestExplainPanel()" title="최선수 설명" style="background:none;border:1px solid var(--border-color);border-radius:4px;
                      color:var(--text-muted);cursor:pointer;font-size:10px;padding:2px 6px;
@@ -3199,14 +3210,19 @@
             <div class="top-moves-empty" id="top-moves-empty">엔진 초기화 중...</div>
           </div>
 
-          <!-- 위협 분석 패널 -->
+          <!-- 최선수 찾기 패널 -->
           <div id="threat-panel" style="display:none;">
             <div class="threat-header">
-              <span class="threat-title">⚡ 위협 분석</span>
-              <button class="threat-refresh-btn" onclick="runThreatAnalysis()" title="새로고침">↻</button>
+              <span class="threat-title">🔍 최선수 찾기</span>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <button class="threat-refresh-btn" onclick="runThreatAnalysis()" title="새로고침">↻</button>
+                <button class="threat-refresh-btn" id="threat-collapse-btn" onclick="toggleThreatCollapse()" title="접기/펼치기" style="font-size:11px;">▲</button>
+              </div>
             </div>
-            <div id="threat-content">
-              <div class="threat-loading">분석 중...</div>
+            <div id="threat-body">
+              <div id="threat-content">
+                <div class="threat-loading">분석 중...</div>
+              </div>
             </div>
           </div>
 
