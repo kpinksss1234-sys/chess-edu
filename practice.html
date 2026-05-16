@@ -1241,10 +1241,17 @@ function loadPositionFromInput() {
     var r = board.getBoundingClientRect();
     var x = e.clientX - r.left, y = e.clientY - r.top;
     if (x<0||y<0||x>r.width||y>r.height) return null;
-    return {
-      col: Math.max(0,Math.min(7,Math.floor(x/r.width*8))),
-      row: Math.max(0,Math.min(7,Math.floor(y/r.height*8)))
-    };
+    
+    var col = Math.max(0,Math.min(7,Math.floor(x/r.width*8)));
+    var row = Math.max(0,Math.min(7,Math.floor(y/r.height*8)));
+    
+    // 추가: 보드가 뒤집힌 경우(flipped) 좌표 변환
+    if (typeof game !== 'undefined' && game && game.flipped) {
+      col = 7 - col;
+      row = 7 - row;
+    }
+    
+    return { col: col, row: row };
   }
 
   /* ── 보드 읽기/쓰기 ── */
@@ -1257,6 +1264,25 @@ function loadPositionFromInput() {
       return raw;
     } catch(e) { return null; }
   }
+
+  // 추가: 캐슬링 권리 상태 유효성 검사 (기물 위치 기준)
+  function validateCastling() {
+    if (!game || !game.board) return;
+    var b = game.board;
+    // 백 킹/룩
+    if (b[7][4]!=='wK') { game.castling.wK=false; game.castling.wQ=false; }
+    else {
+      if (b[7][7]!=='wR') game.castling.wK=false;
+      if (b[7][0]!=='wR') game.castling.wQ=false;
+    }
+    // 흑 킹/룩
+    if (b[0][4]!=='bK') { game.castling.bK=false; game.castling.bQ=false; }
+    else {
+      if (b[0][7]!=='bR') game.castling.bK=false;
+      if (b[0][0]!=='bR') game.castling.bQ=false;
+    }
+  }
+
   function set(col,row,p) {
     if (typeof game==='undefined'||!game||!game.board) return;
     try {
@@ -1271,6 +1297,9 @@ function loadPositionFromInput() {
       // 추가: 기물 수동 배치 시 50수 규칙용 클락 초기화 (평가치 0.0 고정 방지)
       game.halfMove = 0;
       game.enPassant = null;
+      
+      // 추가: 캐슬링 권리 자동 갱신 (불가능한 위치면 권리 박탈)
+      validateCastling();
       
       refresh();
       // 추가: 기물 배치 시 실시간 분석 요청
