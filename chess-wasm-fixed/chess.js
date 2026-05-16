@@ -95,7 +95,7 @@ function isAttacked(board, r, c, byColor) {
 }
 
 function findKing(board,color){for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(board[r][c]===`${color}K`)return[r,c];return null;}
-function isInCheck(board,color){const[kr,kc]=findKing(board,color);return isAttacked(board,kr,kc,enemyColor(color));}
+function isInCheck(board,color){const k=findKing(board,color);if(!k)return false;return isAttacked(board,k[0],k[1],enemyColor(color));}
 
 function applyMoveToBoard(board, move, color) {
   const[fr,fc]=move.from,[tr,tc]=move.to,p=board[fr][fc];

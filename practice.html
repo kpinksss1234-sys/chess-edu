@@ -1252,6 +1252,10 @@ function loadPositionFromInput() {
         game.board[row][col] = p.color + p.type.toUpperCase();
       }
       refresh();
+      // 추가: 기물 배치 시 실시간 분석 요청
+      if (typeof analyzePosition === 'function') {
+        analyzePosition(true); 
+      }
     } catch(e) { console.warn('[pal]',e); }
   }
   function refresh() {

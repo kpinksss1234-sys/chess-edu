@@ -2232,14 +2232,29 @@ class ChessGame {
 // ui.js 내용 (analyzePosition은 engine.js에 있음)
 // ===== EVAL BAR =====
 function updateEvalBarFromCp(cpFromWhite, evalStr) {
+  const barFill  = document.getElementById('eval-bar-fill');
+  const barBlack = document.getElementById('eval-bar-black');
+  const blackLabel = document.getElementById('eval-score-black');
+  const whiteLabel = document.getElementById('eval-score-white');
+  const es = document.getElementById('eval-score');
+
+  if (cpFromWhite === null || cpFromWhite === undefined) {
+    if (barFill) barFill.style.height = '50%';
+    if (barBlack) barBlack.style.height = '50%';
+    if (blackLabel) blackLabel.textContent = '';
+    if (whiteLabel) whiteLabel.textContent = '';
+    if (es) es.textContent = '...';
+    return;
+  }
+
   const maxCp = 800;
   const clamped = Math.max(-maxCp, Math.min(maxCp, cpFromWhite));
   const pct = 50 + (clamped / maxCp) * 45;
   const whitePct = Math.max(5, Math.min(95, pct));
   const blackPct = 100 - whitePct;
 
-  document.getElementById('eval-bar-fill').style.height = whitePct + '%';
-  document.getElementById('eval-bar-black').style.height = blackPct + '%';
+  if (barFill) barFill.style.height = whitePct + '%';
+  if (barBlack) barBlack.style.height = blackPct + '%';
 
   // Format score string — evalStr(M1 등)이 있으면 그대로 사용
   let scoreStr;
@@ -2258,22 +2273,27 @@ function updateEvalBarFromCp(cpFromWhite, evalStr) {
   }
 
   // Show score on the correct side
-  const blackLabel = document.getElementById('eval-score-black');
-  const whiteLabel = document.getElementById('eval-score-white');
-
   if (cpFromWhite >= 0) {
     // White is better → show score in white area (bottom)
-    whiteLabel.textContent = scoreStr;
-    whiteLabel.style.color = '#222';
-    whiteLabel.style.opacity = '1';
-    blackLabel.textContent = '';
-    blackLabel.style.opacity = '0';
+    if (whiteLabel) {
+      whiteLabel.textContent = scoreStr;
+      whiteLabel.style.color = '#222';
+      whiteLabel.style.opacity = '1';
+    }
+    if (blackLabel) {
+      blackLabel.textContent = '';
+      blackLabel.style.opacity = '0';
+    }
   } else {
     // Black is better → show score in black area (top)
-    blackLabel.textContent = scoreStr;
-    blackLabel.style.color = '#ddd';
-    blackLabel.style.opacity = '1';
-    whiteLabel.textContent = '';
-    whiteLabel.style.opacity = '0';
+    if (blackLabel) {
+      blackLabel.textContent = scoreStr;
+      blackLabel.style.color = '#ddd';
+      blackLabel.style.opacity = '1';
+    }
+    if (whiteLabel) {
+      whiteLabel.textContent = '';
+      whiteLabel.style.opacity = '0';
+    }
   }
 }

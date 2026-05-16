@@ -774,6 +774,13 @@ function analyzePosition(force) {
     pvData = {};
     renderTopMoves('분석 중...');
     document.getElementById('depth-info').textContent = '분석 시작 중...';
+    // 새 분석 시작 시 UI 초기화 (0.0으로 보이지 않게 처리 가능)
+    const es = document.getElementById('eval-score');
+    if (es) es.textContent = '...';
+    const ew = document.getElementById('eval-score-white');
+    if (ew) ew.textContent = '';
+    const eb = document.getElementById('eval-score-black');
+    if (eb) eb.textContent = '';
   }
 
   analysisTimeout = setTimeout(() => {
