@@ -380,10 +380,6 @@ async function _executePositionCommentary() {
     coachLoading = false;
   }
 }
-  } finally {
-    coachLoading = false;
-  }
-}
 
 // 수동 질문 (사용자가 직접 입력한 질문) — 기존 UI 호환 유지
 async function askCoach() {
