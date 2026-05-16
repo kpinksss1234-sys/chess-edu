@@ -421,35 +421,28 @@ async function askCoach() {
 function buildCommentaryPrompt(ctx) {
   const lines = [];
 
-  lines.push(`당신은 체스 전문 해설가입니다. 아래 제공된 [사실 데이터]와 [최근 경기 흐름]을 바탕으로 해설하세요.`);
+  lines.push(`당신은 체스 전문 해설가입니다. 아래 데이터를 종합하여 전략적인 관점에서 해설하세요.`);
   lines.push(``);
-  lines.push(`[사실 데이터]`);
+  lines.push(`[데이터]`);
   lines.push(`차례: ${ctx.turn === 'w' ? '백' : '흑'}`);
-  lines.push(`FEN: ${ctx.fen}`);
-  lines.push(`최근 기보: ${ctx.pgnMoves.split(' ').slice(-10).join(' ')}`); // 마지막 5수 (10개 토큰)
+  lines.push(`최근 흐름: ${ctx.pgnMoves.split(' ').slice(-10).join(' ')}`);
 
-  // 백엔드 사실 데이터 추가
+  // 백엔드 사실 데이터를 한번만 깔끔하게 전달
   if (ctx.backendFacts && ctx.backendFacts.facts) {
+    const f = ctx.backendFacts.facts;
     lines.push(``);
-    lines.push(`[전술적 사실 - 이 데이터만 기반으로 해설하세요]`);
-    if (ctx.backendFacts.facts.white_attackers && ctx.backendFacts.facts.white_attackers.length > 0) {
-        lines.push(`백의 공격: ${ctx.backendFacts.facts.white_attackers.join(', ')}`);
-    }
-    if (ctx.backendFacts.facts.black_attackers && ctx.backendFacts.facts.black_attackers.length > 0) {
-        lines.push(`흑의 공격: ${ctx.backendFacts.facts.black_attackers.join(', ')}`);
-    }
-    if (ctx.backendFacts.facts.pins && ctx.backendFacts.facts.pins.length > 0) {
-        lines.push(`핀(Pin) 상황: ${ctx.backendFacts.facts.pins.join(', ')}`);
-    }
+    lines.push(`[전술적 상황]`);
+    if (f.white_attackers?.length) lines.push(`백의 공격: ${f.white_attackers.join(' ')}`);
+    if (f.black_attackers?.length) lines.push(`흑의 공격: ${f.black_attackers.join(' ')}`);
+    if (f.pins?.length) lines.push(`핀(Pin): ${f.pins.join(' ')}`);
   }
-
 
   lines.push(``);
   lines.push(`[작성 지시]`);
-  lines.push(`1. [전술적 사실] 데이터가 있다면, 그것을 토대로만 해설하세요.`);
-  lines.push(`2. 데이터에 없는 내용은 절대로 지어내지 마세요.`);
-  lines.push(`3. "백이 크게 우세"와 같은 형세 판단은 하지 말고, [사실 데이터]에 있는 전술적 상황만 설명하세요.`);
-  lines.push(`4. 답변 형식: "현재 [공격/핀] 사실이 존재합니다. 따라서 [어떻게 대응/활용]할 수 있습니다."`);
+  lines.push(`1. 위 [전술적 상황]을 나열하지 마세요. 각 사실이 현재 포지션에서 가지는 '전략적 의미'를 연결해서 서술하세요.`);
+  lines.push(`2. 단순한 기물 공격 사실은 종합해서 설명하세요. (예: "서로 주도권을 뺏기 위해 공격을 주고받는 긴박한 상황입니다.")`);
+  lines.push(`3. 데이터에 없는 내용(형세 판단 등)은 절대 지어내지 마세요.`);
+  lines.push(`4. 폰 구조와 공간을 고려하여 설명하세요.`);
 
   return lines.join('\n');
 }
