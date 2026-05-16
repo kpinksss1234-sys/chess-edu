@@ -1196,12 +1196,11 @@ function loadPositionFromInput() {
 
   /* ── 차례 설정 ── */
   window.palTurn = function(turn) {
-    console.log('[palTurn] turn:', turn);
     if (typeof game !== 'undefined' && game) { 
       try { 
         game.turn = turn; 
         game.halfMove = 0; // 차례 변경 시에도 초기화 (0.0 고정 방지)
-      } catch(e){ console.error('[palTurn] error:', e); } 
+      } catch(e){} 
     }
     var tw = document.getElementById('pal-tw');
     var tb = document.getElementById('pal-tb');
@@ -1215,7 +1214,6 @@ function loadPositionFromInput() {
     
     // 추가: 차례 변경 시 실시간 분석 요청
     if (typeof analyzePosition === 'function') {
-      console.log('[palTurn] calling analyzePosition(true)');
       analyzePosition(true);
     }
   };
@@ -1291,7 +1289,6 @@ function loadPositionFromInput() {
   }
 
   function set(col,row,p) {
-    console.log('[palSet] col:', col, 'row:', row, 'piece:', p);
     if (typeof game==='undefined'||!game||!game.board) return;
     try {
       if (!p) {
@@ -1315,7 +1312,6 @@ function loadPositionFromInput() {
       refresh();
       // 추가: 기물 배치 시 실시간 분석 요청
       if (typeof analyzePosition === 'function') {
-        console.log('[palSet] calling analyzePosition(true)');
         analyzePosition(true); 
       }
     } catch(e) { console.warn('[pal]',e); }
