@@ -190,6 +190,31 @@ html[data-color-mode="light"] #right-panel {
   background: var(--board-dark, #b58863);
 }
 
+/* ====== BOARD COORDINATES ====== */
+.coord-rank, .coord-file {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 700;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.8;
+  z-index: 5;
+}
+
+.coord-rank {
+  left: 2px;
+  top: 2px;
+}
+
+.coord-file {
+  right: 2px;
+  bottom: 1px;
+}
+
+/* 역전된 색상 (어두운 칸에서는 밝게, 밝은 칸에서는 어둡게) */
+.square.light .coord-rank, .square.light .coord-file { color: var(--board-dark); }
+.square.dark .coord-rank, .square.dark .coord-file { color: var(--board-light); }
+
 .possible-move::after,
 .possible-capture::after {
   content: '';
