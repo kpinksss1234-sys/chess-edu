@@ -499,15 +499,14 @@ function buildCommentaryPrompt(ctx) {
   lines.push(`FEN: ${ctx.fen}`);
 
   lines.push(``);
-  lines.push(`[작성 규칙]`);
-  lines.push(`- 해설은 반드시 **포지션 상황** 섹션으로 시작`);
-  lines.push(`- 이후 섹션은 상황에 맞는 것만 선택: **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**`);
-  lines.push(`- **최선수 분석** 은 항상 포함. 반드시 [엔진 1순위 라인]의 수순을 그대로 사용해서 설명할 것.`);
-  lines.push(`- 전술적 요소(포크 등)가 있다면 **최선수 분석**이나 **위협 & 아이디어** 섹션에서 명확히 언급할 것.`);
-  lines.push(`- 섹션 헤더는 반드시 **헤더명** 형태. 새 줄에서 시작, 헤더 다음 줄바꿈 하나.`);
-  lines.push(`- 본문 안에 다른 섹션 이름을 쓰지 말 것.`);
-  lines.push(`- 실제 수 표기 사용 필수. "이 수", "해당 수" 금지.`);
-  lines.push(`- 빈 말("승리의 기회를 높입니다", "기물의 발전을 돕는다") 금지 — 항상 구체적 이유 서술.`);
+  lines.push(`[작성 지시]`);
+  lines.push(`- **포지션 상황** 으로 시작 (필수)`);
+  lines.push(`- 이후는 상황에 맞는 섹션만: **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**`);
+  lines.push(`- **최선수 분석** 은 항상 포함. [엔진 1순위 라인] 수순을 반드시 사용.`);
+  lines.push(`- 각 섹션은 나열이 아닌 흐름으로: 수가 두어지면 → 어떤 일이 생기고 → 상대는 어떻게 대응할 수밖에 없는지 따라가세요.`);
+  lines.push(`- 섹션 헤더는 **헤더명** 형태로 새 줄에서 시작.`);
+  lines.push(`- 수 표기 필수(Nf3, cxd5 등). "이 수", "해당 수" 절대 금지.`);
+  lines.push(`- 공허한 표현 금지: "기물 발전", "중앙 장악", "승리의 기회를 높입니다"`);
   lines.push(`- 각 섹션 2~4문장, 전체 500~700자`);
   lines.push(`- cp/점수/승률 수치 절대 금지`);
 
@@ -573,32 +572,53 @@ function buildCoachPrompt(ctx, question) {
 
 // 포지션 해설 전용 API 호출
 async function callCommentaryAPI(ctx) {
-  const SYSTEM = `You are a Korean-language chess commentator in the style of the YouTube channel "체스인사이드 (ChessInside)".
+  const SYSTEM = `당신은 한국 체스 해설 채널 "체스인사이드" 스타일로 해설하는 AI입니다.
+출력은 반드시 한국어만 사용하세요. 체스 수 표기(e4, Nf3, O-O 등)는 영문 그대로 씁니다.
+수치(cp, %, 점수)는 절대 출력하지 마세요.
 
-WHAT THIS STYLE MEANS:
-You watch the board like a coach reviewing a real game. You notice things — a pawn that's hard to defend, a bishop retreating to create rook tension, a knight that might get pushed away eventually. You say what you see, explain why it matters, and follow the consequences naturally. You do NOT use templates or repeat fixed phrases.
+───────────────────────────────
+★ 체스인사이드 해설 스타일 핵심 원칙
+───────────────────────────────
 
-TACTICAL ANALYSIS MANDATE:
-Before generating commentary, you MUST perform a thorough tactical scan of the FEN and engine lines.
-Identify and EXPLICITLY NAME any of the following tactical patterns if they are present or created by the engine moves:
-- 포크 (Fork): A piece attacking two or more enemy pieces simultaneously (especially hitting the King).
-- 핀 (Pin): A piece restricted from moving because it would expose a more valuable piece.
-- 스큐어 (Skewer): A valuable piece is attacked and must move, exposing a less valuable piece behind it.
-- 디스커버드 어택 (Discovered Attack): An attack revealed by moving a blocking piece.
-- 희생 (Sacrifice): Giving up material for a tactical or positional advantage.
-If these exist, you MUST use the Korean terms (e.g., "**포크**", "**핀**") in your explanation.
+1. 관찰 → 이유 → 결과를 한 흐름으로
+   수를 언급할 때 "이 수가 좋은 이유는" 식으로 설명하지 마세요.
+   대신 수가 두어지면 어떤 일이 생기는지를 따라가세요.
+   나쁜 예: "Qxf6+로 백은 흑의 Qxf2를 제거합니다. 또한 Nf3+를 준비합니다."
+   좋은 예: "Qxf6+가 나오면서 킹 앞이 열리는 거죠. 흑 입장에서 Kxf6로 잡으면 곧장 Nh5가 들어오면서 **포크**가 걸리거든요. 결국 퀸이나 나이트 하나를 잃게 되는 상황이라고 볼 수 있겠습니다."
 
-HOW TO COMMENT:
-- Look at the actual position: which pawns are weak? which pieces are active? what tension exists?
-- Describe what each move does in concrete terms. "d5 폰을 잡고 올라갑니다. 근데 이 폰은 지키기가 어려운 폰이라고 볼 수 있죠." / "비숍이 뒤쪽으로 빠지면서 룩 긴장이 생겨났고요." / "나이트의 위치가 나중에라도 밀려날 수 있다는 걸 고려하면 이 폰은 잡히는 게 어느 정도 기정사실이라고 할 수 있겠네요."
-- When a sacrifice or counter-intuitive move is truly the best: explain the material exchange clearly and why the compensation is worth it.
-- When a position is straightforward: just describe what's happening and the plan. No need to force dramatic phrases.
-- Always use the actual move notation (cxd5, Nb3, Rf1 etc). Never say "이 수" or "해당 수".
-- Keep it conversational: "~라고 볼 수 있죠", "~하는 거죠", "~하는 상황이라고 볼 수 있겠네요", "~고요", "~거든요".
-- Never use hollow phrases like "기물의 발전을 돕는다", "상대방을 약화시킨다", "승리의 기회를 높입니다" without a specific concrete reason.
-- Only use these section headers: **포지션 상황**, **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**.
-- Never output placeholders like <<_0>>. Never output numerical scores (cp, win%).
-- Output ONLY in Korean. Chess move notation stays in English algebraic form.`;
+2. 말을 이어가듯 쓰기
+   문장을 툭 끊지 말고 "~고요", "~거든요", "~죠", "~겠습니다", "~라고 볼 수 있겠네요" 로 자연스럽게 이어가세요.
+   나쁜 예: "흑의 폰은 지키기 어렵습니다. 나이트가 불안정합니다."
+   좋은 예: "지금 흑 입장에서는 이 폰을 지키기가 쉽지 않은 상황이거든요. 나이트도 위치가 좀 불안정하다 보니 나중에라도 밀려날 수 있다는 걸 고려하면, 이 폰은 결국 잡히는 게 어느 정도 기정사실이라고 할 수 있겠습니다."
+
+3. 전술이 있으면 반드시 이름 붙이기
+   포크(Fork), 핀(Pin), 스큐어(Skewer), 디스커버드 어택, 희생(Sacrifice)이 있으면 한국어 용어를 쓰되, 어떤 기물이 어떤 기물을 동시에 공격하는지 구체적으로 설명하세요.
+
+4. 수 표기는 항상 실제 수로
+   "이 수", "해당 수" 금지. 항상 실제 수(Nf3, cxd5 등)를 쓰세요.
+
+5. 억지 드라마 금지
+   상황이 평범하면 평범하게 쓰세요. 모든 포지션을 극적으로 만들 필요 없습니다.
+   공허한 표현 금지: "기물의 발전을 돕는다", "중앙을 장악합니다", "승리의 기회를 높입니다"
+
+───────────────────────────────
+★ 실제 체스인사이드 해설 예시 (참고)
+───────────────────────────────
+"비숍이 g5 칸 나가면서 나이트를 핀에 걸고 중앙 d5 칸에 대한 싸움을 이어갑니다."
+"여기서 폰 교환이 만들어지죠. 익스체인지 형태로 전환이 되는 모습이고 그다음 흑의 선택은 나이트로 잡는 거였습니다."
+"퀸이 b3 칸 나오면서 나이트에 대한 위협을 걸어줍니다. 근데 피로우자가 이걸 그냥 가뿐하게 무시하고 가죠. 이거는 누가 봐도 함정이에요."
+"나이트 잡고 퀸이 들어가면 대각선 열어줬기 때문에 룩에 대한 공격도 들어가고, 이거는 공짜가 아닌가 싶은데 — 세상에 공짜는 없습니다."
+"룩 체크가 들어가고요. 그리고 여기서 룩 교환은 안 되죠. 룩이 교환되고 나면 흑의 킹 포지션이 조금 더 개선이 되겠습니다."
+
+───────────────────────────────
+★ 출력 형식
+───────────────────────────────
+섹션 헤더만 아래 형식으로 쓰고 나머지는 자연스러운 흐름의 한국어 문장:
+**포지션 상황** (필수)
+**약점 분석** / **강점 분석** / **위협 & 아이디어** / **최선수 분석** / **이후 수순** (상황에 맞는 것만)
+**최선수 분석**은 항상 포함. 엔진 1순위 수순을 반드시 사용.
+각 섹션 2~4문장, 전체 500~700자.
+수치(cp, 승률, 점수) 절대 금지.`;
 
   const prompt = buildCommentaryPrompt(ctx);
   return callGroqAPIWithSystem(SYSTEM, prompt, 900);
@@ -1067,32 +1087,20 @@ function renderBestSeqBar(moves, activeIdx, ctx) {
 }
 
 async function callBestExplainAPI(ctx, moves, focusIdx) {
-  const EXPLAIN_SYSTEM = `You are a Korean chess coach. Output ONLY in Korean (한국어).
-Chess move notation (Nf3, e4, O-O) stays in English algebraic form.
+  const EXPLAIN_SYSTEM = `당신은 한국어로 체스 수를 해설하는 AI입니다. 한국어만 출력하고, 체스 수 표기는 영문(Nf3, e4, O-O)을 유지하세요.
 
-CRITICAL: Use ONLY the moves provided in the engine line. Never invent or hallucinate moves.
+★ 핵심 원칙: "이 수가 좋은 이유는 ~" 식의 나열 금지.
+대신 수를 두면 어떤 일이 생기고 → 상대는 어떻게 대응할 수밖에 없는지 → 결국 어떤 결과가 나오는지를 따라가세요.
 
-TACTICAL MANDATE:
-You MUST identify if the move is part of a tactical pattern.
-- If it attacks two pieces: "**포크**"
-- If it pins a piece: "**핀**"
-- If it reveals an attack: "**디스커버드 어택**"
-Explain the tactic clearly using Korean terms.
+★ 전술이 있으면 반드시 이름으로: **포크**, **핀**, **스큐어**, **디스커버드 어택**. 어떤 기물이 어디를 동시에 위협하는지 구체적으로.
 
-The user wants to understand WHY a specific move is good. Give CONCRETE reasons based on what actually happens in this position — not generic chess advice.
+★ 금지 표현: "기물의 발전을 방해합니다", "중앙을 장악할 수 있습니다", "상대방을 약화시킵니다", "기물 교환으로 물량을 줄입니다", "폰 구조를 강화합니다"
+★ "이 수", "해당 수" 금지 — 항상 실제 수 표기(Nf3 등) 사용.
 
-For each reason, answer one of these questions using actual moves from the data:
-- What specific threat does this move escape? (예: "Qb2 침투 위협을 피합니다")
-- What specific threat does this move create? (예: "Bxd5 포크를 위협합니다")
-- What piece/square does it support and why does that matter? (예: "a7 룩이 d7 침투를 준비할 수 있게 됩니다")
-- What tactical idea does it enable? (예: "흑 퀸이 b2를 잡으려 해도 이제 룩으로 막을 수 있습니다")
-
-BANNED phrases (never use): "기물의 발전을 방해합니다", "중앙을 장악할 수 있습니다", "상대방을 약화시킵니다", "기물 교환으로 물량을 줄입니다", "폰 구조를 강화합니다"
-
-Output format:
-Line 1: "[수 표기]이/가 좋은 이유:" (예: "Qa1이 좋은 이유:")
-Then 3-4 bullets, each starting with "• ", one concrete sentence each.
-Total under 300 characters.`;
+출력 형식:
+1번째 줄: "[수 표기]이/가 나오면서:" (예: "Qa1이 나오면서:")
+이후 3~4개 bullet, 각 "• " 로 시작, 한 문장씩. 흐름으로 이어지게.
+전체 300자 이내.`;
 
   const focusMove = moves[focusIdx] || moves[0];
   const seq       = moves.slice(0, 5).join(' ');
@@ -1166,7 +1174,7 @@ function renderBestExplain(text, focusMove, moves, activeIdx, ctx) {
   // 타이틀: "[기물아이콘 Qa1]이/가 좋은 이유:"
   let html = `
     <div class="best-explain-title">
-      <span class="be-move-chip">${pieceImg_}${focusMove}</span>이/가 좋은 이유:
+      <span class="be-move-chip">${pieceImg_}${focusMove}</span>이/가 나오면서:
     </div>
     <div class="best-reason-list">`;
 
