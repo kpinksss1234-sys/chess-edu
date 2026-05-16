@@ -1332,15 +1332,18 @@ function loadPositionFromInput() {
       }
     }
     var msg = '';
-    if (wK !== 1 || bK !== 1) msg = '⚠️ 킹 부족/과다';
-    else if (w > 16 || b > 16) msg = '⚠️ 엔진 기물수 제한 초과 (16개)';
-    else if (w + b > 32) msg = '⚠️ 엔진 총 기물수 제한 초과 (32개)';
+    if (wK !== 1 || bK !== 1) msg = '⚠️ 킹이 백/흑 각각 1개씩 있어야 합니다';
+    else if (w > 16 || b > 16) {
+      var color = w > 16 ? '백' : '흑';
+      msg = `⚠️ ${color} 기물이 16개를 초과했습니다`;
+    }
+    else if (w + b > 32) msg = '⚠️ 전체 기물이 32개를 초과했습니다';
 
     var warnEl = document.getElementById('pos-warn-msg');
     if (warnEl) {
       warnEl.textContent = msg;
       warnEl.style.display = msg ? 'block' : 'none';
-      if (msg) warnEl.title = 'Stockfish Lite 엔진은 표준 기물 수(사이드당 16개, 총 32개)를 초과하면 평가를 중단합니다.';
+      if (msg) warnEl.title = '체스 엔진 최적화 문제로 백 또는 흑의 기물이 16개를 넘으면 평가 점수를 계산할 수 없습니다.';
     }
   }
 
