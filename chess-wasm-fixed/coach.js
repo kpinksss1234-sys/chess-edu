@@ -421,102 +421,30 @@ async function askCoach() {
 function buildCommentaryPrompt(ctx) {
   const lines = [];
 
-  // pvData에서 직접 최신 라인 읽기 (ctx의 캐시된 값 대신)
-  const livePv1 = pvData && pvData[1];
-  const livePv2 = pvData && pvData[2];
-  const livePv3 = pvData && pvData[3];
-  const liveBestLine = livePv1 && livePv1.moves ? livePv1.moves.slice(0, 8).join(' ') : ctx.bestLine;
-  const liveLine2    = livePv2 && livePv2.moves ? livePv2.moves.slice(0, 6).join(' ') : ctx.line2;
-  const liveLine3    = livePv3 && livePv3.moves ? livePv3.moves.slice(0, 6).join(' ') : ctx.line3;
-  const liveBestMove = livePv1 && livePv1.moves && livePv1.moves[0] ? livePv1.moves[0] : ctx.bestMove;
-
-  lines.push(`아래 체스 포지션을 보고, 체스인사이드 채널처럼 해설하세요.`);
+  lines.push(`당신은 체스 전문 해설가입니다. 아래 제공된 [사실 데이터]만을 사용하여 해설하세요.`);
   lines.push(``);
-  lines.push(`[포지션 데이터]`);
-  const moverKo = ctx.turn === 'w' ? '백(White)' : '흑(Black)';
-  lines.push(`게임 단계: ${ctx.phase} | 진행 수: ${ctx.moveCount}수`);
-  lines.push(`★ 지금 수를 둘 차례: ${moverKo} ← 최선수 분석은 반드시 이 쪽 기준으로`);
-  lines.push(`현재 형세: ${ctx.advantageDesc}`);
+  lines.push(`[사실 데이터]`);
+  lines.push(`차례: ${ctx.turn === 'w' ? '백' : '흑'}`);
+  lines.push(`FEN: ${ctx.fen}`);
 
-  if (ctx.lastMoveSan) {
-    const ann = ctx.lastMoveAnnotation ? ` (${ctx.lastMoveAnnotation})` : '';
-    lines.push(`방금 둔 수: ${ctx.lastMoveSan}${ann} (이미 보드에 반영됨)`);
-  }
-
-  // 엔진 라인을 "수 번호 + 차례" 형태로 전개해서 백/흑 혼동 방지
-  function expandLine(movesStr, startTurn, startFullMove) {
-    if (!movesStr) return '';
-    const moves = movesStr.split(' ').filter(Boolean);
-    let turn = startTurn;
-    let num  = startFullMove || 1;
-    return moves.map(san => {
-      const label = turn === 'w' ? `${num}.백:${san}` : `${num}...흑:${san}`;
-      if (turn === 'b') num++;
-      turn = turn === 'w' ? 'b' : 'w';
-      return label;
-    }).join(' ');
-  }
-
-  const startTurn = ctx.turn;
-  const startNum  = ctx.fullMove || 1;
-  if (liveBestLine) lines.push(`[엔진 최선 수순 — 반드시 이 수순만 사용, 백/흑 차례 주의]\n${expandLine(liveBestLine, startTurn, startNum)}`);
-  if (liveLine2)    lines.push(`[엔진 2순위]\n${expandLine(liveLine2, startTurn, startNum)}`);
-  if (liveLine3)    lines.push(`[엔진 3순위]\n${expandLine(liveLine3, startTurn, startNum)}`);
-
-  // 사용자 화살표(후보수/수순) 포함
-  if (ctx.candidateMoves && ctx.candidateMoves.length > 0) {
-    lines.push(``);
-    lines.push(`[사용자가 화살표로 표시한 후보수: ${ctx.candidateMoves.join(', ')}]`);
-    lines.push(`※ 해설에서 이 후보수들이 엔진 추천과 어떻게 다른지 언급해 주세요.`);
-  }
-  if (ctx.sequenceMoves && ctx.sequenceMoves.length > 0) {
-    lines.push(`[사용자가 Alt+화살표로 표시한 수순: ${ctx.sequenceMoves.join(' → ')}]`);
-    lines.push(`※ 이 수순의 장단점을 간략히 언급해 주세요.`);
-  }
-
-  if (ctx.threatData) {
-    lines.push(``);
-    lines.push(`[위협 분석 — 해설에 녹여서 사용할 것]`);
-    if (ctx.threatData.idea) lines.push(`아이디어: ${ctx.threatData.idea}`);
-    if (ctx.threatData.prob) lines.push(`문제점: ${ctx.threatData.prob}`);
-    if (ctx.threatData.sol)  lines.push(`해결책: ${ctx.threatData.sol}`);
-  }
-
-  // 백엔드 사실 데이터 추가
+  // 백엔드 사실 데이터를 최우선으로 배치
   if (ctx.backendFacts && ctx.backendFacts.facts) {
     lines.push(``);
-    lines.push(`[파이썬 백엔드 전술 분석 — 이 사실들을 반드시 해설에 통합하여 정확성을 높이세요]`);
+    lines.push(`[전술적 사실 - 이 데이터만 기반으로 해설하세요]`);
     if (ctx.backendFacts.facts.attackers && ctx.backendFacts.facts.attackers.length > 0) {
-        lines.push(`전술적 공격 사실: ${ctx.backendFacts.facts.attackers.join(', ')}`);
+        lines.push(`공격 상황: ${ctx.backendFacts.facts.attackers.join(', ')}`);
     }
     if (ctx.backendFacts.facts.pins && ctx.backendFacts.facts.pins.length > 0) {
         lines.push(`핀(Pin) 상황: ${ctx.backendFacts.facts.pins.join(', ')}`);
     }
   }
 
-  if (ctx.bestExplainData) {
-    lines.push(``);
-    lines.push(`[최선수 이유 데이터 — 자연스러운 문장으로 녹여서 사용할 것]`);
-    lines.push(`최선수: ${ctx.bestExplainData.move || liveBestMove}`);
-    if (ctx.bestExplainData.reasons && ctx.bestExplainData.reasons.length > 0) {
-      ctx.bestExplainData.reasons.forEach((r, i) => lines.push(`  ${i+1}. ${r}`));
-    }
-  } else {
-    lines.push(``);
-    lines.push(`[최선수 분석 지시]`);
-    lines.push(`최선수인 "${liveBestMove}"이/가 왜 좋은지 구체적인 이유(위협, 기물 활동성, 전술적 이점 등)를 3~4가지 핵심 포인트로 짚어주세요.`);
-  }
-
-  if (ctx.pgnMoves) lines.push(`전체 기보: ${ctx.pgnMoves}`);
-  lines.push(`FEN: ${ctx.fen}`);
-
   lines.push(``);
   lines.push(`[작성 지시]`);
-  lines.push(`- **포지션 상황** 으로 시작 (필수)`);
-  lines.push(`- 이후는 상황에 맞는 섹션만: **폰 구조 & 약점**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**`);
-  lines.push(`- **최선수 분석** 은 항상 포함. [엔진 최선 수순]의 수를 그대로 써서 설명할 것.`);
-  lines.push(`- 실제 수 표기 필수(Nf3, cxd5 등). "이 수", "해당 수" 절대 금지.`);
-  lines.push(`- cp/점수/승률 수치 절대 금지`);
+  lines.push(`1. [전술적 사실] 데이터가 있다면, 그것을 토대로만 해설하세요.`);
+  lines.push(`2. 데이터에 없는 내용은 절대로 지어내지 마세요.`);
+  lines.push(`3. "백이 크게 우세"와 같은 형세 판단은 하지 말고, [사실 데이터]에 있는 전술적 상황만 설명하세요.`);
+  lines.push(`4. 답변 형식: "현재 [공격/핀] 사실이 존재합니다. 따라서 [어떻게 대응/활용]할 수 있습니다."`);
 
   return lines.join('\n');
 }
