@@ -291,86 +291,32 @@ async function _executePositionCommentary() {
   coachLoading = true;
   responseDiv.style.display = 'flex';
   responseDiv.className = 'loading';
-  responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 스톡피시 라인 수집 중...`;
+  responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 스톡피시 분석 수집 중...`;
 
   try {
-    // 스톡피시 라인이 부족하면 대기
+    // 1. 스톡피시 라인 대기 (최소 3개 라인)
     if (!hasEnoughLines(ctx)) {
-      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 스톡피시 깊은 분석 대기 중...`;
-      await waitForDeepLines(ctx, 5000);
+      await waitForDeepLines(ctx, 4000);
     }
 
-    // 최신 컨텍스트 다시 빌드 (라인이 갱신됐을 수 있음)
+    // 2. 위협 분석 대기 (이미 돌고 있으면 대기, 없으면 실행)
     let freshCtx = buildChessContext();
-
-    // 위협 패널이 아직 로딩 중이면 완료까지 대기 (최대 4초)
-    if (threatLoading) {
-      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 위협 분석 완료 대기 중...`;
-      const tStart = Date.now();
-      while (threatLoading && Date.now() - tStart < 4000) {
-        await wait(300);
-      }
-      // 위협 데이터가 반영된 최신 컨텍스트로 재빌드
-      freshCtx = buildChessContext();
-    }
-
-    // 위협 패널이 비어있으면 백그라운드에서 먼저 위협 분석 실행 후 결과 기다림
     if (!freshCtx.threatData && !threatLoading) {
-      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 위협 분석 중...`;
-      await runThreatAnalysis();
-      const tStart2 = Date.now();
-      while (threatLoading && Date.now() - tStart2 < 4000) {
-        await wait(300);
-      }
-      freshCtx = buildChessContext();
+      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 국면 위협 분석 중...`;
+      await runThreatAnalysis(); // 내부적으로 8b-instant 사용
     }
-
-    // API 호출 간 간격 두기 (429 에러 방지)
-    await wait(1000);
-
-    // ── 최선수 이유: DOM/bestExplainLoading 의존 없이 직접 API 호출 ──
-    // pvData에서 현재 최신 라인을 직접 읽어 독립적으로 분석
-    let directBestExplainData = null;
-    const livePv1ForExplain = pvData && pvData[1];
-    if (livePv1ForExplain && livePv1ForExplain.moves && livePv1ForExplain.moves.length > 0) {
-      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 최선수 이유 분석 중...`;
-      try {
-        freshCtx = buildChessContext();
-        const explainMoves = livePv1ForExplain.moves.slice(0, 6);
-        const rawExplain = await callBestExplainAPI(freshCtx, explainMoves, 0);
-        const cleanedExplain = cleanKorean(rawExplain);
-
-        // 결과 파싱: 타이틀과 이유 목록 추출
-        const explainLines = cleanedExplain.split('\n').map(l => l.trim()).filter(Boolean);
-        const reasons = [];
-        for (const line of explainLines) {
-          if (line.startsWith('•') || line.startsWith('-') || line.startsWith('·') || line.match(/^\d+\./)) {
-            const txt = line.replace(/^[•\-·]\s*/, '').replace(/^\d+\.\s*/, '').trim();
-            if (txt) reasons.push(txt);
-          }
-        }
-        if (reasons.length === 0) {
-          explainLines.slice(1).forEach(l => { if (l) reasons.push(l); });
-        }
-        directBestExplainData = {
-          move: explainMoves[0] || null,
-          reasons,
-        };
-      } catch(e) {
-        console.warn('[Coach] bestExplain 직접 호출 실패:', e);
-      }
+    
+    const tStart = Date.now();
+    while (threatLoading && Date.now() - tStart < 3000) {
+      await wait(300);
     }
-
-    // API 호출 간 간격 두기 (429 에러 방지)
-    await wait(1200);
-
-    responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> AI 해설 생성 중...`;
-
     freshCtx = buildChessContext();
-    // directBestExplainData를 freshCtx에 주입 (DOM 결과보다 우선)
-    if (directBestExplainData) {
-      freshCtx.bestExplainData = directBestExplainData;
-    }
+
+    // 3. 통합 AI 해설 요청 (최선수 이유 + 전략 리포트 합침)
+    responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> AI 전략 리포트 생성 중...`;
+    
+    // API 호출 전 짧은 휴식 (429 방지)
+    await wait(300);
 
     const answer = await callCommentaryAPI(freshCtx);
     const cleaned = sanitizeAnswer(answer);
@@ -379,7 +325,7 @@ async function _executePositionCommentary() {
   } catch (err) {
     responseDiv.className = '';
     responseDiv.style.display = 'block';
-    responseDiv.innerHTML = `<span style="color:var(--accent-red)">⚠️ 오류: ${err.message}</span>`;
+    responseDiv.innerHTML = `<span style="color:var(--accent-red)">⚠️ 서비스 지연: 잠시 후 다시 시도해 주세요 (${err.message})</span>`;
     console.error('[Coach] 해설 오류:', err);
   } finally {
     coachLoading = false;
@@ -524,6 +470,10 @@ function buildCommentaryPrompt(ctx) {
     if (ctx.bestExplainData.reasons && ctx.bestExplainData.reasons.length > 0) {
       ctx.bestExplainData.reasons.forEach((r, i) => lines.push(`  ${i+1}. ${r}`));
     }
+  } else {
+    lines.push(``);
+    lines.push(`[최선수 분석 지시]`);
+    lines.push(`최선수인 "${liveBestMove}"이/가 왜 좋은지 구체적인 이유(위협, 기물 활동성, 전술적 이점 등)를 3~4가지 핵심 포인트로 짚어주세요.`);
   }
 
   if (ctx.pgnMoves) lines.push(`전체 기보: ${ctx.pgnMoves}`);
@@ -673,15 +623,16 @@ async function callThreatAPI(ctx) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 500,
-      temperature: 0.3,
+      model: 'llama-3.1-8b-instant',
+      max_tokens: 400,
+      temperature: 0.25,
       messages: [
-        { role: 'system', content: THREAT_SYSTEM },
+        { role: 'system', content: EXPLAIN_SYSTEM },
         { role: 'user',   content: userMsg },
       ],
     }),
   });
+
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.error?.message || `HTTP ${response.status}`);
@@ -719,7 +670,7 @@ async function callBestExplainAPI(ctx, moves, focusIdx) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       max_tokens: 400,
       temperature: 0.25,
       messages: [
@@ -728,6 +679,7 @@ async function callBestExplainAPI(ctx, moves, focusIdx) {
       ],
     }),
   });
+
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.error?.message || `HTTP ${response.status}`);
@@ -746,30 +698,62 @@ async function callGroqAPI(userContent) {
   return callGroqAPIWithSystem(SYSTEM, userContent, 850);
 }
 
-async function callGroqAPIWithSystem(systemPrompt, userContent, maxTokens = 800) {
-  const response = await fetch('/api/groq', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: maxTokens,
-      temperature: 0.3,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userContent  },
-      ],
-    }),
-  });
+async function callGroqAPIWithSystem(systemPrompt, userContent, maxTokens = 600) {
+  // 1. gemini-1.5-flash: 압도적인 무료 한도 (분당 100만 토큰), 70B급 성능.
+  // 2. mixtral-8x7b: Groq 모델 중 할당량이 넉넉함.
+  // 3. llama-3.1-8b: 속도가 매우 빠름.
+  const aiConfigs = [
+    { provider: 'gemini', model: 'gemini-1.5-flash', endpoint: '/api/gemini' },
+    { provider: 'groq',   model: 'mixtral-8x7b-32768', endpoint: '/api/groq' },
+    { provider: 'groq',   model: 'llama-3.1-8b-instant', endpoint: '/api/groq' }
+  ];
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  let lastError = null;
+
+  for (const config of aiConfigs) {
+    try {
+      const response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: config.model,
+          max_tokens: maxTokens,
+          temperature: 0.15, // 체스 분석의 정확도를 위해 더 낮춤
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userContent  },
+          ],
+        }),
+      });
+
+      // 할당량 초과 (429) 시 다음 모델로 즉시 전환
+      if (response.status === 429) {
+        console.warn(`[AI] ${config.model} 할당량 초과. 다음 백업 모델로 시도합니다...`);
+        continue;
+      }
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const raw = data.choices?.[0]?.message?.content || '';
+      
+      if (!raw || raw.length < 5) throw new Error('응답이 너무 짧습니다.');
+      
+      console.log(`[AI Response] (${config.model})`, data);
+      return cleanKorean(raw);
+
+    } catch (err) {
+      lastError = err;
+      console.error(`[AI Error] (${config.model}):`, err.message);
+      // 키가 설정되지 않았거나(500) 네트워크 오류 시 다음 모델로 전환
+      continue;
+    }
   }
 
-  const data = await response.json();
-  console.log('[Groq API Response]', data);
-  const raw  = data.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
-  return cleanKorean(raw);
+  throw lastError || new Error('모든 AI 서비스가 현재 응답할 수 없습니다. 나중에 다시 시도해 주세요.');
 }
 
 // ══════════════════════════════════════════════════════
