@@ -1436,13 +1436,19 @@ function loadPositionFromInput() {
       var currentAuth = window._auth || (typeof firebase !== 'undefined' ? firebase.auth() : null);
       if (currentAuth && currentAuth.currentUser) {
         const db = firebase.firestore();
-        await db.collection('games').add({
+        // ★ 중요: 'games' 컬렉션이 아닌 기존에 존재하는 'saved_pgns' 컬렉션 사용
+        await db.collection('saved_pgns').add({
           uid: currentAuth.currentUser.uid,
           title: title,
           fen: fen,
           pgn: pgn,
-          type: 'practice',
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          white: '백',
+          black: '흑',
+          date: new Date().toLocaleDateString(),
+          result: '*',
+          opening: '-',
+          moveCount: (game.history ? game.history.length : 0),
+          savedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         showToast('✅ 클라우드에 성공적으로 저장되었습니다!');
       } else {
