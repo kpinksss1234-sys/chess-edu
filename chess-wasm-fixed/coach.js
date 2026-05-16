@@ -443,16 +443,6 @@ function buildCommentaryPrompt(ctx) {
 
   lines.push(`아래 체스 포지션을 보고, 체스인사이드 채널처럼 해설하세요.`);
   lines.push(``);
-  lines.push(`[중요] 전술 감지 지시:`);
-  lines.push(`엔진 라인과 FEN을 면밀히 분석하여 포크(Fork), 핀(Pin), 스큐어(Skewer), 디스커버드 어택 등 전술적 요소가 있다면 반드시 해당 용어를 사용하여 설명하세요.`);
-  lines.push(`특히 킹과 다른 기물을 동시에 공격하는 수(포크)가 있다면 절대 놓치지 마세요.`);
-  lines.push(``);
-  lines.push(`핵심 원칙: 이 포지션에서 실제로 보이는 것을 있는 그대로 관찰하고 설명하세요.`);
-  lines.push(`폰이 약하면 "이 폰은 지키기가 어려운 폰이라고 볼 수 있죠"처럼,`);
-  lines.push(`긴장이 생기면 "비숍이 뒤쪽으로 빠지면서 룩 긴장이 생겨났고요"처럼,`);
-  lines.push(`나이트가 불안정하면 "나이트의 위치가 나중에라도 밀려날 수 있다는 걸 고려하면"처럼.`);
-  lines.push(`상황이 평범하면 평범하게, 복잡하면 복잡하게 — 억지로 극적인 표현이나 고정된 패턴을 쓰지 마세요.`);
-  lines.push(``);
   lines.push(`[포지션 데이터]`);
   lines.push(`게임 단계: ${ctx.phase} | 진행 수: ${ctx.moveCount}수 | 차례: ${ctx.turn === 'w' ? '백(White)' : '흑(Black)'}`);
   lines.push(`현재 형세: ${ctx.advantageDesc}`);
@@ -462,10 +452,25 @@ function buildCommentaryPrompt(ctx) {
     lines.push(`방금 둔 수: ${ctx.lastMoveSan}${ann}`);
   }
 
-  // 항상 최신 pvData 기반 라인 사용
-  if (liveBestLine) lines.push(`[엔진 1순위 라인 — 최선수 분석에 반드시 이 수순 사용] ${liveBestLine}`);
-  if (liveLine2)    lines.push(`[엔진 2순위 라인] ${liveLine2}`);
-  if (liveLine3)    lines.push(`[엔진 3순위 라인] ${liveLine3}`);
+  // 엔진 라인을 "수 번호 + 차례" 형태로 전개해서 백/흑 혼동 방지
+  function expandLine(movesStr, startTurn, startFullMove) {
+    if (!movesStr) return '';
+    const moves = movesStr.split(' ').filter(Boolean);
+    let turn = startTurn;
+    let num  = startFullMove || 1;
+    return moves.map(san => {
+      const label = turn === 'w' ? `${num}.백:${san}` : `${num}...흑:${san}`;
+      if (turn === 'b') num++;
+      turn = turn === 'w' ? 'b' : 'w';
+      return label;
+    }).join(' ');
+  }
+
+  const startTurn = ctx.turn;
+  const startNum  = ctx.fullMove || 1;
+  if (liveBestLine) lines.push(`[엔진 최선 수순 — 반드시 이 수순만 사용, 백/흑 차례 주의]\n${expandLine(liveBestLine, startTurn, startNum)}`);
+  if (liveLine2)    lines.push(`[엔진 2순위]\n${expandLine(liveLine2, startTurn, startNum)}`);
+  if (liveLine3)    lines.push(`[엔진 3순위]\n${expandLine(liveLine3, startTurn, startNum)}`);
 
   // 사용자 화살표(후보수/수순) 포함
   if (ctx.candidateMoves && ctx.candidateMoves.length > 0) {
@@ -502,8 +507,10 @@ function buildCommentaryPrompt(ctx) {
   lines.push(`[작성 지시]`);
   lines.push(`- **포지션 상황** 으로 시작 (필수)`);
   lines.push(`- 이후는 상황에 맞는 섹션만: **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**`);
-  lines.push(`- **최선수 분석** 은 항상 포함. [엔진 1순위 라인] 수순을 반드시 사용.`);
-  lines.push(`- 각 섹션은 나열이 아닌 흐름으로: 수가 두어지면 → 어떤 일이 생기고 → 상대는 어떻게 대응할 수밖에 없는지 따라가세요.`);
+  lines.push(`- **최선수 분석** 은 항상 포함. [엔진 최선 수순]의 수를 그대로 써서 설명할 것.`);
+  lines.push(`- 백/흑 주체를 항상 명시: 각 수마다 "백이 Nf3을", "흑이 cxd5로" 형태로. 주어 없이 수만 나열하지 말 것.`);
+  lines.push(`- 같은 수·같은 표현 반복 금지. 한 섹션 안에서 동일 수(예: Nh5)나 동일 표현이 두 번 이상 나오지 않게.`);
+  lines.push(`- 각 섹션은 흐름으로: 수가 두어지면 → 어떤 일이 생기고 → 상대는 어떻게 대응할 수밖에 없는지.`);
   lines.push(`- 섹션 헤더는 **헤더명** 형태로 새 줄에서 시작.`);
   lines.push(`- 수 표기 필수(Nf3, cxd5 등). "이 수", "해당 수" 절대 금지.`);
   lines.push(`- 공허한 표현 금지: "기물 발전", "중앙 장악", "승리의 기회를 높입니다"`);
