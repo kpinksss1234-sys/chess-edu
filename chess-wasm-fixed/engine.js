@@ -493,12 +493,11 @@ window.executeEnginePlayMove = executeEnginePlayMove;
 function handleMainWorkerMessage(e) {
   const line = e.data;
   if (!line) return;
-  
+
   // 디버깅용: 모든 info 라인 로그 (필요 시 주석 해제)
-  // if (line.startsWith('info')) console.log('[SF-INFO]', line);
+  if (line.startsWith('info') || line.startsWith('bestmove')) console.log('[SF-MSG]', line);
 
   if (line.includes('currmove')) return;
-
   if (line.startsWith('info') && line.includes('depth') && line.includes('score')) {
     const parsed = parseInfoLine(line);
     if (!parsed) return;
@@ -742,6 +741,8 @@ function analyzePosition(force) {
     game.board, game.turn, game.castling, game.enPassant,
     game.halfMove, game.fullMove
   );
+
+  console.log('[analyzePosition] FEN:', fen, 'force:', !!force);
 
   // 같은 FEN + 설정 변경 없음 + force 아님 → 스킵
   if (fen === lastAnalyzedFen && !settingsDirty && !force) return;
