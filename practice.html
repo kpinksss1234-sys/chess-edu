@@ -601,1282 +601,73 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
   overflow: visible;
 }
 
-</style>
-<link rel="stylesheet" href="theme-ui.css">
-<script src="theme-global.js"></script>
-</head>
-<body class="practice-page">
 
-<div id="engine-loading">
-  <div class="loading-spinner"></div>
-  <div class="loading-text" id="loading-text">Stockfish 18 WASM 로딩 중...<br><small style="opacity:0.6;font-size:12px">처음 로드 시 잠시 시간이 걸립니다</small></div>
-</div>
-
-<nav id="sidebar">
-  <a class="sidebar-logo" href="/" title="홈">♟</a>
-  <div class="sidebar-nav">
-    <a class="sidebar-item" href="/" title="분석" style="text-decoration:none;">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/></svg></div>
-      <span class="sidebar-label">분석</span>
-    </a>
-    <a class="sidebar-item" href="/play.html" title="온라인 대국" style="text-decoration:none;">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></div>
-      <span class="sidebar-label">대국</span>
-    </a>
-    <a class="sidebar-item" href="/puzzle.html" title="퍼즐 훈련" style="text-decoration:none;">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg></div>
-      <span class="sidebar-label">퍼즐</span>
-    </a>
-    <a class="sidebar-item" href="/opening-explorer.html" title="오프닝 탐색기" style="text-decoration:none;">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></div>
-      <span class="sidebar-label">탐색기</span>
-    </a>
-    <div class="sidebar-divider"></div>
-    <a class="sidebar-item" href="/records.html" title="기록" style="text-decoration:none;">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM8 15V17H16V15H8ZM8 11V13H16V11H8Z"/></svg></div>
-      <span class="sidebar-label">기록</span>
-    </a>
-    <a class="sidebar-item" href="/study.html" title="학습" style="text-decoration:none;">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg></div>
-      <span class="sidebar-label">학습</span>
-    </a>
-    <a class="sidebar-item active" href="/practice.html" title="엔진 연습" style="text-decoration:none;">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5v14h2v2h10v-2h2V5zm-2 12H7V7h10v10zM9 9h6v6H9V9z"/></svg></div>
-      <span class="sidebar-label">연습</span>
-    </a>
-    <a class="sidebar-item" href="/records.html?tab=stats" title="통계" style="text-decoration:none;">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg></div>
-      <span class="sidebar-label">통계</span>
-    </a>
-  </div>
-  <div class="sidebar-footer">
-    <div class="sidebar-user">
-      <div class="sidebar-avatar" id="sidebar-avatar-letter">?</div>
-      <div class="sidebar-username" id="sidebar-username">로딩중</div>
-    </div>
-    <div class="sidebar-item" title="테마 변경" onclick="toggleColorMode()">
-      <div class="sidebar-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M20 8.69V4H15.31L12 0.69L8.69 4H4V8.69L0.69 12L4 15.31V20H8.69L12 23.31L15.31 20H20V15.31L23.31 12L20 8.69ZM12 18C8.69 18 6 15.31 6 12C6 8.69 8.69 6 12 6C15.31 6 18 8.69 18 12C18 15.31 15.31 18 12 18Z"/></svg></div>
-      <span class="sidebar-label">테마</span>
-    </div>
-    <div class="sidebar-item logout-btn" title="로그아웃" onclick="handleLogout()">
-      <div class="sidebar-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
-      <span class="sidebar-label">로그아웃</span>
-    </div>
-  </div>
-</nav>
-
-<div id="main">
-  <div id="board-area">
-    <div class="player-info" id="player-black">
-      <div class="player-avatar" id="avatar-black">
-        <img src="https://lichess1.org/assets/piece/cburnett/bP.svg" alt="흑">
-      </div>
-      <div class="player-details">
-        <span class="player-name" id="name-black">흑</span>
-        <span class="player-rating" id="rating-black">?</span>
-        <div class="captured-pieces" id="captured-black"></div>
-      </div>
-      <div class="player-clock" id="clock-black">∞</div>
-    </div>
-
-    <div id="eval-container">
-      <div id="eval-bar-wrap">
-        <div id="eval-bar-black"></div>
-        <div id="eval-bar-fill" style="height:50%"></div>
-        <span id="eval-score-black">0.0</span>
-        <span id="eval-score-white">0.0</span>
-      </div>
-      <div id="board-wrap">
-        <div id="chessboard"></div>
-      </div>
-    </div>
-
-    <div class="player-info" id="player-white">
-      <div class="player-avatar" id="avatar-white">
-        <img src="https://lichess1.org/assets/piece/cburnett/wP.svg" alt="백">
-      </div>
-      <div class="player-details">
-        <span class="player-name" id="name-white">백</span>
-        <span class="player-rating" id="rating-white">?</span>
-        <div class="captured-pieces" id="captured-white"></div>
-      </div>
-      <div class="player-clock" id="clock-white">∞</div>
-    </div>
-
-    <div id="board-controls">
-      <button class="ctrl-btn" onclick="game.goToStart()" title="처음">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6H8V18H6ZM9.5 12L18 18V6L9.5 12Z"/></svg>
-      </button>
-      <button class="ctrl-btn" onclick="game.prevMove()" title="이전">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 19L7 12L15.5 5V19Z"/></svg>
-      </button>
-      <button class="ctrl-btn" onclick="game.nextMove()" title="다음">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 5L17 12L8.5 19V5Z"/></svg>
-      </button>
-      <button class="ctrl-btn" onclick="game.goToEnd()" title="끝">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 18H16V6H18ZM14.5 12L6 6V18L14.5 12Z"/></svg>
-      </button>
-      <div class="ctrl-spacer"></div>
-      <div class="eval-score" id="eval-score" title="엔진 평가">0.0</div>
-      <button class="ctrl-btn" onclick="game.flipBoard()" title="보드 뒤집기">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-      </button>
-      <button class="ctrl-btn" onclick="practiceNewGame()" title="같은 조건으로 새 게임">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
-      </button>
-      <button class="ctrl-btn" id="edit-mode-btn" onclick="togglePieceEditor()" title="기물 편집 모드" style="border-color:rgba(80,144,208,0.4);color:#7eb8e8;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-      </button>
-    </div>
-  </div>
-
-  <div id="right-panel">
-    <div class="practice-panel-header">
-      <h2>포지션 편집</h2>
-      <p>FEN/PGN을 입력하거나 기물을 배치하여 원하는 포지션을 만드세요.</p>
-
-      <div style="margin-top: 10px;">
-        <input type="text" id="fen-input" placeholder="FEN 또는 PGN 입력" style="width:100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-tertiary); color: var(--text-primary); font-size: 12px; margin-bottom: 6px;">
-        <button type="button" class="btn-newgame" id="load-pos-btn" onclick="loadPositionFromInput()">포지션 불러오기</button>
-      </div>
-
-<script>
-function loadPositionFromInput() {
-  const input = document.getElementById('fen-input').value.trim();
-  if (!input) return;
-  // 간단하게 FEN 로드 시도
-  if (typeof game !== 'undefined' && game && typeof game.loadFromFen === 'function') {
-    const success = game.loadFromFen(input);
-    if (!success) {
-      alert('유효하지 않은 FEN입니다.');
-    }
-  }
-}
-</script>
-
-      <!-- 기물 편집 패널 -->
-      <div id="piece-editor-bar" style="display:block; margin-top: 15px;">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap; margin-bottom: 8px;">
-          <span class="editor-label" style="margin-bottom:0;">✏️ 기물 편집</span>
-          <span style="font-size:10px;color:var(--text-muted);">클릭: 배치 | 우클릭: 삭제</span>
-        </div>
-        <div>
-          <div class="editor-label" style="margin-bottom:4px; font-size: 9px;">백 기물</div>
-          <div class="editor-piece-palette" id="palette-white"></div>
-        </div>
-        <div style="margin-top: 8px;">
-          <div class="editor-label" style="margin-bottom:4px; font-size: 9px;">흑 기물</div>
-          <div class="editor-piece-palette" id="palette-black"></div>
-        </div>
-        <div class="editor-turn-row" style="margin-top: 10px;">
-          <span>차례:</span>
-          <button class="editor-turn-btn" id="turn-btn-w" onclick="setEditorTurn('w')">⬜ 백</button>
-          <button class="editor-turn-btn" id="turn-btn-b" onclick="setEditorTurn('b')">⬛ 흑</button>
-          <div class="palette-erase" id="erase-btn" onclick="selectEraseMode()" title="기물 삭제">🗑</div>
-        </div>
-      </div>
-    </div><!-- /practice-panel-header -->
-
-    <div id="analysis-panel">
-      <div class="analysis-header">
-        <div class="engine-badge">
-          <div class="engine-dot idle" id="engine-dot"></div>
-          <span id="engine-name">Stockfish 18</span>
-        </div>
-        <span class="depth-info" id="depth-info">준비 중</span>
-      </div>
-
-      <div id="top-moves" class="top-moves practice-hide-top-moves">
-        <div id="top-moves-empty"></div>
-      </div>
-
-      <div id="threat-panel" style="display:none;"></div>
-      <div id="threat-content" style="display:none;"></div>
-      <div id="best-explain-panel" style="display:none;"></div>
-      <div id="best-explain-content" style="display:none;"></div>
-      <div id="best-explain-seq" style="display:none;"></div>
-
-      <div id="move-list-wrap">
-        <div class="move-list-header">
-          <span class="move-list-title">기보</span>
-          <span class="move-count" id="move-count">0 수</span>
-        </div>
-        <div id="move-list"></div>
-      </div>
-    </div>
-
-    <div id="status-bar">
-      <div class="status-indicator">
-        <div class="status-dot"></div>
-        <span id="status-text">백의 차례</span>
-      </div>
-      <span>|</span>
-      <span id="move-count-bar">0 수</span>
-    </div>
-  </div>
-</div>
-
-<div id="promotion-modal">
-  <div class="promotion-box">
-    <div class="promotion-title">프로모션 기물 선택</div>
-    <div class="promotion-pieces" id="promo-pieces"></div>
-  </div>
-</div>
-
-<div class="sr-only-gameinfo" aria-hidden="true">
-  <span id="info-white">-</span>
-  <span id="info-black">-</span>
-  <span id="info-date">-</span>
-  <span id="info-result">*</span>
-  <span id="info-opening">-</span>
-</div>
-
-<div id="toast"></div>
-
-<input id="coach-input" type="text" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" tabindex="-1" aria-hidden="true">
-
-<div id="coach-panel"></div>
-<button id="coach-fab" type="button">coach</button>
-
-<script src="chess-wasm-fixed/chess.js"></script>
-<script src="chess-wasm-fixed/engine.js"></script>
-<script src="chess-wasm-fixed/game.js"></script>
-<script src="chess-wasm-fixed/ui.js"></script>
-<script src="chess-wasm-fixed/endgame-practice.js"></script>
-<script src="chess-wasm-fixed/hints.js"></script>
-<script src="chess-wasm-fixed/practice-page.js"></script>
-<script src="chess-wasm-fixed/coach.js"></script>
-
-<!-- 모바일 하단 내비게이션 -->
-<nav id="mobile-bottom-nav">
-  <a class="mob-nav-item" href="/"><span class="mob-nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM9 17H7V10H9V17ZM13 17H11V7H13V17ZM17 17H15V13H17V17Z"/></svg></span><span>분석</span></a>
-  <a class="mob-nav-item" href="/play.html"><span class="mob-nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></span><span>대국</span></a>
-  <a class="mob-nav-item" href="/puzzle.html"><span class="mob-nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7 1.49 0 2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"/></svg></span><span>퍼즐</span></a>
-  <a class="mob-nav-item" href="/opening-explorer.html"><span class="mob-nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></span><span>탐색기</span></a>
-  <a class="mob-nav-item" href="/records.html"><span class="mob-nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2ZM18 20H6V4H13V9H18V20ZM8 15V17H16V15H8ZM8 11V13H16V11H8Z"/></svg></span><span>기록</span></a>
-  <a class="mob-nav-item" href="/study.html"><span class="mob-nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg></span><span>학습</span></a>
-  <a class="mob-nav-item active" href="/practice.html"><span class="mob-nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 5h-2V3H7v2H5v14h2v2h10v-2h2V5zm-2 12H7V7h10v10zM9 9h6v6H9V9z"/></svg></span><span>연습</span></a>
-  <a class="mob-nav-item" href="/records.html?tab=stats"><span class="mob-nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg></span><span>통계</span></a>
-</nav>
-
-<script>
-// ══════════════════════════════════════════════════════
-//  우클릭 화살표 그리기
-// ══════════════════════════════════════════════════════
-(function() {
-  const ARROW_COLOR = 'rgba(255, 165, 0, 0.88)';
-  const ARROW_SW    = 14;
-  const MARKER_ID   = 'user-arrow-svg-head';
-  const SVG_NS = 'http://www.w3.org/2000/svg';
-
-  let _arrowStart = null;
-  let _userArrows = [];
-
-  function ensureSvg() {
-    // chess-wasm-fixed / study-opening 등 기존 SVG overlay 재사용
-    const existingSvg = document.getElementById('board-svg-overlay');
-    if (existingSvg && !document.getElementById('user-arrow-svg-arrows')) {
-      let defs = existingSvg.querySelector('defs');
-      if (!defs) { defs = document.createElementNS(SVG_NS,'defs'); existingSvg.prepend(defs); }
-      if (!document.getElementById(MARKER_ID)) {
-        const mk = document.createElementNS(SVG_NS, 'marker');
-        mk.setAttribute('id', MARKER_ID); mk.setAttribute('markerUnits', 'strokeWidth');
-        mk.setAttribute('markerWidth', '4'); mk.setAttribute('markerHeight', '4');
-        mk.setAttribute('refX', '2.5'); mk.setAttribute('refY', '2');
-        mk.setAttribute('orient', 'auto');
-        const mp = document.createElementNS(SVG_NS, 'path');
-        mp.setAttribute('d', 'M0,0 L4,2 L0,4 L1,2 Z');
-        mp.setAttribute('fill', ARROW_COLOR); mp.setAttribute('stroke', 'none');
-        mk.appendChild(mp); defs.appendChild(mk);
-      }
-      const g2 = document.createElementNS(SVG_NS, 'g');
-      g2.id = 'user-arrow-svg-arrows';
-      existingSvg.appendChild(g2);
-      return existingSvg;
-    }
-    if (existingSvg) return existingSvg;
-
-    let svg = document.getElementById('user-arrow-svg');
-    if (svg) return svg;
-
-    const board = document.getElementById('chessboard');
-    if (!board) return null;
-    let wrap = board.parentElement;
-    if (!wrap || getComputedStyle(wrap).position === 'static') wrap = board;
-
-    svg = document.createElementNS(SVG_NS, 'svg');
-    svg.id = 'user-arrow-svg';
-    svg.setAttribute('viewBox', '0 0 800 800');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.classList.add('board-arrow-overlay');
-
-    const defs = document.createElementNS(SVG_NS, 'defs');
-    const mk = document.createElementNS(SVG_NS, 'marker');
-    mk.setAttribute('id', MARKER_ID); mk.setAttribute('markerUnits', 'strokeWidth');
-    mk.setAttribute('markerWidth', '4'); mk.setAttribute('markerHeight', '4');
-    mk.setAttribute('refX', '2.5'); mk.setAttribute('refY', '2');
-    mk.setAttribute('orient', 'auto');
-    const mp = document.createElementNS(SVG_NS, 'path');
-    mp.setAttribute('d', 'M0,0 L4,2 L0,4 L1,2 Z');
-    mp.setAttribute('fill', ARROW_COLOR); mp.setAttribute('stroke', 'none');
-    mk.appendChild(mp); defs.appendChild(mk); svg.appendChild(defs);
-
-    const g = document.createElementNS(SVG_NS, 'g');
-    g.id = 'user-arrow-svg-arrows';
-    svg.appendChild(g);
-    wrap.appendChild(svg);
-    if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
-    return svg;
-  }
-
-  function sqCenter(col, row) { return { px: col * 100 + 50, py: row * 100 + 50 }; }
-
-  function makeArrow(fromCol, fromRow, toCol, toRow) {
-    const from = sqCenter(fromCol, fromRow);
-    const to   = sqCenter(toCol, toRow);
-    const dx = to.px - from.px, dy = to.py - from.py;
-    const len = Math.sqrt(dx*dx + dy*dy);
-    if (len < 1) return null;
-    const ux = dx/len, uy = dy/len;
-    const sw = ARROW_SW;
-    const sx = from.px + ux*sw*1.2, sy = from.py + uy*sw*1.2;
-    const ex = to.px   - ux*sw*2.5, ey = to.py   - uy*sw*2.5;
-    if (Math.sqrt((ex-sx)**2+(ey-sy)**2) < 5) return null;
-    const line = document.createElementNS(SVG_NS, 'line');
-    line.setAttribute('x1', sx.toFixed(2)); line.setAttribute('y1', sy.toFixed(2));
-    line.setAttribute('x2', ex.toFixed(2)); line.setAttribute('y2', ey.toFixed(2));
-    line.setAttribute('stroke', ARROW_COLOR);
-    line.setAttribute('stroke-width', sw);
-    line.setAttribute('stroke-linecap', 'round');
-    line.setAttribute('marker-end', 'url(#' + MARKER_ID + ')');
-    return line;
-  }
-
-  function redrawArrows() {
-    const g = document.getElementById('user-arrow-svg-arrows');
-    if (!g) return;
-    g.innerHTML = '';
-    _userArrows.forEach(a => {
-      const el = makeArrow(a.fromCol, a.fromRow, a.toCol, a.toRow);
-      if (el) g.appendChild(el);
-    });
-  }
-
-  function getBoardSquare(e) {
-    const board = document.getElementById('chessboard');
-    if (!board) return null;
-    const rect = board.getBoundingClientRect();
-    const x = e.clientX - rect.left, y = e.clientY - rect.top;
-    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
-    return {
-      col: Math.max(0, Math.min(7, Math.floor(x / rect.width  * 8))),
-      row: Math.max(0, Math.min(7, Math.floor(y / rect.height * 8)))
-    };
-  }
-
-  function attachEvents() {
-    const board = document.getElementById('chessboard');
-    if (!board) { setTimeout(attachEvents, 300); return; }
-    ensureSvg();
-
-    board.addEventListener('contextmenu', function(e) {
-      e.preventDefault();
-      const sq = getBoardSquare(e);
-      if (sq) _arrowStart = sq;
-    });
-
-    board.addEventListener('mouseup', function(e) {
-      if (e.button !== 2) return;
-      if (!_arrowStart) return;
-      const sq = getBoardSquare(e);
-      ensureSvg();
-      if (sq) {
-        if (sq.col === _arrowStart.col && sq.row === _arrowStart.row) {
-          _userArrows = [];
-        } else {
-          const idx = _userArrows.findIndex(a =>
-            a.fromCol===_arrowStart.col && a.fromRow===_arrowStart.row &&
-            a.toCol===sq.col && a.toRow===sq.row
-          );
-          if (idx >= 0) _userArrows.splice(idx, 1);
-          else _userArrows.push({ fromCol:_arrowStart.col, fromRow:_arrowStart.row, toCol:sq.col, toRow:sq.row });
-        }
-        redrawArrows();
-      }
-      _arrowStart = null;
-    });
-
-    board.addEventListener('mousedown', function(e) {
-      if (e.button === 0) {
-        _userArrows = [];
-        redrawArrows();
-        _arrowStart = null;
-      }
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', attachEvents);
-  } else {
-    attachEvents();
-  }
-})();
-</script>
-<script>
-// ══════════════════════════════════════════════════════
-//  기물 팔레트 & 드래그 편집 시스템 (완전 재작성)
-// ══════════════════════════════════════════════════════
-(function() {
-  const PIECE_IMGS = 'https://lichess1.org/assets/piece/cburnett/';
-  const PIECES = ['K','Q','R','B','N','P'];
-
-  let _palOpen = false;
-  let _selPiece = null;
-  let _dragFromSq = null;
-  let _dragGhost = null;
-
-  function buildPalette() {
-    ['w','b'].forEach(color => {
-      const id = color === 'w' ? 'pal-white' : 'pal-black';
-      const container = document.getElementById(id);
-      if (!container) return;
-      container.innerHTML = '';
-      container.style.cssText = 'display:flex;flex-direction:column;gap:4px;align-items:center;';
-      PIECES.forEach(type => {
-        const btn = document.createElement('div');
-        btn.className = 'pal-piece';
-        btn.title = type;
-        btn.dataset.color = color;
-        btn.dataset.type = type;
-        btn.draggable = true;
-        btn.innerHTML = '<img src="' + PIECE_IMGS + color + type + '.svg" alt="' + type + '" draggable="false">';
-        btn.addEventListener('click', () => palSelect(color, type));
-        btn.addEventListener('dragstart', e => {
-          palSelect(color, type);
-          e.dataTransfer.effectAllowed = 'copy';
-          e.dataTransfer.setData('application/cg-pal', JSON.stringify({color, type}));
-        });
-        container.appendChild(btn);
-      });
-    });
-  }
-
-  function palSelect(color, type) {
-    _selPiece = {color, type};
-    const eraseBtn = document.getElementById('pal-erase-btn');
-    if (eraseBtn) eraseBtn.classList.remove('selected');
-    document.querySelectorAll('.pal-piece').forEach(el => {
-      el.classList.toggle('selected', el.dataset.color === color && el.dataset.type === type);
-    });
-  }
-
-  window.palSelectErase = function() {
-    _selPiece = 'erase';
-    const eraseBtn = document.getElementById('pal-erase-btn');
-    if (eraseBtn) eraseBtn.classList.add('selected');
-    document.querySelectorAll('.pal-piece').forEach(el => el.classList.remove('selected'));
-  };
-
-  window.togglePalettePanel = function() {
-    _palOpen = !_palOpen;
-    const panel = document.getElementById('palette-panel');
-    const board = document.getElementById('chessboard');
-    const btn = document.getElementById('edit-mode-btn');
-    if (_palOpen) {
-      buildPalette();
-      if (panel) panel.classList.add('open');
-      if (board) board.classList.add('palette-edit-mode');
-      if (btn) { btn.style.background = 'rgba(80,144,208,0.25)'; btn.style.borderColor = '#5090d0'; }
-      palSelect('w', 'Q');
-      window._editorSavedPracticeMode = window._enginePracticeMode;
-      window._enginePracticeMode = null;
-    } else {
-      if (panel) panel.classList.remove('open');
-      if (board) board.classList.remove('palette-edit-mode');
-      if (btn) { btn.style.background = ''; btn.style.borderColor = 'rgba(80,144,208,0.4)'; }
-      _selPiece = null;
-      window._enginePracticeMode = window._editorSavedPracticeMode || null;
-      if (typeof analyzePosition === 'function') analyzePosition(true);
-    }
-  };
-
-  window.togglePieceEditor = window.togglePalettePanel;
-
-  function sqFromEvent(e) {
-    const board = document.getElementById('chessboard');
-    if (!board) return null;
-    const rect = board.getBoundingClientRect();
-    const x = e.clientX - rect.left, y = e.clientY - rect.top;
-    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
-    const col = Math.max(0, Math.min(7, Math.floor(x / rect.width * 8)));
-    const row = Math.max(0, Math.min(7, Math.floor(y / rect.height * 8)));
-    return {col, row};
-  }
-
-  function getBoardPiece(col, row) {
-    if (typeof game === 'undefined' || !game || !game.board) return null;
-    try { return game.board[row][col]; } catch(e) { return null; }
-  }
-
-  function setBoardPiece(col, row, pieceObj) {
-    if (typeof game === 'undefined' || !game || !game.board) return;
-    try {
-      if (pieceObj === null) {
-        game.board[row][col] = null;
-      } else {
-        const c = pieceObj.color, t = pieceObj.type;
-        game.board[row][col] = {
-          type: t.toLowerCase(), color: c,
-          piece: c === 'w' ? t.toUpperCase() : t.toLowerCase()
-        };
-      }
-      _refresh();
-    } catch(e) { console.warn('[palette] setBoardPiece 실패', e); }
-  }
-
-  function _refresh() {
-    if (typeof renderBoard === 'function') renderBoard();
-    else if (typeof game !== 'undefined' && game && typeof game.renderBoard === 'function') game.renderBoard();
-  }
-
-  function attachBoardEvents() {
-    const board = document.getElementById('chessboard');
-    if (!board) { setTimeout(attachBoardEvents, 500); return; }
-
-    board.addEventListener('dragover', e => {
-      if (!_palOpen && !_dragFromSq) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = _dragFromSq ? 'move' : 'copy';
-    });
-
-    board.addEventListener('drop', e => {
-      e.preventDefault();
-      const sq = sqFromEvent(e);
-      if (!sq) return;
-      if (_dragFromSq) {
-        const from = _dragFromSq;
-        _dragFromSq = null;
-        if (from.col === sq.col && from.row === sq.row) { _refresh(); return; }
-        const piece = getBoardPiece(from.col, from.row);
-        setBoardPiece(from.col, from.row, null);
-        if (piece) setBoardPiece(sq.col, sq.row, piece);
-        return;
-      }
-      if (!_palOpen) return;
-      const raw = e.dataTransfer.getData('application/cg-pal');
-      if (raw) {
-        try { setBoardPiece(sq.col, sq.row, JSON.parse(raw)); } catch(_) {}
-      } else if (_selPiece && _selPiece !== 'erase') {
-        setBoardPiece(sq.col, sq.row, _selPiece);
-      }
-    });
-
-    board.addEventListener('click', e => {
-      if (!_palOpen) return;
-      const sq = sqFromEvent(e);
-      if (!sq) return;
-      e.stopImmediatePropagation();
-      if (!_selPiece) return;
-      if (_selPiece === 'erase') setBoardPiece(sq.col, sq.row, null);
-      else setBoardPiece(sq.col, sq.row, _selPiece);
-    }, true);
-
-    board.addEventListener('contextmenu', e => {
-      if (!_palOpen) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      const sq = sqFromEvent(e);
-      if (sq) setBoardPiece(sq.col, sq.row, null);
-    }, true);
-
-    // 보드 위 기물 마우스 드래그 이동
-    board.addEventListener('mousedown', e => {
-      if (!_palOpen || e.button !== 0) return;
-      const sq = sqFromEvent(e);
-      if (!sq) return;
-      const piece = getBoardPiece(sq.col, sq.row);
-      if (!piece) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      _dragFromSq = sq;
-
-      const color = piece.color;
-      const type = (piece.type || '').toUpperCase();
-      _dragGhost = document.createElement('img');
-      _dragGhost.src = PIECE_IMGS + color + type + '.svg';
-      _dragGhost.style.cssText = 'position:fixed;width:64px;height:64px;pointer-events:none;z-index:9999;opacity:0.85;transform:translate(-50%,-50%);';
-      _dragGhost.style.left = e.clientX + 'px';
-      _dragGhost.style.top = e.clientY + 'px';
-      document.body.appendChild(_dragGhost);
-
-      const sqEls = board.querySelectorAll('.square');
-      const idx = sq.row * 8 + sq.col;
-      const img = sqEls[idx] && sqEls[idx].querySelector('.piece-img');
-      if (img) img.classList.add('dragging-piece');
-    }, true);
-
-    window.addEventListener('mousemove', e => {
-      if (!_dragGhost) return;
-      _dragGhost.style.left = e.clientX + 'px';
-      _dragGhost.style.top = e.clientY + 'px';
-    });
-
-    window.addEventListener('mouseup', e => {
-      if (!_dragFromSq) return;
-      if (_dragGhost) { _dragGhost.remove(); _dragGhost = null; }
-      const board = document.getElementById('chessboard');
-      if (board) {
-        const sqEls = board.querySelectorAll('.square');
-        const idx2 = _dragFromSq.row * 8 + _dragFromSq.col;
-        const img2 = sqEls[idx2] && sqEls[idx2].querySelector('.piece-img');
-        if (img2) img2.classList.remove('dragging-piece');
-      }
-      const sq = sqFromEvent(e);
-      const from = _dragFromSq;
-      _dragFromSq = null;
-      if (!sq || (from.col === sq.col && from.row === sq.row)) return;
-      const piece = getBoardPiece(from.col, from.row);
-      setBoardPiece(from.col, from.row, null);
-      if (piece) setBoardPiece(sq.col, sq.row, piece);
-    });
-  }
-
-  window.palClearBoard = function() {
-    if (!confirm('보드의 모든 기물을 삭제할까요?')) return;
-    if (typeof game === 'undefined' || !game || !game.board) return;
-    for (let r = 0; r < 8; r++)
-      for (let c = 0; c < 8; c++)
-        game.board[r][c] = null;
-    _refresh();
-  };
-
-  window.palResetStart = function() {
-    const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-    if (typeof game !== 'undefined' && game && typeof game.loadFromFen === 'function') {
-      game.loadFromFen(START);
-    }
-  };
-
-  window.setEditorTurn = function(turn) {
-    if (typeof game !== 'undefined' && game) {
-      try { game.turn = turn; } catch(e) {}
-    }
-    const wb = document.getElementById('turn-btn-w');
-    const bb = document.getElementById('turn-btn-b');
-    if (wb) wb.classList.toggle('active-w', turn === 'w');
-    if (bb) bb.classList.toggle('active-b', turn === 'b');
-  };
-
-  window.selectEraseMode = window.palSelectErase;
-
-  document.addEventListener('DOMContentLoaded', () => {
-    buildPalette();
-    attachBoardEvents();
-  });
-})();
-</script>>
-<html lang="ko" data-color-mode="dark">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>체스 연습 — Stockfish 대전</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="auth-check.js"></script>
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; }
-:root {
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #242424;
-  --bg-tertiary: #2d2d2d;
-  --bg-card: #1e1e1e;
-  --bg-hover: #333333;
-  --border: #3a3a3a;
-  --border-light: #444444;
-  --text-primary: #e8e8e8;
-  --text-secondary: #a0a0a0;
-  --text-muted: #666666;
-  --accent-green: #7fa650;
-  --accent-green-bright: #a0c060;
-  --accent-green-dark: #5a8030;
-  --accent-blue: #5090d0;
-  --accent-orange: #e08030;
-  --sidebar-width: 72px;
-  --board-light: #f0d9b5;
-  --board-dark: #b58863;
-  --move-brilliant: #1bada6;
-  --move-great: #5c8fff;
-  --move-best: #7fa650;
-  --move-excellent: #7fa650;
-  --move-good: #96af8b;
-  --move-book: #b07030;
-  --move-inaccuracy: #f6c94a;
-  --move-mistake: #e08c3a;
-  --move-blunder: #cc3333;
-  --move-miss: #9944cc;
-  --font-main: 'Noto Sans KR', sans-serif;
-}
-body {
-  font-family: var(--font-main);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-}
-.practice-page #coach-fab,
-.practice-page #coach-panel { display: none !important; }
-
-#sidebar {
-  width: var(--sidebar-width);
+/* ══ 보드 왼쪽 기물 팔레트 패널 ══ */
+#palette-panel {
+  width: 68px;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
-  padding: 12px 0;
+  padding: 8px 6px;
   gap: 4px;
   flex-shrink: 0;
-  z-index: 100;
+  overflow-y: auto;
+  z-index: 50;
 }
-.sidebar-logo {
-  width: 40px; height: 40px;
-  background: var(--accent-green);
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  margin-bottom: 12px; cursor: pointer; font-size: 22px;
-  transition: background 0.2s;
-  color: inherit;
-  text-decoration: none;
+#palette-panel.pal-open { display: flex; }
+.pal-label {
+  font-size: 9px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  text-align: center; width: 100%; line-height: 1;
 }
-.sidebar-logo:hover { background: var(--accent-green-bright); }
-.sidebar-nav {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 2px; width: 100%; flex: 1;
-}
-.sidebar-item {
-  width: 52px; height: 52px; border-radius: 12px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  cursor: pointer; gap: 3px; transition: background 0.15s;
-  text-decoration: none; color: inherit;
-}
-.sidebar-item:hover { background: var(--bg-hover); }
-.sidebar-item.active { background: var(--bg-tertiary); }
-.sidebar-item.active .sidebar-icon { color: var(--accent-green-bright); }
-.sidebar-icon { width: 22px; height: 22px; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; }
-.sidebar-label { font-size: 9px; color: var(--text-muted); text-align: center; line-height: 1; }
-.sidebar-item.active .sidebar-label { color: var(--accent-green-bright); }
-.sidebar-divider { width: 32px; height: 1px; background: var(--border); margin: 6px 0; }
-.sidebar-footer {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 4px; padding-top: 8px; border-top: 1px solid var(--border); width: 100%;
-}
-.sidebar-user {
-  width: 52px;
-  display: flex; flex-direction: column; align-items: center;
-  gap: 3px; padding: 6px 0; cursor: default;
-}
-.sidebar-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-green), var(--accent-green-dark));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700; color: #fff;
-  border: 2px solid var(--accent-green-dark);
-}
-.sidebar-username {
-  font-size: 8.5px; color: var(--text-muted);
-  text-align: center; max-width: 52px; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
-}
-.sidebar-item.logout-btn:hover { background: rgba(192,64,64,0.12); }
-.sidebar-item.logout-btn:hover .sidebar-icon { color: #e07070; }
-
-#main { flex: 1; display: flex; overflow: hidden; min-width: 0; }
-
-#board-area {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 16px; background: var(--bg-primary);
-  min-width: 0; overflow: hidden;
-}
-.player-info {
-  display: flex; align-items: center; gap: 10px;
-  width: 100%; max-width: 640px; padding: 8px 0;
-}
-.player-avatar {
-  width: 36px; height: 36px; border-radius: 50%;
-  background: var(--bg-tertiary); border: 2px solid var(--border-light);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; flex-shrink: 0; overflow: hidden;
-}
-.player-avatar img { width: 100%; height: 100%; object-fit: contain; }
-.player-details { flex: 1; min-width: 0; }
-.player-name { font-size: 14px; font-weight: 600; }
-.player-rating {
-  font-size: 12px; color: var(--text-secondary);
-  background: var(--bg-tertiary); padding: 1px 6px;
-  border-radius: 4px; margin-left: 6px;
-}
-.player-clock {
-  font-size: 18px; font-weight: 700; color: var(--text-secondary);
-  background: var(--bg-tertiary); border: 1px solid var(--border);
-  padding: 4px 10px; border-radius: 6px;
-}
-.captured-pieces { flex: 1; display: flex; flex-wrap: wrap; gap: 1px; align-items: center; font-size: 14px; }
-.captured-pieces img { width: 18px; height: 18px; }
-
-#eval-container { display: flex; align-items: stretch; gap: 8px; width: 100%; max-width: 660px; }
-#eval-bar-wrap {
-  width: 20px; height: min(88vmin, 640px);
-  background: #2a2a2a; border-radius: 6px; overflow: visible;
-  border: 1px solid var(--border); flex-shrink: 0; position: relative;
-}
-#eval-bar-fill {
-  position: absolute; bottom: 0; left: 0; right: 0;
-  background: #f0f0f0; transition: height 0.35s cubic-bezier(0.4,0,0.2,1);
-  border-radius: 0 0 5px 5px;
-}
-#eval-bar-black {
-  position: absolute; top: 0; left: 0; right: 0;
-  background: #1a1a1a; border-radius: 5px 5px 0 0;
-}
-#eval-score-black {
-  position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
-  font-size: 10px; font-weight: 700; color: #ccc; z-index: 10;
-}
-#eval-score-white {
-  position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
-  font-size: 10px; font-weight: 700; color: #333; z-index: 10;
-}
-#board-wrap { flex: 1; min-width: 0; }
-
-#chessboard {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
-  width: min(88vmin, 640px);
-  height: min(88vmin, 640px);
-  border: 2px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  cursor: pointer;
-  user-select: none;
-}
-.square {
-  display: flex; align-items: center; justify-content: center;
-  position: relative; transition: background 0.1s;
-}
-.square.possible-move::after {
-  content: ''; position: absolute;
-  width: 30%; height: 30%; border-radius: 50%;
-  background: rgba(0,0,0,0.2); pointer-events: none; z-index: 2;
-}
-.square.possible-capture::after {
-  content: ''; position: absolute; inset: 0;
-  border-radius: 50%; border: 4px solid rgba(0,0,0,0.25);
-  pointer-events: none; z-index: 2;
-}
-.piece-img {
-  width: 88%; height: 88%; object-fit: contain;
-  z-index: 1; pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
-  cursor: grab;
-}
-.piece-img.black-piece {
-  filter:
-    drop-shadow(0 0 1px rgba(180,180,180,0.9))
-    drop-shadow(0 1px 2px rgba(0,0,0,0.5));
-}
-.coord-rank {
-  position: absolute; top: 2px; left: 3px;
-  font-size: 10px; font-weight: 600; pointer-events: none; z-index: 3;
-}
-.coord-file {
-  position: absolute; bottom: 2px; right: 3px;
-  font-size: 10px; font-weight: 600; pointer-events: none; z-index: 3;
-}
-
-#board-controls {
-  display: flex; align-items: center; gap: 6px;
-  width: 100%; max-width: 640px; padding: 10px 0 4px;
-}
-.ctrl-btn {
-  width: 36px; height: 36px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--bg-secondary);
-  color: var(--text-secondary); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s;
-}
-.ctrl-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
-.ctrl-spacer { flex: 1; }
-.eval-score {
-  font-size: 13px; font-weight: 700; color: var(--text-secondary);
-  min-width: 56px; text-align: center;
-  background: var(--bg-secondary); border: 1px solid var(--border);
-  border-radius: 6px; padding: 4px 8px;
-}
-
-#right-panel {
-  width: 300px; flex-shrink: 0; display: flex; flex-direction: column;
-  background: var(--bg-secondary); border-left: 1px solid var(--border); overflow: hidden;
-}
-
-.practice-panel-header {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.practice-panel-header h2 {
-  font-size: 15px; font-weight: 700;
-  margin-bottom: 4px;
-}
-.practice-panel-header p {
-  font-size: 11px; color: var(--text-muted);
-  line-height: 1.5;
-}
-#practice-phase-label {
-  font-size: 12px;
-  color: var(--accent-green-bright);
-  font-weight: 600;
-  margin-top: 6px;
-}
-
-.practice-seg {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
-.practice-seg button {
-  flex: 1;
-  min-width: 72px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: var(--font-main);
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.practice-seg button:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-.practice-seg button.active {
-  border-color: var(--accent-green-dark);
-  background: rgba(127,166,80,0.2);
-  color: var(--accent-green-bright);
-}
-.practice-seg.mode-open .practice-mode-opening.active { border-color: var(--accent-blue); background: rgba(80,144,208,0.15); color: #7eb8e8; }
-.practice-seg.mode-mid .practice-mode-middlegame.active { border-color: var(--accent-orange); background: rgba(224,128,48,0.12); color: #e8a060; }
-.practice-seg.mode-end .practice-mode-endgame.active { border-color: var(--accent-green); background: rgba(127,166,80,0.22); color: var(--accent-green-bright); }
-
-.btn-newgame {
-  width: 100%;
-  margin-top: 10px;
-  padding: 9px;
-  border-radius: 8px;
-  border: none;
-  background: var(--accent-green-dark);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: var(--font-main);
-}
-.btn-newgame:hover { background: var(--accent-green); }
-
-#analysis-panel { display: flex; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
-.analysis-header {
-  padding: 10px 16px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  flex-shrink: 0;
-}
-.engine-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--accent-green-bright); }
-.engine-dot {
-  width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0;
-}
-.engine-dot.thinking { animation: pulse 1s ease-in-out infinite; }
-.engine-dot.ready { background: var(--accent-green-bright); }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
-.depth-info { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
-
-.practice-hide-top-moves { display: none !important; }
-
-#move-list-wrap { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
-.move-list-header {
-  display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 10px;
-}
-.move-list-title { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
-.move-count { font-size: 11px; color: var(--text-muted); }
-.move-pair {
-  display: grid; grid-template-columns: 32px 1fr 1fr;
-  align-items: center; border-radius: 4px; margin-bottom: 2px;
-}
-.move-num { font-size: 13px; color: var(--text-muted); padding: 5px 4px; text-align: right; padding-right: 8px; }
-.move-cell {
-  padding: 5px 8px; font-size: 14.5px; font-weight: 600;
-  cursor: pointer; border-radius: 4px; transition: background 0.1s;
-}
-.move-cell:hover { background: var(--bg-hover); }
-.move-cell.active { background: var(--accent-green-dark); color: #fff; }
-.move-cell img { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; }
-.move-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.dot-brilliant { background: var(--move-brilliant); }
-.dot-great { background: var(--move-great); }
-.dot-best { background: var(--move-best); }
-.dot-excellent { background: var(--move-excellent); }
-.dot-good { background: var(--move-good); }
-.dot-book { background: var(--move-book); }
-.dot-inaccuracy { background: var(--move-inaccuracy); }
-.dot-mistake { background: var(--move-mistake); }
-.dot-blunder { background: var(--move-blunder); }
-.dot-miss { background: var(--move-miss); }
-.dot-forced { background: #555; }
-.move-ann {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 50%;
-  font-size: 10px; font-weight: 900; margin-left: 3px;
-}
-.ann-brilliant { background: #1bada6; color: #fff; }
-.ann-great { background: #5c8fff; color: #fff; }
-.ann-best { background: #7fa650; color: #fff; }
-.ann-excellent { background: #7fa650; color: #fff; }
-.ann-good { background: var(--move-good); color: #fff; }
-.ann-book { background: #9b7240; color: #fff; }
-.ann-inaccuracy { background: #f6c94a; color: #222; }
-.ann-mistake { background: #e08c3a; color: #fff; }
-.ann-blunder { background: #cc3333; color: #fff; }
-.ann-miss { background: #9944cc; color: #fff; }
-.ann-forced { background: #555; color: #ccc; }
-
-#status-bar {
-  display: flex; align-items: center; gap: 10px; padding: 10px 16px;
-  border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary);
-  background: var(--bg-primary); flex-shrink: 0;
-}
-.status-indicator { display: flex; align-items: center; gap: 6px; }
-.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-green); }
-
-#promotion-modal {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000;
-  display: none; align-items: center; justify-content: center;
-}
-#promotion-modal.visible { display: flex; }
-.promotion-box {
-  background: var(--bg-secondary); border: 1px solid var(--border);
-  border-radius: 12px; padding: 20px; text-align: center;
-}
-.promotion-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
-.promotion-pieces { display: flex; gap: 8px; }
-.promo-piece {
-  width: 64px; height: 64px; border-radius: 8px;
-  background: var(--bg-tertiary); border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-}
-.promo-piece:hover { border-color: var(--accent-green); }
-.promo-piece img { width: 50px; height: 50px; object-fit: contain; }
-
-#toast {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
-  background: #333; color: #fff; padding: 8px 18px; border-radius: 8px;
-  font-size: 13px; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 2000;
-}
-#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-#engine-loading {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 3000;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-}
-#engine-loading.hidden { display: none; }
-.loading-spinner {
-  width: 40px; height: 40px; border: 3px solid var(--border);
-  border-top-color: var(--accent-green); border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.loading-text { color: var(--text-secondary); font-size: 14px; text-align: center; padding: 0 24px; }
-
-body.dragging, body.dragging * { user-select: none !important; cursor: grabbing !important; }
-#chessboard { -webkit-user-select: none; user-select: none; }
-
-.sr-only-gameinfo {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0,0,0,0); border: 0;
-}
-
-/* ── 힌트 버튼 & 패널 ── */
-#hint-toggle-btn {
-  display: flex; align-items: center; gap: 6px;
-  width: 100%; margin-top: 8px; padding: 8px 12px;
+.pal-piece {
+  width: 50px; height: 50px;
   border-radius: 8px; border: 1px solid var(--border);
-  background: var(--bg-tertiary); color: var(--text-secondary);
-  font-size: 12px; font-weight: 600; cursor: pointer;
-  font-family: var(--font-main); transition: all 0.15s;
-}
-#hint-toggle-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-light); }
-#hint-toggle-btn.active { border-color: #e8a030; background: rgba(232,160,48,0.12); color: #e8c070; }
-#hint-toggle-btn svg { flex-shrink: 0; }
-
-#hint-panel {
-  display: none;
-  margin-top: 8px; padding: 10px 12px;
-  background: rgba(232,160,48,0.07);
-  border: 1px solid rgba(232,160,48,0.3);
-  border-radius: 8px;
-}
-
-/* ========================================
-   반응형 공통: 모바일 하단 내비 + 사이드바
-   ======================================== */
-#mobile-bottom-nav { display: none; }
-.mob-nav-item {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; flex: 1; padding: 6px 4px;
-  color: var(--text-muted); transition: color 0.15s;
-  text-decoration: none;
-}
-.mob-nav-item span { font-size: 9px; line-height: 1; }
-.mob-nav-item:hover, .mob-nav-item.active { color: var(--accent-green-bright); }
-
-@media (max-width: 768px) {
-  #sidebar { display: none !important; }
-  #mobile-bottom-nav {
-    display: flex !important;
-    position: fixed; bottom: 0; left: 0; right: 0; height: 56px;
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border);
-    z-index: 600;
-    align-items: center;
-    justify-content: space-around;
-    padding: 0 4px;
-  }
-}
-
-/* ====== practice 반응형 ====== */
-@media (max-width: 1100px) and (min-width: 769px) {
-  #right-panel { width: 240px !important; }
-  #chessboard {
-    width: min(80vmin, calc(100vw - var(--sidebar-width,72px) - 260px)) !important;
-    height: min(80vmin, calc(100vw - var(--sidebar-width,72px) - 260px)) !important;
-  }
-  #eval-bar-wrap {
-    height: min(80vmin, calc(100vw - var(--sidebar-width,72px) - 260px)) !important;
-  }
-}
-@media (max-width: 950px) and (min-width: 769px) {
-  #right-panel { width: 200px !important; }
-  #chessboard {
-    width: min(75vmin, calc(100vw - var(--sidebar-width,72px) - 220px)) !important;
-    height: min(75vmin, calc(100vw - var(--sidebar-width,72px) - 220px)) !important;
-  }
-  #eval-bar-wrap {
-    height: min(75vmin, calc(100vw - var(--sidebar-width,72px) - 220px)) !important;
-  }
-}
-@media (max-width: 768px) {
-  body { padding-bottom: 56px; }
-  #board-area { padding: 8px; padding-bottom: 64px; }
-  #chessboard {
-    width: min(calc(100vw - 40px), calc(100vh - 200px)) !important;
-    height: min(calc(100vw - 40px), calc(100vh - 200px)) !important;
-  }
-  #eval-bar-wrap {
-    height: min(calc(100vw - 40px), calc(100vh - 200px)) !important;
-  }
-  #right-panel {
-    position: fixed; top: 0; right: 0; bottom: 56px;
-    width: min(300px, 90vw) !important;
-    z-index: 499; transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
-    box-shadow: -8px 0 32px rgba(0,0,0,0.5);
-  }
-  #right-panel.mobile-open { transform: translateX(0); }
-}
-
-
-/* ── 힌트 버튼 & 패널 (비활성 - 참조용) ── */
-#hint-toggle-btn { display: none; }
-#hint-panel { display: none; }
-
-/* ── 기물 편집 모드 ── */
-#piece-editor-bar {
-  display: none;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 10px;
-  background: rgba(80,144,208,0.07);
-  border: 1px solid rgba(80,144,208,0.25);
-  border-radius: 8px;
-}
-#piece-editor-bar.visible { display: flex; }
-.editor-label {
-  font-size: 10px; font-weight: 700; color: #7eb8e8;
-  text-transform: uppercase; letter-spacing: 0.4px;
-}
-.editor-piece-palette {
-  display: flex; flex-wrap: wrap; gap: 4px;
-}
-.palette-piece {
-  width: 36px; height: 36px;
-  border-radius: 6px; border: 1px solid var(--border);
   background: var(--bg-tertiary);
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all 0.15s; position: relative;
+  cursor: grab; transition: all 0.15s; flex-shrink: 0;
 }
-.palette-piece:hover { border-color: #5090d0; background: rgba(80,144,208,0.15); }
-.palette-piece.selected { border-color: #5090d0; background: rgba(80,144,208,0.3); box-shadow: 0 0 0 2px rgba(80,144,208,0.5); }
-.palette-piece img { width: 28px; height: 28px; object-fit: contain; }
-.palette-erase {
-  width: 36px; height: 36px;
-  border-radius: 6px; border: 1px solid rgba(192,64,64,0.4);
+.pal-piece:hover { border-color: #5090d0; background: rgba(80,144,208,0.18); }
+.pal-piece.pal-selected { border-color: #5090d0; background: rgba(80,144,208,0.32); box-shadow: 0 0 0 2px rgba(80,144,208,0.45); }
+.pal-piece img { width: 38px; height: 38px; object-fit: contain; pointer-events: none; }
+.pal-div { width: 40px; height: 1px; background: var(--border); flex-shrink: 0; margin: 2px 0; }
+.pal-erase {
+  width: 50px; height: 34px;
+  border-radius: 8px; border: 1px solid rgba(192,64,64,0.4);
   background: rgba(192,64,64,0.1);
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 16px; transition: all 0.15s;
-  color: #e07070;
+  cursor: pointer; font-size: 17px; transition: all 0.15s; color: #e07070; flex-shrink: 0;
 }
-.palette-erase:hover, .palette-erase.selected { background: rgba(192,64,64,0.25); border-color: #c04040; }
-.editor-turn-row {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; color: var(--text-secondary);
+.pal-erase:hover, .pal-erase.pal-selected { background: rgba(192,64,64,0.28); border-color: #c04040; }
+.pal-btn {
+  width: 50px; height: 30px;
+  border-radius: 7px; border: 1px solid var(--border);
+  background: var(--bg-tertiary); color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 9px; font-weight: 700;
+  transition: all 0.15s; flex-shrink: 0; text-align: center; line-height: 1.3;
 }
-.editor-turn-btn {
-  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
-  background: var(--bg-tertiary); color: var(--text-secondary);
-  font-size: 11px; font-weight: 600; cursor: pointer;
-  font-family: var(--font-main); transition: all 0.15s;
+.pal-btn.pal-clear { border-color: rgba(192,64,64,0.35); color: #e07070; }
+.pal-btn.pal-clear:hover { background: rgba(192,64,64,0.2); border-color: #c04040; }
+.pal-btn.pal-reset { border-color: rgba(127,166,80,0.35); color: var(--accent-green-bright); }
+.pal-btn.pal-reset:hover { background: rgba(127,166,80,0.2); border-color: var(--accent-green); }
+.pal-turn-row {
+  display: flex; gap: 3px; width: 100%; flex-shrink: 0;
 }
-.editor-turn-btn.active-w { border-color: #ddd; background: rgba(240,240,240,0.15); color: #eee; }
-.editor-turn-btn.active-b { border-color: #666; background: rgba(80,80,80,0.3); color: #aaa; }
-.editor-done-btn {
-  padding: 6px 14px; border-radius: 7px; border: none;
-  background: var(--accent-green-dark); color: #fff;
-  font-size: 12px; font-weight: 700; cursor: pointer;
-  font-family: var(--font-main); margin-left: auto;
+.pal-turn-btn {
+  flex: 1; height: 26px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg-tertiary); color: var(--text-muted);
+  font-size: 9px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
 }
-.editor-done-btn:hover { background: var(--accent-green); }
-#chessboard.edit-mode .square { cursor: crosshair !important; }
-#chessboard.edit-mode .square:hover { outline: 2px solid rgba(80,144,208,0.7); outline-offset: -2px; }
-
-/* ── 우클릭 화살표 오버레이 ── */
-.board-arrow-overlay {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 20;
-  overflow: visible;
-}
-
+.pal-turn-btn.pal-active-w { border-color: #ddd; background: rgba(240,240,240,0.15); color: #eee; }
+.pal-turn-btn.pal-active-b { border-color: #666; background: rgba(80,80,80,0.3); color: #aaa; }
+/* 편집 모드 보드 */
+#chessboard.pal-edit .square { cursor: crosshair !important; }
+#chessboard.pal-edit .square:hover { outline: 2px solid rgba(80,144,208,0.7); outline-offset: -2px; }
+.piece-img.pal-dragging { opacity: 0.3; }
 </style>
 <link rel="stylesheet" href="theme-ui.css">
 <script src="theme-global.js"></script>
@@ -1942,6 +733,25 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
 </nav>
 
 <div id="main">
+  <!-- ★ 기물 팔레트 패널 (보드 왼쪽) -->
+  <div id="palette-panel">
+    <div class="pal-label">백</div>
+    <div id="pal-w"></div>
+    <div class="pal-div"></div>
+    <div class="pal-label">흑</div>
+    <div id="pal-b"></div>
+    <div class="pal-div"></div>
+    <div class="pal-erase" id="pal-erase" title="우클릭도 삭제" onclick="palErase()">🗑</div>
+    <div class="pal-div"></div>
+    <div class="pal-label">차례</div>
+    <div class="pal-turn-row">
+      <div class="pal-turn-btn" id="pal-tw" onclick="palTurn('w')">백</div>
+      <div class="pal-turn-btn" id="pal-tb" onclick="palTurn('b')">흑</div>
+    </div>
+    <div class="pal-div"></div>
+    <div class="pal-btn pal-clear" onclick="palClear()" title="전체 삭제">전체<br>삭제</div>
+    <div class="pal-btn pal-reset" onclick="palReset()" title="초기 배치">초기<br>배치</div>
+  </div>
   <div id="board-area">
     <div class="player-info" id="player-black">
       <div class="player-avatar" id="avatar-black">
@@ -2000,7 +810,7 @@ body.dragging, body.dragging * { user-select: none !important; cursor: grabbing 
       <button class="ctrl-btn" onclick="practiceNewGame()" title="같은 조건으로 새 게임">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
       </button>
-      <button class="ctrl-btn" id="edit-mode-btn" onclick="togglePieceEditor()" title="기물 편집 모드" style="border-color:rgba(80,144,208,0.4);color:#7eb8e8;">
+      <button class="ctrl-btn" id="edit-mode-btn" onclick="palToggle()" title="기물 편집 모드" style="border-color:rgba(80,144,208,0.4);color:#7eb8e8;">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
       </button>
     </div>
@@ -2300,206 +1110,248 @@ function loadPositionFromInput() {
 </script>
 <script>
 // ══════════════════════════════════════════════════════
-//  기물 편집 모드
+//  기물 팔레트 시스템 v2
 // ══════════════════════════════════════════════════════
-(function() {
-  const PIECE_IMGS = 'https://lichess1.org/assets/piece/cburnett/';
-  const PIECES = ['K','Q','R','B','N','P'];
-  const LABELS = {K:'킹',Q:'퀸',R:'룩',B:'비숍',N:'나이트',P:'폰'};
+(function () {
+  var IMG = 'https://lichess1.org/assets/piece/cburnett/';
+  var TYPES = ['K','Q','R','B','N','P'];
+  var _open = false;
+  var _sel = null;       // {color,type} | 'erase' | null
+  var _dragSq = null;    // 보드 위 기물 드래그 출발칸
+  var _ghost = null;
 
-  let _editMode = false;
-  let _selectedPiece = null; // {color:'w'|'b', type:'K'|'Q'|...} or 'erase'
-
-  function pieceImgSrc(color, type) {
-    return PIECE_IMGS + (color === 'w' ? 'w' : 'b') + type + '.svg';
-  }
-
-  function buildPalette() {
-    ['white','black'].forEach(side => {
-      const color = side === 'white' ? 'w' : 'b';
-      const container = document.getElementById('palette-' + side);
-      if (!container) return;
-      container.innerHTML = '';
-      PIECES.forEach(type => {
-        const btn = document.createElement('div');
-        btn.className = 'palette-piece';
-        btn.title = LABELS[type];
-        btn.dataset.color = color;
-        btn.dataset.type = type;
-        btn.draggable = true; // Drag support
-        btn.innerHTML = `<img src="${pieceImgSrc(color, type)}" alt="${type}" draggable="false">`;
-        btn.addEventListener('click', function() { selectPiece(color, type); });
-        // Drag events
-        btn.addEventListener('dragstart', function(e) {
-          selectPiece(color, type);
-          e.dataTransfer.setData('text/plain', JSON.stringify({color, type}));
+  /* ── 팔레트 버튼 빌드 ── */
+  function build() {
+    ['w','b'].forEach(function(c) {
+      var box = document.getElementById('pal-' + c);
+      if (!box) return;
+      box.innerHTML = '';
+      box.style.cssText = 'display:flex;flex-direction:column;gap:3px;align-items:center;';
+      TYPES.forEach(function(t) {
+        var el = document.createElement('div');
+        el.className = 'pal-piece';
+        el.dataset.c = c; el.dataset.t = t;
+        el.draggable = true;
+        el.innerHTML = '<img src="' + IMG + c + t + '.svg" draggable="false">';
+        el.addEventListener('click', function() { sel(c, t); });
+        el.addEventListener('dragstart', function(e) {
+          sel(c, t);
+          e.dataTransfer.effectAllowed = 'copy';
+          e.dataTransfer.setData('pal', JSON.stringify({color:c, type:t}));
         });
-        container.appendChild(btn);
+        box.appendChild(el);
       });
     });
   }
 
-  function selectPiece(color, type) {
-    _selectedPiece = { color, type };
-    document.getElementById('erase-btn').classList.remove('selected');
-    document.querySelectorAll('.palette-piece').forEach(el => {
-      el.classList.toggle('selected',
-        el.dataset.color === color && el.dataset.type === type);
+  /* ── 선택 ── */
+  function sel(c, t) {
+    _sel = {color:c, type:t};
+    var er = document.getElementById('pal-erase');
+    if (er) er.classList.remove('pal-selected');
+    document.querySelectorAll('.pal-piece').forEach(function(el) {
+      el.classList.toggle('pal-selected', el.dataset.c === c && el.dataset.t === t);
     });
   }
 
-  window.selectEraseMode = function() {
-    _selectedPiece = 'erase';
-    document.getElementById('erase-btn').classList.add('selected');
-    document.querySelectorAll('.palette-piece').forEach(el => el.classList.remove('selected'));
+  window.palErase = function() {
+    _sel = 'erase';
+    var er = document.getElementById('pal-erase');
+    if (er) er.classList.add('pal-selected');
+    document.querySelectorAll('.pal-piece').forEach(function(el) { el.classList.remove('pal-selected'); });
   };
 
-  window.setEditorTurn = function(turn) {
-    // game.turn 직접 변경 (game 객체에 따라 다를 수 있음)
-    if (typeof game !== 'undefined' && game) {
-      try { game.turn = turn; } catch(e) {}
-    }
-    document.getElementById('turn-btn-w').classList.toggle('active-w', turn === 'w');
-    document.getElementById('turn-btn-b').classList.toggle('active-b', turn === 'b');
-  };
-
-  function getSquareFromEvent(e) {
-    const board = document.getElementById('chessboard');
-    if (!board) return null;
-    const rect = board.getBoundingClientRect();
-    const x = e.clientX - rect.left, y = e.clientY - rect.top;
-    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
-    const col = Math.max(0, Math.min(7, Math.floor(x / rect.width * 8)));
-    const row = Math.max(0, Math.min(7, Math.floor(y / rect.height * 8)));
-    return { col, row };
-  }
-
-  function applyEditToSquare(sq) {
-    if (!sq || !_selectedPiece) return;
-    if (typeof game === 'undefined' || !game || !game.board) return;
-
-    const flipped = game.flipped;
-    // row 0 = 화면 맨 위, flipped 여부에 따라 rank가 달라짐
-    const rank = flipped ? sq.row + 1 : 8 - sq.row;
-    const file = flipped ? 7 - sq.col : sq.col;
-    // board는 [rank][file] 또는 [row][col] 구조인지 확인 필요
-    // game.board[row][col] 형태로 접근 (대부분의 체스 구현)
-    try {
-      if (_selectedPiece === 'erase') {
-        game.board[sq.row][sq.col] = null;
-      } else {
-        // 기물 표현: {type: 'p', color: 'w'} 등 게임 내부 포맷에 맞춤
-        // chess-wasm 엔진에서 사용하는 포맷 추정
-        const p = _selectedPiece;
-        // 여러 포맷 시도
-        if (game.board[sq.row][sq.col] !== undefined) {
-          game.board[sq.row][sq.col] = {
-            type: p.type.toLowerCase(),
-            color: p.color,
-            // 일부 구현에서 piece 문자열 사용
-            piece: (p.color === 'w' ? p.type.toUpperCase() : p.type.toLowerCase()),
-          };
-        }
-      }
-      // 보드 다시 렌더링
-      if (typeof renderBoard === 'function') renderBoard();
-      else if (typeof game.renderBoard === 'function') game.renderBoard();
-      else if (typeof analyzePosition === 'function') analyzePosition(false);
-      // FEN 갱신
-      if (typeof boardToFen === 'function') {
-        var fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
-        if (typeof game.loadFromFen === 'function') {
-          // 조용히 재로드해서 상태 동기화
-        }
-      }
-    } catch(err) {
-      console.warn('[editor] board set 실패:', err);
-    }
-  }
-
-  function attachEditorBoardEvents() {
-    const board = document.getElementById('chessboard');
-    if (!board) { setTimeout(attachEditorBoardEvents, 500); return; }
-
-    board.addEventListener('click', function(e) {
-      if (!_editMode) return;
-      const sq = getSquareFromEvent(e);
-      if (sq) {
-        e.stopImmediatePropagation();
-        applyEditToSquare(sq);
-      }
-    }, true); 
-
-    // Add dragover and drop events
-    board.addEventListener('dragover', function(e) {
-      if (!_editMode) return;
-      e.preventDefault();
-    }, true);
-
-    board.addEventListener('drop', function(e) {
-      if (!_editMode) return;
-      e.preventDefault();
-      const sq = getSquareFromEvent(e);
-      const data = e.dataTransfer.getData('text/plain');
-      if (sq && data) {
-        try {
-          const piece = JSON.parse(data);
-          _selectedPiece = piece;
-          applyEditToSquare(sq);
-        } catch(err) {}
-      }
-    }, true);
-
-    board.addEventListener('contextmenu', function(e) {
-      if (!_editMode) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      const sq = getSquareFromEvent(e);
-      if (sq) {
-        const prev = _selectedPiece;
-        _selectedPiece = 'erase';
-        applyEditToSquare(sq);
-        _selectedPiece = prev;
-      }
-    }, true);
-  }
-
-  window.togglePieceEditor = function() {
-    _editMode = !_editMode;
-    const bar = document.getElementById('piece-editor-bar');
-    const board = document.getElementById('chessboard');
-    const btn = document.getElementById('edit-mode-btn');
-
-    if (_editMode) {
-      buildPalette();
-      bar.classList.add('visible');
-      board.classList.add('edit-mode');
-      if (btn) { btn.style.background = 'rgba(80,144,208,0.25)'; btn.style.borderColor = '#5090d0'; }
-      // 기본 선택: 백 킹
-      selectPiece('w', 'Q');
+  /* ── 팔레트 열기/닫기 ── */
+  window.palToggle = function() {
+    _open = !_open;
+    var panel = document.getElementById('palette-panel');
+    var board = document.getElementById('chessboard');
+    var btn   = document.getElementById('edit-mode-btn');
+    if (_open) {
+      build();
+      if (panel) panel.classList.add('pal-open');
+      if (board) board.classList.add('pal-edit');
+      if (btn) { btn.style.background='rgba(80,144,208,0.25)'; btn.style.borderColor='#5090d0'; }
+      sel('w','Q');
       // 현재 차례 표시
-      const t = (typeof game !== 'undefined' && game) ? game.turn : 'w';
-      setEditorTurn(t || 'w');
-      // 엔진 연습 모드 일시 정지
+      var t = (typeof game !== 'undefined' && game) ? game.turn : 'w';
+      palTurn(t || 'w');
       window._editorSavedPracticeMode = window._enginePracticeMode;
       window._enginePracticeMode = null;
     } else {
-      bar.classList.remove('visible');
-      board.classList.remove('edit-mode');
-      if (btn) { btn.style.background = ''; btn.style.borderColor = 'rgba(80,144,208,0.4)'; }
-      _selectedPiece = null;
-      // 엔진 연습 모드 복원 + 포지션 분석 재시작
+      if (panel) panel.classList.remove('pal-open');
+      if (board) board.classList.remove('pal-edit');
+      if (btn) { btn.style.background=''; btn.style.borderColor='rgba(80,144,208,0.4)'; }
+      _sel = null;
       window._enginePracticeMode = window._editorSavedPracticeMode || null;
       if (typeof analyzePosition === 'function') analyzePosition(true);
-      if (typeof window._enginePracticeAfterHumanMove === 'function') {
-        window._enginePracticeAfterHumanMove();
-      }
     }
   };
 
+  /* 하위호환 */
+  window.togglePieceEditor = window.palToggle;
+
+  /* ── 차례 설정 ── */
+  window.palTurn = function(turn) {
+    if (typeof game !== 'undefined' && game) { try { game.turn = turn; } catch(e){} }
+    var tw = document.getElementById('pal-tw');
+    var tb = document.getElementById('pal-tb');
+    if (tw) { tw.classList.toggle('pal-active-w', turn==='w'); tw.classList.remove('pal-active-b'); }
+    if (tb) { tb.classList.toggle('pal-active-b', turn==='b'); tb.classList.remove('pal-active-w'); }
+    // 하위호환
+    var obw = document.getElementById('turn-btn-w');
+    var obb = document.getElementById('turn-btn-b');
+    if (obw) { obw.classList.toggle('active-w', turn==='w'); }
+    if (obb) { obb.classList.toggle('active-b', turn==='b'); }
+  };
+  window.setEditorTurn = window.palTurn;
+
+  /* ── 전체삭제 / 초기배치 ── */
+  window.palClear = function() {
+    if (!confirm('보드의 모든 기물을 삭제할까요?')) return;
+    if (typeof game === 'undefined' || !game || !game.board) return;
+    for (var r=0;r<8;r++) for (var c=0;c<8;c++) game.board[r][c]=null;
+    refresh();
+  };
+  window.palReset = function() {
+    var START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    if (typeof game !== 'undefined' && game && typeof game.loadFromFen==='function') game.loadFromFen(START);
+  };
+
+  /* ── 보드 좌표 ── */
+  function sqAt(e) {
+    var board = document.getElementById('chessboard');
+    if (!board) return null;
+    var r = board.getBoundingClientRect();
+    var x = e.clientX - r.left, y = e.clientY - r.top;
+    if (x<0||y<0||x>r.width||y>r.height) return null;
+    return {
+      col: Math.max(0,Math.min(7,Math.floor(x/r.width*8))),
+      row: Math.max(0,Math.min(7,Math.floor(y/r.height*8)))
+    };
+  }
+
+  /* ── 보드 읽기/쓰기 ── */
+  function get(col,row) {
+    try { return game.board[row][col]; } catch(e) { return null; }
+  }
+  function set(col,row,p) {
+    if (typeof game==='undefined'||!game||!game.board) return;
+    try {
+      if (p===null) { game.board[row][col]=null; }
+      else {
+        game.board[row][col] = {
+          type: p.type.toLowerCase(),
+          color: p.color,
+          piece: p.color==='w' ? p.type.toUpperCase() : p.type.toLowerCase()
+        };
+      }
+      refresh();
+    } catch(e) { console.warn('[pal]',e); }
+  }
+  function refresh() {
+    if (typeof renderBoard==='function') renderBoard();
+    else if (typeof game!=='undefined'&&game&&typeof game.renderBoard==='function') game.renderBoard();
+  }
+
+  /* ── 이벤트 연결 ── */
+  function attach() {
+    var board = document.getElementById('chessboard');
+    if (!board) { setTimeout(attach, 500); return; }
+
+    /* dragover / drop (팔레트→보드) */
+    board.addEventListener('dragover', function(e) {
+      if (!_open && !_dragSq) return;
+      e.preventDefault();
+    });
+    board.addEventListener('drop', function(e) {
+      e.preventDefault();
+      var sq = sqAt(e);
+      if (!sq) return;
+      if (_dragSq) {                          // 보드→보드 이동
+        var from = _dragSq; _dragSq = null;
+        if (from.col===sq.col && from.row===sq.row) { refresh(); return; }
+        var p = get(from.col, from.row);
+        set(from.col, from.row, null);
+        if (p) set(sq.col, sq.row, p);
+        return;
+      }
+      if (!_open) return;
+      var raw = e.dataTransfer.getData('pal');
+      if (raw) { try { set(sq.col,sq.row,JSON.parse(raw)); } catch(_){} }
+      else if (_sel && _sel!=='erase') set(sq.col,sq.row,_sel);
+    });
+
+    /* 클릭: 팔레트 모드에서만 */
+    board.addEventListener('click', function(e) {
+      if (!_open) return;
+      var sq = sqAt(e);
+      if (!sq) return;
+      e.stopImmediatePropagation();
+      if (!_sel) return;
+      if (_sel==='erase') set(sq.col,sq.row,null);
+      else set(sq.col,sq.row,_sel);
+    }, true);
+
+    /* 우클릭: 삭제 */
+    board.addEventListener('contextmenu', function(e) {
+      if (!_open) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      var sq = sqAt(e);
+      if (sq) set(sq.col,sq.row,null);
+    }, true);
+
+    /* mousedown: 보드 위 기물 드래그 이동 */
+    board.addEventListener('mousedown', function(e) {
+      if (!_open || e.button!==0) return;
+      var sq = sqAt(e);
+      if (!sq) return;
+      var p = get(sq.col, sq.row);
+      if (!p) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      _dragSq = sq;
+      // ghost
+      var type = (p.type||'').toUpperCase();
+      _ghost = document.createElement('img');
+      _ghost.src = IMG + p.color + type + '.svg';
+      _ghost.style.cssText = 'position:fixed;width:60px;height:60px;pointer-events:none;z-index:9999;opacity:0.85;transform:translate(-50%,-50%);';
+      _ghost.style.left = e.clientX+'px';
+      _ghost.style.top  = e.clientY+'px';
+      document.body.appendChild(_ghost);
+      // 원본 기물 흐리게
+      var sqEls = board.querySelectorAll('.square');
+      var img = sqEls[sq.row*8+sq.col] && sqEls[sq.row*8+sq.col].querySelector('.piece-img');
+      if (img) img.classList.add('pal-dragging');
+    }, true);
+  }
+
+  /* mousemove / mouseup 전역 */
+  window.addEventListener('mousemove', function(e) {
+    if (_ghost) { _ghost.style.left=e.clientX+'px'; _ghost.style.top=e.clientY+'px'; }
+  });
+  window.addEventListener('mouseup', function(e) {
+    if (!_dragSq) return;
+    if (_ghost) { _ghost.remove(); _ghost=null; }
+    var board = document.getElementById('chessboard');
+    if (board) {
+      var sqEls = board.querySelectorAll('.square');
+      var img = sqEls[_dragSq.row*8+_dragSq.col] && sqEls[_dragSq.row*8+_dragSq.col].querySelector('.piece-img');
+      if (img) img.classList.remove('pal-dragging');
+    }
+    var sq = sqAt(e);
+    var from = _dragSq; _dragSq = null;
+    if (!sq || (from.col===sq.col && from.row===sq.row)) return;
+    var p = get(from.col, from.row);
+    set(from.col, from.row, null);
+    if (p) set(sq.col, sq.row, p);
+  });
+
+  /* 하위호환 */
+  window.selectEraseMode = window.palErase;
+
   document.addEventListener('DOMContentLoaded', function() {
-    attachEditorBoardEvents();
-    buildPalette();
+    build();
+    attach();
   });
 })();
 </script>

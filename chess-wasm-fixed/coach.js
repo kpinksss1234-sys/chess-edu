@@ -570,6 +570,14 @@ async function callCommentaryAPI(ctx) {
 WHAT THIS STYLE MEANS:
 You watch the board like a coach reviewing a real game. You notice things — a pawn that's hard to defend, a bishop retreating to create rook tension, a knight that might get pushed away eventually. You say what you see, explain why it matters, and follow the consequences naturally. You do NOT use templates or repeat fixed phrases.
 
+TACTICAL AWARENESS:
+If the engine lines or the position involves tactical themes, you MUST use professional chess terminology to explain them clearly. This includes:
+- 포크 (Fork), 핀 (Pin), 스큐어 (Skewer)
+- 디스커버드 어택 (Discovered Attack), 더블 체크 (Double Check)
+- 기물 과부하 (Overloading), 제거 (Deflection), 유인 (Decoy)
+- 백랭크 메이트 (Back-rank Mate), 질식 메이트 (Smothered Mate)
+- 희생 (Sacrifice) 및 전술적 연계
+
 HOW TO COMMENT:
 - Look at the actual position: which pawns are weak? which pieces are active? what tension exists?
 - Describe what each move does in concrete terms. "d5 폰을 잡고 올라갑니다. 근데 이 폰은 지키기가 어려운 폰이라고 볼 수 있죠." / "비숍이 뒤쪽으로 빠지면서 룩 긴장이 생겨났고요." / "나이트의 위치가 나중에라도 밀려날 수 있다는 걸 고려하면 이 폰은 잡히는 게 어느 정도 기정사실이라고 할 수 있겠네요."
@@ -838,6 +846,13 @@ Chess move notation stays in algebraic form (Nf3, e4, dxc4, O-O).
 
 CRITICAL: You will be given the actual engine lines and FEN for the current position. Use ONLY those moves. Never invent or hallucinate moves. Never copy from examples.
 
+TACTICAL SCANNING:
+Scan the provided engine lines for tactical themes and use the exact terms:
+- 포크 (Fork), 핀 (Pin), 스큐어 (Skewer)
+- 디스커버드 어택 (Discovered Attack), 더블 체크 (Double Check)
+- 희생 (Sacrifice)
+If a move creates a fork or a pin, you MUST state it explicitly. (e.g., "Nf3+는 킹과 퀸을 동시에 공격하는 **포크**입니다.")
+
 Analyze the position using the provided engine data and write three sections:
 **핵심 계획:** — What does ${mover} want to do? State the concrete threat using the ACTUAL moves from the engine line provided. Format: "${mover}은 [move]로 [goal]을 노린다: [line] → [result]."
 **문제점:** — What can ${opponent} do to counter? If engine line 2 or 3 shows a defensive resource, describe it with exact moves. If there's immediate checkmate or no counter, write "즉각적인 결정타가 있어 문제점 없음."
@@ -846,6 +861,7 @@ Analyze the position using the provided engine data and write three sections:
 Rules:
 - Use ONLY moves from the engine lines provided. Do not invent any move.
 - Every section must contain actual algebraic move notation from the data.
+- Always identify and name tactical patterns (Fork, Pin, etc.) if they exist.
 - No vague phrases like "기물 발전", "중앙 장악", "상대를 약화".
 - Keep each section 1~2 sentences. Total under 400 characters.`;
 
