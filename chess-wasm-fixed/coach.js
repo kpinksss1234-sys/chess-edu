@@ -1,23 +1,6 @@
 let coachApiKey = '';
 let coachOpen = false;
 let coachLoading = false;
-const BACKEND_URL = 'https://chess-backend-r3bc.onrender.com';
-
-// 백엔드에서 사실 데이터 가져오기
-async function getChessFactsFromBackend(fen) {
-  try {
-    const res = await fetch(`${BACKEND_URL}/analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fen })
-    });
-    if (!res.ok) throw new Error('Backend error');
-    return await res.json();
-  } catch (e) {
-    console.error("Backend fetch failed", e);
-    return null;
-  }
-}
 
 // API 키 저장/불러오기
 function saveApiKey() {
@@ -46,10 +29,7 @@ function loadApiKey() {
 function openCoach() {
   coachOpen = true;
   const panel = document.getElementById('coach-inline');
-  if (panel) {
-    panel.style.display = 'flex';
-    setTimeout(() => panel.classList.add('visible'), 10);
-  }
+  if (panel) panel.classList.add('visible');
   const btn = document.getElementById('coach-open-btn');
   if (btn) btn.classList.add('active');
   // 보드 왼쪽 정렬로 전환
@@ -62,10 +42,7 @@ function openCoach() {
 function closeCoach() {
   coachOpen = false;
   const panel = document.getElementById('coach-inline');
-  if (panel) {
-    panel.classList.remove('visible');
-    setTimeout(() => { if (!coachOpen) panel.style.display = 'none'; }, 300);
-  }
+  if (panel) panel.classList.remove('visible');
   const btn = document.getElementById('coach-open-btn');
   if (btn) btn.classList.remove('active');
   // 보드 중앙 정렬 복원
@@ -241,9 +218,6 @@ function buildChessContext() {
 // 핵심: 포지션 해설 자동 실행
 // ══════════════════════════════════════════════════════
 
-// 지연 함수 (Rate Limit 방지용)
-const wait = (ms) => new Promise(r => setTimeout(r, ms));
-
 // 스톡피시 라인이 충분한지 검사 (3개 라인 모두 있고, 각각 최소 4수 이상)
 function hasEnoughLines(ctx) {
   const pv1 = pvData && pvData[1];
@@ -261,7 +235,7 @@ async function waitForDeepLines(ctx, maxWaitMs = 5000) {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     if (hasEnoughLines(ctx)) return true;
-    await wait(300);
+    await new Promise(r => setTimeout(r, 300));
     // 컨텍스트 재빌드해서 최신 pvData 반영
     const newCtx = buildChessContext();
     if (newCtx) {
@@ -274,25 +248,13 @@ async function waitForDeepLines(ctx, maxWaitMs = 5000) {
 }
 
 // 메인 해설 실행 함수 (패널을 열거나 수를 둘 때 호출)
-let commentaryDebounceTimer = null;
 async function runPositionCommentary() {
+  if (coachLoading) return;
   if (!coachApiKey) return;
 
-  // 디바운스 처리: 500ms 이내에 다시 호출되면 이전 대기 취소
-  if (commentaryDebounceTimer) clearTimeout(commentaryDebounceTimer);
-  commentaryDebounceTimer = setTimeout(async () => {
-    if (coachLoading) return;
-    await _executePositionCommentary();
-  }, 500);
-}
-
-async function _executePositionCommentary() {
   // 인라인 패널 열기
   const inlinePanel = document.getElementById('coach-inline');
-  if (inlinePanel) {
-    inlinePanel.style.display = 'flex';
-    setTimeout(() => inlinePanel.classList.add('visible'), 10);
-  }
+  if (inlinePanel) inlinePanel.classList.add('visible');
   const coachBtn = document.getElementById('coach-open-btn');
   if (coachBtn) coachBtn.classList.add('active');
   const boardAreaRpc = document.getElementById('board-area');
@@ -308,43 +270,93 @@ async function _executePositionCommentary() {
   coachLoading = true;
   responseDiv.style.display = 'flex';
   responseDiv.className = 'loading';
-  responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 스톡피시 분석 수집 중...`;
+  responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 스톡피시 라인 수집 중...`;
 
   try {
-    // 1. 스톡피시 라인 대기 (최소 3개 라인)
+    // 스톡피시 라인이 부족하면 대기
     if (!hasEnoughLines(ctx)) {
-      await waitForDeepLines(ctx, 4000);
+      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 스톡피시 깊은 분석 대기 중...`;
+      await waitForDeepLines(ctx, 5000);
     }
 
-    // 2. 위협 분석 대기 (이미 돌고 있으면 대기, 없으면 실행)
+    // 최신 컨텍스트 다시 빌드 (라인이 갱신됐을 수 있음)
     let freshCtx = buildChessContext();
-    if (!freshCtx.threatData && !threatLoading) {
-      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 국면 위협 분석 중...`;
-      await runThreatAnalysis(); // 내부적으로 8b-instant 사용
-    }
-    
-    const tStart = Date.now();
-    while (threatLoading && Date.now() - tStart < 3000) {
-      await wait(300);
-    }
-    freshCtx = buildChessContext();
-    // 백엔드 사실 분석 데이터 가져오기
-    freshCtx.backendFacts = await getChessFactsFromBackend(freshCtx.fen);
 
-    // 3. 통합 AI 해설 요청 (최선수 이유 + 전략 리포트 합침)
-    responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> AI 전략 리포트 생성 중...`;
-    
-    // API 호출 전 짧은 휴식 (429 방지)
-    await wait(300);
+    // 위협 패널이 아직 로딩 중이면 완료까지 대기 (최대 4초)
+    if (threatLoading) {
+      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 위협 분석 완료 대기 중...`;
+      const tStart = Date.now();
+      while (threatLoading && Date.now() - tStart < 4000) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+      // 위협 데이터가 반영된 최신 컨텍스트로 재빌드
+      freshCtx = buildChessContext();
+    }
+
+    // 위협 패널이 비어있으면 백그라운드에서 먼저 위협 분석 실행 후 결과 기다림
+    if (!freshCtx.threatData && !threatLoading) {
+      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 위협 분석 중...`;
+      await runThreatAnalysis();
+      const tStart2 = Date.now();
+      while (threatLoading && Date.now() - tStart2 < 4000) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+      freshCtx = buildChessContext();
+    }
+
+    // ── 최선수 이유: DOM/bestExplainLoading 의존 없이 직접 API 호출 ──
+    // pvData에서 현재 최신 라인을 직접 읽어 독립적으로 분석
+    let directBestExplainData = null;
+    const livePv1ForExplain = pvData && pvData[1];
+    if (livePv1ForExplain && livePv1ForExplain.moves && livePv1ForExplain.moves.length > 0) {
+      responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 최선수 이유 분석 중...`;
+      try {
+        freshCtx = buildChessContext();
+        const explainMoves = livePv1ForExplain.moves.slice(0, 6);
+        const rawExplain = await callBestExplainAPI(freshCtx, explainMoves, 0);
+        const cleanedExplain = cleanKorean(rawExplain);
+
+        // 결과 파싱: 타이틀과 이유 목록 추출
+        const explainLines = cleanedExplain.split('\n').map(l => l.trim()).filter(Boolean);
+        const reasons = [];
+        for (const line of explainLines) {
+          if (line.startsWith('•') || line.startsWith('-') || line.startsWith('·') || line.match(/^\d+\./)) {
+            const txt = line.replace(/^[•\-·]\s*/, '').replace(/^\d+\.\s*/, '').trim();
+            if (txt) reasons.push(txt);
+          }
+        }
+        if (reasons.length === 0) {
+          explainLines.slice(1).forEach(l => { if (l) reasons.push(l); });
+        }
+        directBestExplainData = {
+          move: explainMoves[0] || null,
+          reasons,
+        };
+      } catch(e) {
+        console.warn('[Coach] bestExplain 직접 호출 실패:', e);
+      }
+    }
+
+    responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> AI 해설 생성 중...`;
+
+    freshCtx = buildChessContext();
+    // directBestExplainData를 freshCtx에 주입 (DOM 결과보다 우선)
+    if (directBestExplainData) {
+      freshCtx.bestExplainData = directBestExplainData;
+    }
 
     const answer = await callCommentaryAPI(freshCtx);
     const cleaned = sanitizeAnswer(answer);
+
+    responseDiv.className = '';
+    responseDiv.style.display = 'block';
+    responseDiv.innerHTML = formatCommentary(cleaned);
 
     renderCoachSidebar(cleaned);
   } catch (err) {
     responseDiv.className = '';
     responseDiv.style.display = 'block';
-    responseDiv.innerHTML = `<span style="color:var(--accent-red)">⚠️ 서비스 지연: 잠시 후 다시 시도해 주세요 (${err.message})</span>`;
+    responseDiv.innerHTML = `<span style="color:var(--accent-red)">⚠️ 오류: ${err.message}</span>`;
     console.error('[Coach] 해설 오류:', err);
   } finally {
     coachLoading = false;
@@ -377,10 +389,7 @@ async function askCoach() {
 
   // 인라인 패널 열기
   const inlinePanel = document.getElementById('coach-inline');
-  if (inlinePanel) {
-    inlinePanel.style.display = 'flex';
-    setTimeout(() => inlinePanel.classList.add('visible'), 10);
-  }
+  if (inlinePanel) inlinePanel.classList.add('visible');
   const coachBtn2 = document.getElementById('coach-open-btn');
   if (coachBtn2) coachBtn2.classList.add('active');
   const boardAreaAsk = document.getElementById('board-area');
@@ -401,7 +410,9 @@ async function askCoach() {
     const prompt = buildCoachPrompt(freshCtx, userQuestion);
     const answer = await callGroqAPI(prompt);
     const cleaned = sanitizeAnswer(answer, freshCtx);
-
+    responseDiv.className = '';
+    responseDiv.style.display = 'block';
+    responseDiv.innerHTML = formatCommentary(cleaned);
     renderCoachSidebar(cleaned);
   } catch (err) {
     responseDiv.className = '';
@@ -421,28 +432,79 @@ async function askCoach() {
 function buildCommentaryPrompt(ctx) {
   const lines = [];
 
-  lines.push(`당신은 체스 전문 해설가입니다. 아래 데이터를 종합하여 전략적인 관점에서 해설하세요.`);
-  lines.push(``);
-  lines.push(`[데이터]`);
-  lines.push(`차례: ${ctx.turn === 'w' ? '백' : '흑'}`);
-  lines.push(`최근 흐름: ${ctx.pgnMoves.split(' ').slice(-10).join(' ')}`);
+  // pvData에서 직접 최신 라인 읽기 (ctx의 캐시된 값 대신)
+  const livePv1 = pvData && pvData[1];
+  const livePv2 = pvData && pvData[2];
+  const livePv3 = pvData && pvData[3];
+  const liveBestLine = livePv1 && livePv1.moves ? livePv1.moves.slice(0, 8).join(' ') : ctx.bestLine;
+  const liveLine2    = livePv2 && livePv2.moves ? livePv2.moves.slice(0, 6).join(' ') : ctx.line2;
+  const liveLine3    = livePv3 && livePv3.moves ? livePv3.moves.slice(0, 6).join(' ') : ctx.line3;
+  const liveBestMove = livePv1 && livePv1.moves && livePv1.moves[0] ? livePv1.moves[0] : ctx.bestMove;
 
-  // 백엔드 사실 데이터를 한번만 깔끔하게 전달
-  if (ctx.backendFacts && ctx.backendFacts.facts) {
-    const f = ctx.backendFacts.facts;
-    lines.push(``);
-    lines.push(`[전술적 상황]`);
-    if (f.white_attackers?.length) lines.push(`백의 공격: ${f.white_attackers.join(' ')}`);
-    if (f.black_attackers?.length) lines.push(`흑의 공격: ${f.black_attackers.join(' ')}`);
-    if (f.pins?.length) lines.push(`핀(Pin): ${f.pins.join(' ')}`);
+  lines.push(`아래 체스 포지션을 보고, 체스인사이드 채널처럼 해설하세요.`);
+  lines.push(``);
+  lines.push(`핵심 원칙: 이 포지션에서 실제로 보이는 것을 있는 그대로 관찰하고 설명하세요.`);
+  lines.push(`폰이 약하면 "이 폰은 지키기가 어려운 폰이라고 볼 수 있죠"처럼,`);
+  lines.push(`긴장이 생기면 "비숍이 뒤쪽으로 빠지면서 룩 긴장이 생겨났고요"처럼,`);
+  lines.push(`나이트가 불안정하면 "나이트의 위치가 나중에라도 밀려날 수 있다는 걸 고려하면"처럼.`);
+  lines.push(`상황이 평범하면 평범하게, 복잡하면 복잡하게 — 억지로 극적인 표현이나 고정된 패턴을 쓰지 마세요.`);
+  lines.push(``);
+  lines.push(`[포지션 데이터]`);
+  lines.push(`게임 단계: ${ctx.phase} | 진행 수: ${ctx.moveCount}수 | 차례: ${ctx.turn === 'w' ? '백(White)' : '흑(Black)'}`);
+  lines.push(`현재 형세: ${ctx.advantageDesc}`);
+
+  if (ctx.lastMoveSan) {
+    const ann = ctx.lastMoveAnnotation ? ` (${ctx.lastMoveAnnotation})` : '';
+    lines.push(`방금 둔 수: ${ctx.lastMoveSan}${ann}`);
   }
 
+  // 항상 최신 pvData 기반 라인 사용
+  if (liveBestLine) lines.push(`[엔진 1순위 라인 — 최선수 분석에 반드시 이 수순 사용] ${liveBestLine}`);
+  if (liveLine2)    lines.push(`[엔진 2순위 라인] ${liveLine2}`);
+  if (liveLine3)    lines.push(`[엔진 3순위 라인] ${liveLine3}`);
+
+  // 사용자 화살표(후보수/수순) 포함
+  if (ctx.candidateMoves && ctx.candidateMoves.length > 0) {
+    lines.push(``);
+    lines.push(`[사용자가 화살표로 표시한 후보수: ${ctx.candidateMoves.join(', ')}]`);
+    lines.push(`※ 해설에서 이 후보수들이 엔진 추천과 어떻게 다른지 언급해 주세요.`);
+  }
+  if (ctx.sequenceMoves && ctx.sequenceMoves.length > 0) {
+    lines.push(`[사용자가 Alt+화살표로 표시한 수순: ${ctx.sequenceMoves.join(' → ')}]`);
+    lines.push(`※ 이 수순의 장단점을 간략히 언급해 주세요.`);
+  }
+
+  if (ctx.threatData) {
+    lines.push(``);
+    lines.push(`[위협 분석 — 해설에 녹여서 사용할 것]`);
+    if (ctx.threatData.idea) lines.push(`핵심 계획: ${ctx.threatData.idea}`);
+    if (ctx.threatData.prob) lines.push(`문제점: ${ctx.threatData.prob}`);
+    if (ctx.threatData.sol)  lines.push(`최선책: ${ctx.threatData.sol}`);
+  }
+
+  if (ctx.bestExplainData) {
+    lines.push(``);
+    lines.push(`[최선수 이유 데이터 — 자연스러운 문장으로 녹여서 사용할 것]`);
+    lines.push(`최선수: ${ctx.bestExplainData.move || liveBestMove}`);
+    if (ctx.bestExplainData.reasons && ctx.bestExplainData.reasons.length > 0) {
+      ctx.bestExplainData.reasons.forEach((r, i) => lines.push(`  ${i+1}. ${r}`));
+    }
+  }
+
+  if (ctx.pgnMoves) lines.push(`전체 기보: ${ctx.pgnMoves}`);
+  lines.push(`FEN: ${ctx.fen}`);
+
   lines.push(``);
-  lines.push(`[작성 지시]`);
-  lines.push(`1. 위 [전술적 상황]을 나열하지 마세요. 각 사실이 현재 포지션에서 가지는 '전략적 의미'를 연결해서 서술하세요.`);
-  lines.push(`2. 단순한 기물 공격 사실은 종합해서 설명하세요. (예: "서로 주도권을 뺏기 위해 공격을 주고받는 긴박한 상황입니다.")`);
-  lines.push(`3. 데이터에 없는 내용(형세 판단 등)은 절대 지어내지 마세요.`);
-  lines.push(`4. 폰 구조와 공간을 고려하여 설명하세요.`);
+  lines.push(`[작성 규칙]`);
+  lines.push(`- 해설은 반드시 **포지션 상황** 섹션으로 시작`);
+  lines.push(`- 이후 섹션은 상황에 맞는 것만 선택: **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**`);
+  lines.push(`- **최선수 분석** 은 항상 포함. 반드시 [엔진 1순위 라인]의 수순을 그대로 사용해서 설명할 것.`);
+  lines.push(`- 섹션 헤더는 반드시 **헤더명** 형태. 새 줄에서 시작, 헤더 다음 줄바꿈 하나.`);
+  lines.push(`- 본문 안에 다른 섹션 이름을 쓰지 말 것.`);
+  lines.push(`- 실제 수 표기 사용 필수. "이 수", "해당 수" 금지.`);
+  lines.push(`- 빈 말("승리의 기회를 높입니다", "기물의 발전을 돕는다") 금지 — 항상 구체적 이유 서술.`);
+  lines.push(`- 각 섹션 2~4문장, 전체 500~700자`);
+  lines.push(`- cp/점수/승률 수치 절대 금지`);
 
   return lines.join('\n');
 }
@@ -480,16 +542,13 @@ function buildCoachPrompt(ctx, question) {
   if (ctx.threatData) {
     lines.push(``);
     lines.push(`[위협 분석 데이터]`);
-    if (ctx.threatData.idea) lines.push(`아이디어: ${ctx.threatData.idea}`);
-    if (ctx.threatData.prob) lines.push(`문제점: ${ctx.threatData.prob}`);
-    if (ctx.threatData.sol)  lines.push(`해결책: ${ctx.threatData.sol}`);
+    if (ctx.threatData.idea) lines.push(`핵심 계획(Idea): ${ctx.threatData.idea}`);
+    if (ctx.threatData.prob) lines.push(`문제점(Problem): ${ctx.threatData.prob}`);
+    if (ctx.threatData.sol)  lines.push(`최선책(Solution): ${ctx.threatData.sol}`);
   }
 
   if (ctx.pgnMoves) lines.push(`전체 기보: ${ctx.pgnMoves}`);
   lines.push(`FEN: ${ctx.fen}`);
-  lines.push(``);
-  lines.push(`[중요 전술 체크]`);
-  lines.push(`질문에 답변할 때 포지션의 전술적 요소(포크, 핀, 디스커버드 어택 등)를 면밀히 살펴보고 답변에 포함시키세요.`);
   lines.push(``);
   lines.push(`[사용자 질문]`);
   lines.push(question);
@@ -506,192 +565,68 @@ function buildCoachPrompt(ctx, question) {
 
 // 포지션 해설 전용 API 호출
 async function callCommentaryAPI(ctx) {
-  const SYSTEM = `당신은 체스 전문 해설가 "체스인사이드"입니다. 국면의 본질적인 '구도'와 '전략', 그리고 '구조'를 해설하는 데 집중하세요.
+  const SYSTEM = `You are a Korean-language chess commentator in the style of the YouTube channel "체스인사이드 (ChessInside)".
 
-───────────────────────────────
-★ 교육적 해설 원칙
-───────────────────────────────
-1. **의도 기반 설명:** 단순히 '무엇을 공격한다'가 아니라, '이 공격을 통해 무엇을 얻으려는가(상대의 기물 활동성 저하, 킹 안전 위협 등)'를 설명하세요.
-2. **비교 분석:** 사용자(화살표 후보수)의 생각과 엔진 최선수가 왜 다른지, 사용자 수가 놓친 전략적 포인트가 무엇인지 명확히 비교하세요.
-3. **구체적 결과:** 추상적인 평가(예: 백이 좋다) 대신, 구체적인 전술 변화(예: 핀이 걸려 나이트가 움직일 수 없음)를 설명하세요.
+WHAT THIS STYLE MEANS:
+You watch the board like a coach reviewing a real game. You notice things — a pawn that's hard to defend, a bishop retreating to create rook tension, a knight that might get pushed away eventually. You say what you see, explain why it matters, and follow the consequences naturally. You do NOT use templates or repeat fixed phrases.
 
-───────────────────────────────
-★ 필수 표준 용어 (Piece Names)
-───────────────────────────────
-- King → **킹**, Queen → **퀸**, Rook → **룩**, Bishop → **비숍**, Knight → **나이트**, Pawn → **폰**
+TACTICAL AWARENESS:
+If the engine lines or the position involves tactical themes, you MUST use professional chess terminology to explain them clearly. This includes:
+- 포크 (Fork), 핀 (Pin), 스큐어 (Skewer)
+- 디스커버드 어택 (Discovered Attack), 더블 체크 (Double Check)
+- 기물 과부하 (Overloading), 제거 (Deflection), 유인 (Decoy)
+- 백랭크 메이트 (Back-rank Mate), 질식 메이트 (Smothered Mate)
+- 희생 (Sacrifice) 및 전술적 연계
 
-───────────────────────────────
-★ 출력 형식 (반드시 지킬 것)
-───────────────────────────────
-**포지션 상황** (현재 전장과 전략적 구도 요약)
-**폰 구조 & 약점** (구조적 특징 설명)
-**강점 분석** (활동성, 배터리, 공간 우위)
-**위협 & 아이디어** (교환 전략 및 계획)
-**최선수 분석** (엔진 수를 전략적으로 해설)
-**사용자 수 비교** (사용자 후보수와 엔진 수 비교)
-
-최선수 분석은 [전술적 사실]을 근거로 전략적으로 해설하세요.`;
+HOW TO COMMENT:
+- Look at the actual position: which pawns are weak? which pieces are active? what tension exists?
+- Describe what each move does in concrete terms. "d5 폰을 잡고 올라갑니다. 근데 이 폰은 지키기가 어려운 폰이라고 볼 수 있죠." / "비숍이 뒤쪽으로 빠지면서 룩 긴장이 생겨났고요." / "나이트의 위치가 나중에라도 밀려날 수 있다는 걸 고려하면 이 폰은 잡히는 게 어느 정도 기정사실이라고 할 수 있겠네요."
+- When a sacrifice or counter-intuitive move is truly the best: explain the material exchange clearly and why the compensation is worth it.
+- When a position is straightforward: just describe what's happening and the plan. No need to force dramatic phrases.
+- Always use the actual move notation (cxd5, Nb3, Rf1 etc). Never say "이 수" or "해당 수".
+- Keep it conversational: "~라고 볼 수 있죠", "~하는 거죠", "~하는 상황이라고 볼 수 있겠네요", "~고요", "~거든요".
+- Never use hollow phrases like "기물의 발전을 돕는다", "상대방을 약화시킨다", "승리의 기회를 높입니다" without a specific concrete reason.
+- Only use these section headers: **포지션 상황**, **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**.
+- Never output placeholders like <<_0>>. Never output numerical scores (cp, win%).
+- Output ONLY in Korean. Chess move notation stays in English algebraic form.`;
 
   const prompt = buildCommentaryPrompt(ctx);
-  return callGroqAPIWithSystem(SYSTEM, prompt, 1300);
-}
-
-async function callThreatAPI(ctx) {
-  const mover     = ctx.turn === 'w' ? '백(White)' : '흑(Black)';
-  const opponent  = ctx.turn === 'w' ? '흑(Black)' : '백(White)';
-
-  const THREAT_SYSTEM = `당신은 체스 분석 전문가입니다. 한국어로만 답변하세요.
-엔진 라인을 분석하여 세 가지 섹션(**아이디어**, **문제점**, **해결책**)을 작성하세요.
-
-**아이디어:** ${mover}이 노리는 공격 계획을 설명하세요.
-**문제점:** ${opponent}의 최선 대응이나 방어 수단을 설명하세요.
-**해결책:** ${mover}이 문제를 어떻게 해결하고 이득을 유지할지 엔진 1순위 수를 바탕으로 설명하세요.
-
-수 표기(e4, Nf3 등)는 영문 그대로 쓰세요. 1~2문장으로 간결하게 작성하세요.`;
-
-  const userMsg = [
-    `차례: ${mover}`,
-    ctx.bestLine  ? `엔진 1순위 라인: ${ctx.bestLine}` : '',
-    ctx.line2     ? `엔진 2순위 라인: ${ctx.line2}` : '',
-    ctx.line3     ? `엔진 3순위 라인: ${ctx.line3}` : '',
-    `FEN: ${ctx.fen}`,
-  ].join('\n');
-
-  const response = await fetch('/api/groq', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
-      max_tokens: 400,
-      temperature: 0.25,
-      messages: [
-        { role: 'system', content: EXPLAIN_SYSTEM },
-        { role: 'user',   content: userMsg },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
-}
-
-async function callBestExplainAPI(ctx, moves, focusIdx) {
-  const EXPLAIN_SYSTEM = `당신은 한국어로 체스 수를 해설하는 AI입니다. 한국어만 출력하고, 체스 수 표기는 영문(Nf3, e4, O-O)을 유지하세요.
-
-★ 핵심 원칙: "이 수가 좋은 이유는 ~" 식의 나열 금지.
-대신 수를 두면 어떤 일이 생기고 → 상대는 어떻게 대응할 수밖에 없는지 → 결국 어떤 결과가 나오는지를 따라가세요.
-
-★ 전술이 있으면 반드시 이름으로: **포크**, **핀**, **스큐어**, **디스커버드 어택**. 구체적으로 설명하세요.
-★ 금지 표현: "기물의 발전을 방해합니다", "중앙을 장악할 수 있습니다", "상대방을 약화시킵니다", "폰 구조를 강화합니다"
-
-출력 형식:
-1번째 줄: "[수 표기]이/가 나오면서:" (예: "Qa1이 나오면서:")
-이후 3~4개 bullet, 각 "• " 로 시작, 한 문장씩.
-전체 300자 이내.`;
-
-  const focusMove = moves[focusIdx] || moves[0];
-  const seq       = moves.slice(0, 5).join(' ');
-
-  const userMsg = [
-    `엔진 최선 수순: ${seq}`,
-    `${focusIdx + 1}번째 수인 "${focusMove}"이/가 왜 좋은지 설명해주세요.`,
-    `차례: ${ctx.turn === 'w' ? '백' : '흑'}`,
-    `FEN: ${ctx.fen}`,
-    `구체적인 위협명/칸/기물을 이용해 이유를 설명하세요.`,
-  ].join('\n');
-
-  const response = await fetch('/api/groq', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
-      max_tokens: 400,
-      temperature: 0.25,
-      messages: [
-        { role: 'system', content: EXPLAIN_SYSTEM },
-        { role: 'user',   content: userMsg },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `HTTP ${response.status}`);
-  }
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  return callGroqAPIWithSystem(SYSTEM, prompt, 900);
 }
 
 // 공통 Groq 호출 (system 없이 — 수동 질문용)
 async function callGroqAPI(userContent) {
-  const SYSTEM = `당신은 한국 최고의 체스 채널 "체스인사이드" 스타일의 AI 코치입니다.
-항상 한국어로만 답변하고, 체스 수 표기(e4, Nf3, O-O)는 영문/알제브릭 형태를 유지하세요.
-표준 용어(킹, 퀸, 룩, 비숍, 나이트, 폰)를 엄수하고 다른 단어는 쓰지 마세요.
-전술(포크, 핀 등)이 보 보인다면 반드시 용어를 사용하여 설명하세요.`;
+  const SYSTEM = `You are a Korean-language chess coach in the style of "ChessInside" YouTube channel.
+Always respond ONLY in Korean (한국어). Chess move notation (e4, Nf3, O-O) stays in English/algebraic form.
+Never output Japanese, Chinese, Arabic, or any non-Korean script.
+Never output numerical evaluation scores. Never output placeholders like <<_0>>.`;
 
-  return callGroqAPIWithSystem(SYSTEM, userContent, 850);
+  return callGroqAPIWithSystem(SYSTEM, userContent, 800);
 }
 
-async function callGroqAPIWithSystem(systemPrompt, userContent, maxTokens = 600) {
-  // 1. gemini-1.5-flash: 압도적인 무료 한도 (분당 100만 토큰), 70B급 성능.
-  // 2. mixtral-8x7b: Groq 모델 중 할당량이 넉넉함.
-  // 3. llama-3.1-8b: 속도가 매우 빠름.
-  const aiConfigs = [
-    { provider: 'gemini', model: 'gemini-1.5-flash', endpoint: '/api/gemini' },
-    { provider: 'groq',   model: 'mixtral-8x7b-32768', endpoint: '/api/groq' },
-    { provider: 'groq',   model: 'llama-3.1-8b-instant', endpoint: '/api/groq' }
-  ];
+async function callGroqAPIWithSystem(systemPrompt, userContent, maxTokens = 800) {
+  const response = await fetch('/api/groq', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: maxTokens,
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userContent  },
+      ],
+    }),
+  });
 
-  let lastError = null;
-
-  for (const config of aiConfigs) {
-    try {
-      const response = await fetch(config.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: config.model,
-          max_tokens: maxTokens,
-          temperature: 0.15, // 체스 분석의 정확도를 위해 더 낮춤
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user',   content: userContent  },
-          ],
-        }),
-      });
-
-      // 할당량 초과 (429) 시 다음 모델로 즉시 전환
-      if (response.status === 429) {
-        console.warn(`[AI] ${config.model} 할당량 초과. 다음 백업 모델로 시도합니다...`);
-        continue;
-      }
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const raw = data.choices?.[0]?.message?.content || '';
-      
-      if (!raw || raw.length < 5) throw new Error('응답이 너무 짧습니다.');
-      
-      console.log(`[AI Response] (${config.model})`, data);
-      return cleanKorean(raw);
-
-    } catch (err) {
-      lastError = err;
-      console.error(`[AI Error] (${config.model}):`, err.message);
-      // 키가 설정되지 않았거나(500) 네트워크 오류 시 다음 모델로 전환
-      continue;
-    }
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
   }
 
-  throw lastError || new Error('모든 AI 서비스가 현재 응답할 수 없습니다. 나중에 다시 시도해 주세요.');
+  const data = await response.json();
+  const raw  = data.choices?.[0]?.message?.content || '응답을 받지 못했습니다.';
+  return cleanKorean(raw);
 }
 
 // ══════════════════════════════════════════════════════
@@ -699,48 +634,45 @@ async function callGroqAPIWithSystem(systemPrompt, userContent, maxTokens = 600)
 // ══════════════════════════════════════════════════════
 
 function sanitizeAnswer(text, ctx) {
-  if (!text) return '';
+  if (!text) return text;
   let out = String(text);
-  // 1) HTML 태그 제거 (AI가 잘못 생성한 태그 등 방지)
-  out = out.replace(/<\/?[^>]+(>|$)/g, "");
-  // 2) 특수 토큰 제거
   out = out.replace(/<<\s*_?\d+\s*>>/g, '');
   out = out.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 
-  // 20자 미만인 경우에만 플레이스홀더 표시 (정말로 응답이 비어있거나 너무 짧을 때)
-  if (out.length < 5) {
-    return `**포지션 상황:** 현재 분석 결과가 비어 있습니다. 잠시 후 다시 시도해 주세요.\n**약점 분석:** 스톡피시 라인을 확인해 주세요.\n**최선수 분석:** 엔진 추천수를 참고하세요.\n**이후 수순:** 다음 진행을 살펴보세요.`;
+  if (out.length < 20) {
+    out = `**포지션 상황:** 현재 포지션을 분석 중입니다.\n**약점 분석:** 스톡피시 라인을 바탕으로 분석이 필요합니다.\n**최선수 분석:** 엔진 추천수를 확인해주세요.\n**이후 수순:** 다음 수순을 살펴보세요.`;
   }
 
   return cleanKorean(out);
 }
 
 function formatCommentary(text) {
-  if (!text) return '<div class="threat-loading">해설을 생성할 수 없습니다.</div>';
-  
   const escaped = text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   const SECTION_DEFS = [
     { key: '포지션 상황',    icon: '🔍', cls: 'section-pos'    },
-    { key: '폰 구조 & 약점',  icon: '⚠️', cls: 'section-weak'   },
+    { key: '약점 분석',      icon: '⚠️', cls: 'section-weak'   },
     { key: '강점 분석',      icon: '💪', cls: 'section-strong' },
     { key: '위협 & 아이디어', icon: '⚡', cls: 'section-threat' },
-    { key: '아이디어',      icon: '💡', cls: 'section-threat' },
-    { key: '문제점',        icon: '⚠️', cls: 'section-weak'   },
-    { key: '해결책',        icon: '✅', cls: 'section-best'   },
     { key: '최선수 분석',    icon: '♟️', cls: 'section-best'   },
     { key: '이후 수순',      icon: '🔮', cls: 'section-plan'   },
   ];
 
   const SECTION_KEYS = SECTION_DEFS.map(s => s.key);
 
+  // ── 개선된 섹션 파싱 ──────────────────────────────────────────────────────
+  // 전략: 모든 **헤더** 위치를 먼저 찾아 정렬한 뒤, 각 헤더 사이 본문만 추출.
+  // LLM이 본문 안에 "비공식 헤더(** 없이 평문)"를 쓸 경우 다음 ** 헤더 위치로
+  // 잘라내기 때문에 중복이 발생하지 않음.
+
+  // 1) 모든 알려진 헤더 위치 탐색
   const allHeaderPat = new RegExp(
-    '(?:\\*\\*|#|\\n|^)(' + SECTION_KEYS.map(k => k.replace(/&/g,'&amp;').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')[:\\s：]*(?:\\*\\*|)?',
+    '\\*\\*(' + SECTION_KEYS.map(k => k.replace(/&/g,'&amp;').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')[:\\s：]*\\*\\*',
     'g'
   );
 
-  const found = []; 
+  const found = []; // { key, start, bodyStart }
   let m;
   while ((m = allHeaderPat.exec(escaped)) !== null) {
     found.push({ key: m[1], start: m.index, bodyStart: m.index + m[0].length });
@@ -751,39 +683,41 @@ function formatCommentary(text) {
     const { key, bodyStart } = found[fi];
     const bodyEnd = fi + 1 < found.length ? found[fi + 1].start : escaped.length;
     let body = escaped.slice(bodyStart, bodyEnd).trim().replace(/^[:：\s]+/, '').trim();
+
+    // 본문 안에 평문으로 다른 섹션 이름이 붙어있으면 그 앞까지만 사용
+    // (예: "...공격을 준비합니다. 최선수 분석 백의 최선수는...")
+    const inlineHeaderPat = new RegExp(
+      '(?:^|\n)(' + SECTION_KEYS.map(k => k.replace(/&/g,'&amp;').replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')(?:\s|$)',
+      'i'
+    );
+    const inlineMatch = body.match(inlineHeaderPat);
+    if (inlineMatch && inlineMatch.index > 0) {
+      body = body.slice(0, inlineMatch.index).trim();
+    }
+
     if (body) parsed[key] = body;
   }
 
   if (Object.keys(parsed).length === 0) {
+    // 섹션 감지 실패 — 일반 텍스트로 표시
     return formatPlain(escaped);
   }
 
-  // ── 통합 정규식 (SAN 수순 + 개별 칸) ──
-  const comboRegex = /\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x[a-h][1-8][+#=]?|[a-h][1-8][+#=]?)\b/g;
-
   let html = '<div class="commentary-wrapper">';
-  const renderedCls = new Set();
   for (const def of SECTION_DEFS) {
     const body = parsed[def.key];
-    if (!body || renderedCls.has(def.cls)) continue;
-    
-    // 1) 굵은 텍스트 먼저 처리
-    let formatted = body.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
-    // 2) 통합 토큰 처리
-    formatted = formatted.replace(comboRegex, (match) => {
-      // 2글자이고 [a-h][1-8] 형태면 개별 칸 링크로 처리
-      if (match.length === 2 && /^[a-h][1-8]$/.test(match)) {
-        return `<span class="chess-sq-link" onmouseover="game.highlightSquare('${match}')" onmouseout="game.clearInteractions()">${match}</span>`;
-      }
-      // 그 외엔 체스 수순(SAN) 링크로 처리
-      return `<span class="chess-move-link" onclick="game.previewAIMove('${match}')">${match}</span>`;
-    });
-
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    html += `<div class="commentary-section ${def.cls}"><div class="commentary-label">${def.icon} ${def.key}</div><div class="commentary-body">${formatted}</div></div>`;
-    renderedCls.add(def.cls);
+    if (!body) continue;
+    const formatted = body
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // 체스 수 표기 강조
+      .replace(/\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x?[a-h][1-8][+#=]?|[a-h][1-8])\b/g,
+               m => m.length >= 2 ? `<span class="chess-move">${m}</span>` : m)
+      .replace(/\n/g, '<br>');
+    html += `
+      <div class="commentary-section ${def.cls}">
+        <div class="commentary-label">${def.icon} ${def.key}</div>
+        <div class="commentary-body">${formatted}</div>
+      </div>`;
   }
   html += '</div>';
   return html;
@@ -825,6 +759,10 @@ function cleanKorean(text) {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
+  // ★ 라틴 문자(영문) 제거는 하지 않음
+  // 체스 수 표기(e4, Nf3, O-O 등)가 라틴 문자이므로 제거하면 수가 사라짐
+  // 대신 LLM 프롬프트에서 한국어 외 출력을 금지하여 불필요한 영문 혼입을 방지
+
   return out;
 }
 
@@ -848,7 +786,7 @@ function toggleThreatPanel() {
   } else {
     panel.style.display = 'none';
     btn.style.color = 'var(--text-muted)';
-    btn.style.borderColor = 'var(--border)';
+    btn.style.borderColor = 'var(--border-color)';
   }
 }
 
@@ -863,19 +801,20 @@ async function runThreatAnalysis() {
   const panel     = document.getElementById('threat-panel');
   const contentEl = document.getElementById('threat-content');
   if (panel) panel.style.display = 'block';
-  if (contentEl) contentEl.innerHTML = '<div class="threat-loading">🔍 최선수 분석 중...</div>';
+  if (contentEl) contentEl.innerHTML = '<div class="threat-loading">⚡ 위협 분석 중...</div>';
   threatLoading   = true;
   lastThreatFen   = fenKey;
 
   try {
+    // 체크메이트 즉시 감지 — API 호출 없이 클라이언트에서 바로 처리
     const mover    = ctx.turn === 'w' ? '백' : '흑';
     const isMate   = ctx.bestMove && ctx.bestMove.includes('#');
 
     if (isMate) {
       const mateText = [
-        `**아이디어:** ${mover}은 ${ctx.bestMove}로 즉각 체크메이트를 만들 수 있습니다.`,
+        `**핵심 계획:** ${mover}은 ${ctx.bestMove}로 즉각 체크메이트를 만들 수 있습니다.`,
         `**문제점:** 즉각적인 체크메이트가 있어 문제점 없음.`,
-        `**해결책:** ${ctx.bestMove}를 바로 두어 게임을 끝내세요.`,
+        `**최선책:** ${ctx.bestMove}를 바로 두어 게임을 끝내세요.`,
       ].join('\n');
       renderThreatPanel(mateText);
       return;
@@ -893,72 +832,129 @@ async function runThreatAnalysis() {
   }
 }
 
+async function callThreatAPI(ctx) {
+  const mover     = ctx.turn === 'w' ? '백(White)' : '흑(Black)';
+  const opponent  = ctx.turn === 'w' ? '흑(Black)' : '백(White)';
+
+  // 체크메이트/즉승 여부 감지: 엔진 1순위 수에 # 포함 여부
+  const isMate    = ctx.bestMove && ctx.bestMove.includes('#');
+  // 엔진 1순위 수에 + 포함 (체크) 여부
+  const isCheck   = ctx.bestMove && (ctx.bestMove.includes('+') || isMate);
+
+  const THREAT_SYSTEM = `You are a Korean chess analyst. Output ONLY in Korean (한국어).
+Chess move notation stays in algebraic form (Nf3, e4, dxc4, O-O).
+
+CRITICAL: You will be given the actual engine lines and FEN for the current position. Use ONLY those moves. Never invent or hallucinate moves. Never copy from examples.
+
+TACTICAL SCANNING:
+Scan the provided engine lines for tactical themes and use the exact terms:
+- 포크 (Fork), 핀 (Pin), 스큐어 (Skewer)
+- 디스커버드 어택 (Discovered Attack), 더블 체크 (Double Check)
+- 희생 (Sacrifice)
+If a move creates a fork or a pin, you MUST state it explicitly. (e.g., "Nf3+는 킹과 퀸을 동시에 공격하는 **포크**입니다.")
+
+Analyze the position using the provided engine data and write three sections:
+**핵심 계획:** — What does ${mover} want to do? State the concrete threat using the ACTUAL moves from the engine line provided. Format: "${mover}은 [move]로 [goal]을 노린다: [line] → [result]."
+**문제점:** — What can ${opponent} do to counter? If engine line 2 or 3 shows a defensive resource, describe it with exact moves. If there's immediate checkmate or no counter, write "즉각적인 결정타가 있어 문제점 없음."
+**최선책:** — What is ${mover}'s best response to the problem? Use the engine 1st line moves. Explain why it solves the issue.
+
+Rules:
+- Use ONLY moves from the engine lines provided. Do not invent any move.
+- Every section must contain actual algebraic move notation from the data.
+- Always identify and name tactical patterns (Fork, Pin, etc.) if they exist.
+- No vague phrases like "기물 발전", "중앙 장악", "상대를 약화".
+- Keep each section 1~2 sentences. Total under 400 characters.`;
+
+  const userMsg = [
+    `[현재 포지션 분석 — 아래 데이터만 사용하고 수를 절대 만들어내지 마세요]`,
+    `차례: ${mover}`,
+    ctx.bestLine  ? `엔진 1순위 라인 (최선): ${ctx.bestLine}` : '',
+    ctx.line2     ? `엔진 2순위 라인: ${ctx.line2}` : '',
+    ctx.line3     ? `엔진 3순위 라인: ${ctx.line3}` : '',
+    isMate        ? `⚠️ 즉각 체크메이트 가능: ${ctx.bestMove}` : '',
+    isCheck && !isMate ? `엔진 최선수(체크): ${ctx.bestMove}` : '',
+    ctx.lastMoveSan ? `방금 둔 수: ${ctx.lastMoveSan}` : '',
+    ctx.pgnMoves  ? `기보: ${ctx.pgnMoves}` : '',
+    `FEN: ${ctx.fen}`,
+    ``,
+    `위 엔진 라인의 실제 수만 사용해서 핵심 계획/문제점/최선책을 분석하세요.`,
+    `엔진 라인에 없는 수(예시에서 본 수, 상상한 수)를 절대 쓰지 마세요.`,
+  ].filter(Boolean).join('\n');
+
+  const response = await fetch('/api/groq', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 500,
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: THREAT_SYSTEM },
+        { role: 'user',   content: userMsg },
+      ],
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
 function renderThreatPanel(text) {
   const el = document.getElementById('threat-content');
   if (!text) { el.innerHTML = '<div class="threat-loading">분석 결과 없음</div>'; return; }
 
   const SECTIONS = [
-    { key: '아이디어', cls: 'idea', icon: '💡', labelCls: 'threat-label-idea' },
-    { key: '문제점',   cls: 'prob', icon: '⚠️', labelCls: 'threat-label-prob' },
-    { key: '해결책',   cls: 'sol',  icon: '✅', labelCls: 'threat-label-sol'  },
-    // 동의어 처리
     { key: '핵심 계획', cls: 'idea', icon: '💡', labelCls: 'threat-label-idea' },
-    { key: '최선책',   cls: 'sol',  icon: '✅', labelCls: 'threat-label-sol'  },
+    { key: '문제점',    cls: 'prob', icon: '⚠️', labelCls: 'threat-label-prob' },
+    { key: '최선책',    cls: 'sol',  icon: '✅', labelCls: 'threat-label-sol'  },
   ];
 
-  const SECTION_KEYS = SECTIONS.map(s => s.key);
-  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const parsed  = {};
+  const allKeys = ['핵심 계획', '문제점', '최선책'];
+  let remaining = text;
 
-  // 강화된 섹션 파싱 (포맷 유연성 확보)
-  const allHeaderPat = new RegExp(
-    '(?:\\*\\*|#|\\n|^)(' + SECTION_KEYS.map(k => k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|') + ')[:\\s：]*(?:\\*\\*|)?',
-    'g'
-  );
+  for (let ki = 0; ki < allKeys.length; ki++) {
+    const key     = allKeys[ki];
+    const nextKey = allKeys[ki + 1];
+    const keyPat  = new RegExp('\\*\\*' + key + '[:\\s：]*\\*\\*|\\*\\*' + key + '\\*\\*');
+    const startIdx = remaining.search(keyPat);
+    if (startIdx < 0) continue;
 
-  const found = []; 
-  let m;
-  while ((m = allHeaderPat.exec(escaped)) !== null) {
-    found.push({ key: m[1], start: m.index, bodyStart: m.index + m[0].length });
-  }
+    const headerMatch = remaining.slice(startIdx).match(keyPat);
+    const bodyFrom    = startIdx + headerMatch[0].length;
 
-  const parsed = {};
-  for (let fi = 0; fi < found.length; fi++) {
-    const { key, bodyStart } = found[fi];
-    const bodyEnd = fi + 1 < found.length ? found[fi + 1].start : escaped.length;
-    let body = escaped.slice(bodyStart, bodyEnd).trim().replace(/^[:：\s]+/, '').trim();
-    if (body) parsed[key] = body;
+    let bodyEnd = remaining.length;
+    if (nextKey) {
+      const nextPat = new RegExp('\\*\\*' + nextKey);
+      const nextIdx = remaining.slice(bodyFrom).search(nextPat);
+      if (nextIdx >= 0) bodyEnd = bodyFrom + nextIdx;
+    }
+    parsed[key] = remaining.slice(bodyFrom, bodyEnd).trim().replace(/^[:：\s]+/, '').trim();
   }
 
   if (Object.keys(parsed).length === 0) {
     el.innerHTML = `<div class="threat-section"><div class="threat-section-body">${
-      escaped.replace(/\n/g,'<br>')
+      text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
     }</div></div>`;
     return;
   }
 
   let html = '';
-  const renderedBaseKeys = new Set();
   for (const s of SECTIONS) {
-    const body = parsed[s.key];
-    if (!body || renderedBaseKeys.has(s.cls)) continue;
-
-    // ── 인터랙티브 토큰 처리 (통합 pass) ──
-    const comboRegex = /\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x[a-h][1-8][+#=]?|[a-h][1-8][+#=]?)\b/g;
-    const formattedBody = body.replace(comboRegex, (match) => {
-      // 2글자이고 [a-h][1-8] 형태면 개별 칸 링크로 처리
-      if (match.length === 2 && /^[a-h][1-8]$/.test(match)) {
-        return `<span class="chess-sq-link" onmouseover="game.highlightSquare('${match}')" onmouseout="game.clearInteractions()">${match}</span>`;
-      }
-      // 그 외엔 체스 수순(SAN) 링크로 처리
-      return `<span class="chess-move-link" onclick="game.previewAIMove('${match}')">${match}</span>`;
-    }).replace(/\n/g,'<br>');
-    
+    if (!parsed[s.key]) continue;
+    const body = parsed[s.key]
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x?[a-h][1-8][+#=]?|[a-h][1-8][+#]?)\b/g,
+               (m) => m.length >= 2 ? '<span class="t-move">' + m + '</span>' : m)
+      .replace(/\n/g,'<br>');
     html += `
       <div class="threat-section">
         <div class="threat-section-label ${s.labelCls}">${s.icon} ${s.key}</div>
-        <div class="threat-section-body">${formattedBody}</div>
+        <div class="threat-section-body">${body}</div>
       </div>`;
-    renderedBaseKeys.add(s.cls);
   }
   el.innerHTML = html;
 }
@@ -1058,6 +1054,62 @@ function renderBestSeqBar(moves, activeIdx, ctx) {
   bar.innerHTML = html;
 }
 
+async function callBestExplainAPI(ctx, moves, focusIdx) {
+  const EXPLAIN_SYSTEM = `You are a Korean chess coach. Output ONLY in Korean (한국어).
+Chess move notation (Nf3, e4, O-O) stays in English algebraic form.
+
+CRITICAL: Use ONLY the moves provided in the engine line. Never invent or hallucinate moves.
+
+The user wants to understand WHY a specific move is good. Give CONCRETE reasons based on what actually happens in this position — not generic chess advice.
+
+For each reason, answer one of these questions using actual moves from the data:
+- What specific threat does this move escape? (예: "Qb2 침투 위협을 피합니다")
+- What specific threat does this move create? (예: "Bxd5 포크를 위협합니다")
+- What piece/square does it support and why does that matter? (예: "a7 룩이 d7 침투를 준비할 수 있게 됩니다")
+- What tactical idea does it enable? (예: "흑 퀸이 b2를 잡으려 해도 이제 룩으로 막을 수 있습니다")
+
+BANNED phrases (never use): "기물의 발전을 방해합니다", "중앙을 장악할 수 있습니다", "상대방을 약화시킵니다", "기물 교환으로 물량을 줄입니다", "폰 구조를 강화합니다"
+
+Output format:
+Line 1: "[수 표기]이/가 좋은 이유:" (예: "Qa1이 좋은 이유:")
+Then 3-4 bullets, each starting with "• ", one concrete sentence each.
+Total under 300 characters.`;
+
+  const focusMove = moves[focusIdx] || moves[0];
+  const seq       = moves.slice(0, 5).join(' ');
+
+  const userMsg = [
+    `현재 포지션에서 엔진 최선 수순: ${seq}`,
+    `그 중 ${focusIdx + 1}번째 수인 "${focusMove}"이/가 왜 좋은지 설명해주세요.`,
+    `차례: ${ctx.turn === 'w' ? '백' : '흑'}`,
+    ctx.lastMoveSan ? `직전 수: ${ctx.lastMoveSan}` : '',
+    ctx.threatData?.prob ? `상대의 위협: ${ctx.threatData.prob}` : '',
+    ctx.threatData?.idea ? `현재 계획: ${ctx.threatData.idea}` : '',
+    `FEN: ${ctx.fen}`,
+    `반드시 구체적인 위협명/칸/기물을 이용해 이유를 설명하세요. "기물 발전", "중앙 장악" 같은 막연한 표현 금지.`,
+  ].filter(Boolean).join('\n');
+
+  const response = await fetch('/api/groq', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 400,
+      temperature: 0.25,
+      messages: [
+        { role: 'system', content: EXPLAIN_SYSTEM },
+        { role: 'user',   content: userMsg },
+      ],
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
 function renderBestExplain(text, focusMove, moves, activeIdx, ctx) {
   const contentEl = document.getElementById('best-explain-content');
   if (!text) { contentEl.innerHTML = '<div class="threat-loading">결과 없음</div>'; return; }
@@ -1074,11 +1126,12 @@ function renderBestExplain(text, focusMove, moves, activeIdx, ctx) {
       if (txt) reasonLines.push(txt);
     }
   }
+  // 이유가 없으면 모든 줄을 이유로
   if (reasonLines.length === 0) {
     lines.forEach(l => { if (l) reasonLines.push(l); });
   }
 
-  // 기물 아이콘 결정
+  // 기물 아이콘 결정 (focusIdx 기준 차례 계산)
   let turnForFocus = ctx.turn;
   for (let k = 0; k < activeIdx; k++) turnForFocus = turnForFocus === 'w' ? 'b' : 'w';
   const color = turnForFocus;
@@ -1088,8 +1141,10 @@ function renderBestExplain(text, focusMove, moves, activeIdx, ctx) {
   else pieceCode = color + 'P';
   const pieceImg_ = `<img src="${pieceImg(pieceCode)}" alt="${focusMove}">`;
 
+  // 아이콘 색상 순서: 파랑 → 반투명파랑 → 초록 → 노랑
   const iconCls = ['reason-positive','reason-neutral','reason-good','reason-warning'];
 
+  // 타이틀: "[기물아이콘 Qa1]이/가 좋은 이유:"
   let html = `
     <div class="best-explain-title">
       <span class="be-move-chip">${pieceImg_}${focusMove}</span>이/가 좋은 이유:
@@ -1097,7 +1152,7 @@ function renderBestExplain(text, focusMove, moves, activeIdx, ctx) {
     <div class="best-reason-list">`;
 
   const highlight = s => s.replace(
-    /(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x?[a-h][1-8][+#=]?|[a-h][1-8][+#=]?)/g,
+    /(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x?[a-h][1-8][+#=]?|[a-h][1-8][+#]?)/g,
     m => m.length >= 2 ? `<strong>${m}</strong>` : m
   );
 
