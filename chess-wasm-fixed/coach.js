@@ -441,6 +441,33 @@ function buildCommentaryPrompt(ctx) {
   const liveLine3    = livePv3 && livePv3.moves ? livePv3.moves.slice(0, 6).join(' ') : ctx.line3;
   const liveBestMove = livePv1 && livePv1.moves && livePv1.moves[0] ? livePv1.moves[0] : ctx.bestMove;
 
+  // FEN에서 주요 기물 위치를 파싱해서 모델에게 명시 (환각 방지)
+  function parseFenToSquares(fen) {
+    const pieceMap = {
+      'K':'백 킹','Q':'백 퀸','R':'백 룩','B':'백 비숍','N':'백 나이트','P':'백 폰',
+      'k':'흑 킹','q':'흑 퀸','r':'흑 룩','b':'흑 비숍','n':'흑 나이트','p':'흑 폰'
+    };
+    const board = fen.split(' ')[0];
+    const rows = board.split('/');
+    const result = [];
+    for (let r = 0; r < 8; r++) {
+      let col = 0;
+      for (const ch of rows[r]) {
+        if ('12345678'.includes(ch)) { col += parseInt(ch); }
+        else {
+          const file = 'abcdefgh'[col];
+          const rank = 8 - r;
+          const name = pieceMap[ch];
+          if (name) result.push(`${name}(${file}${rank})`);
+          col++;
+        }
+      }
+    }
+    return result.join(', ');
+  }
+
+  const piecePositions = parseFenToSquares(ctx.fen);
+
   lines.push(`아래 체스 포지션을 보고, 체스인사이드 채널처럼 해설하세요.`);
   lines.push(``);
   lines.push(`[포지션 데이터]`);
@@ -451,8 +478,11 @@ function buildCommentaryPrompt(ctx) {
 
   if (ctx.lastMoveSan) {
     const ann = ctx.lastMoveAnnotation ? ` (${ctx.lastMoveAnnotation})` : '';
-    lines.push(`방금 둔 수: ${ctx.lastMoveSan}${ann}`);
+    lines.push(`방금 둔 수: ${ctx.lastMoveSan}${ann} (이미 둔 수 — 현재 보드에 반영된 상태)`);
   }
+
+  lines.push(`★ 현재 보드 위 기물 위치 (FEN 기준, 이것만 믿을 것):`);
+  lines.push(piecePositions);
 
   // 엔진 라인을 "수 번호 + 차례" 형태로 전개해서 백/흑 혼동 방지
   function expandLine(movesStr, startTurn, startFullMove) {
@@ -510,6 +540,7 @@ function buildCommentaryPrompt(ctx) {
   lines.push(`- **포지션 상황** 으로 시작 (필수)`);
   lines.push(`- 이후는 상황에 맞는 섹션만: **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순**`);
   lines.push(`- **최선수 분석** 은 항상 포함. [엔진 최선 수순]의 수를 그대로 써서 설명할 것.`);
+  lines.push(`- ★ 기물 위치는 반드시 [현재 보드 위 기물 위치]만 참고. 방금 둔 수가 이미 보드에 반영된 상태이므로, 이동 전 칸이 아닌 이동 후 칸 기준으로 서술.`);
   lines.push(`- 백/흑 주체를 항상 명시: 각 수마다 "백이 Nf3을", "흑이 cxd5로" 형태로. 주어 없이 수만 나열하지 말 것.`);
   lines.push(`- 같은 수·같은 표현 반복 금지. 한 섹션 안에서 동일 수(예: Nh5)나 동일 표현이 두 번 이상 나오지 않게.`);
   lines.push(`- 각 섹션은 흐름으로: 수가 두어지면 → 어떤 일이 생기고 → 상대는 어떻게 대응할 수밖에 없는지.`);
