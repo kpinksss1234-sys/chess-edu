@@ -375,10 +375,6 @@ async function _executePositionCommentary() {
     const answer = await callCommentaryAPI(freshCtx);
     const cleaned = sanitizeAnswer(answer);
 
-    responseDiv.className = '';
-    responseDiv.style.display = 'block';
-    responseDiv.innerHTML = formatCommentary(cleaned);
-
     renderCoachSidebar(cleaned);
   } catch (err) {
     responseDiv.className = '';
@@ -440,9 +436,7 @@ async function askCoach() {
     const prompt = buildCoachPrompt(freshCtx, userQuestion);
     const answer = await callGroqAPI(prompt);
     const cleaned = sanitizeAnswer(answer, freshCtx);
-    responseDiv.className = '';
-    responseDiv.style.display = 'block';
-    responseDiv.innerHTML = formatCommentary(cleaned);
+
     renderCoachSidebar(cleaned);
   } catch (err) {
     responseDiv.className = '';
@@ -785,6 +779,9 @@ async function callGroqAPIWithSystem(systemPrompt, userContent, maxTokens = 800)
 function sanitizeAnswer(text, ctx) {
   if (!text) return '';
   let out = String(text);
+  // 1) HTML 태그 제거 (AI가 잘못 생성한 태그 등 방지)
+  out = out.replace(/<\/?[^>]+(>|$)/g, "");
+  // 2) 특수 토큰 제거
   out = out.replace(/<<\s*_?\d+\s*>>/g, '');
   out = out.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 
@@ -840,13 +837,13 @@ function formatCommentary(text) {
   }
 
   // ── 통합 정규식 (SAN 수순 + 개별 칸) ──
-  const comboRegex = /\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x[a-h][1-8][+#=]?|[a-h][1-8])\b/g;
+  const comboRegex = /\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x[a-h][1-8][+#=]?|[a-h][1-8][+#=]?)\b/g;
 
   let html = '<div class="commentary-wrapper">';
-  const renderedKeys = new Set();
+  const renderedCls = new Set();
   for (const def of SECTION_DEFS) {
     const body = parsed[def.key];
-    if (!body || renderedKeys.has(def.key)) continue;
+    if (!body || renderedCls.has(def.cls)) continue;
     
     // 1) 굵은 텍스트 먼저 처리
     let formatted = body.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -864,7 +861,7 @@ function formatCommentary(text) {
     formatted = formatted.replace(/\n/g, '<br>');
     
     html += `<div class="commentary-section ${def.cls}"><div class="commentary-label">${def.icon} ${def.key}</div><div class="commentary-body">${formatted}</div></div>`;
-    renderedKeys.add(def.key);
+    renderedCls.add(def.cls);
   }
   html += '</div>';
   return html;
@@ -1023,13 +1020,16 @@ function renderThreatPanel(text) {
     const body = parsed[s.key];
     if (!body || renderedBaseKeys.has(s.cls)) continue;
 
-    // ── 인터랙티브 토큰 처리 (Phase 2) ──
-    const formattedBody = body
-      .replace(/\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x[a-h][1-8][+#=]?|[a-h][1-8])\b/g,
-               (m) => `<span class="chess-move-link" onclick="game.previewAIMove('${m}')">${m}</span>`)
-      .replace(/\b([a-h][1-8])\b/g,
-               (m) => `<span class="chess-sq-link" onmouseover="game.highlightSquare('${m}')" onmouseout="game.clearInteractions()">${m}</span>`)
-      .replace(/\n/g,'<br>');
+    // ── 인터랙티브 토큰 처리 (통합 pass) ──
+    const comboRegex = /\b(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x[a-h][1-8][+#=]?|[a-h][1-8][+#=]?)\b/g;
+    const formattedBody = body.replace(comboRegex, (match) => {
+      // 2글자이고 [a-h][1-8] 형태면 개별 칸 링크로 처리
+      if (match.length === 2 && /^[a-h][1-8]$/.test(match)) {
+        return `<span class="chess-sq-link" onmouseover="game.highlightSquare('${match}')" onmouseout="game.clearInteractions()">${match}</span>`;
+      }
+      // 그 외엔 체스 수순(SAN) 링크로 처리
+      return `<span class="chess-move-link" onclick="game.previewAIMove('${match}')">${match}</span>`;
+    }).replace(/\n/g,'<br>');
     
     html += `
       <div class="threat-section">
@@ -1175,7 +1175,7 @@ function renderBestExplain(text, focusMove, moves, activeIdx, ctx) {
     <div class="best-reason-list">`;
 
   const highlight = s => s.replace(
-    /(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x?[a-h][1-8][+#=]?|[a-h][1-8][+#]?)/g,
+    /(O-O-O|O-O|[NBRQK][a-h]?[1-8]?x?[a-h][1-8][+#=]?|[a-h]x?[a-h][1-8][+#=]?|[a-h][1-8][+#=]?)/g,
     m => m.length >= 2 ? `<strong>${m}</strong>` : m
   );
 
