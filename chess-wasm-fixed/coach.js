@@ -218,6 +218,9 @@ function buildChessContext() {
 // 핵심: 포지션 해설 자동 실행
 // ══════════════════════════════════════════════════════
 
+// 지연 함수 (Rate Limit 방지용)
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
 // 스톡피시 라인이 충분한지 검사 (3개 라인 모두 있고, 각각 최소 4수 이상)
 function hasEnoughLines(ctx) {
   const pv1 = pvData && pvData[1];
@@ -235,7 +238,7 @@ async function waitForDeepLines(ctx, maxWaitMs = 5000) {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
     if (hasEnoughLines(ctx)) return true;
-    await new Promise(r => setTimeout(r, 300));
+    await wait(300);
     // 컨텍스트 재빌드해서 최신 pvData 반영
     const newCtx = buildChessContext();
     if (newCtx) {
@@ -248,10 +251,19 @@ async function waitForDeepLines(ctx, maxWaitMs = 5000) {
 }
 
 // 메인 해설 실행 함수 (패널을 열거나 수를 둘 때 호출)
+let commentaryDebounceTimer = null;
 async function runPositionCommentary() {
-  if (coachLoading) return;
   if (!coachApiKey) return;
 
+  // 디바운스 처리: 500ms 이내에 다시 호출되면 이전 대기 취소
+  if (commentaryDebounceTimer) clearTimeout(commentaryDebounceTimer);
+  commentaryDebounceTimer = setTimeout(async () => {
+    if (coachLoading) return;
+    await _executePositionCommentary();
+  }, 500);
+}
+
+async function _executePositionCommentary() {
   // 인라인 패널 열기
   const inlinePanel = document.getElementById('coach-inline');
   if (inlinePanel) inlinePanel.classList.add('visible');
@@ -287,7 +299,7 @@ async function runPositionCommentary() {
       responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 위협 분석 완료 대기 중...`;
       const tStart = Date.now();
       while (threatLoading && Date.now() - tStart < 4000) {
-        await new Promise(r => setTimeout(r, 300));
+        await wait(300);
       }
       // 위협 데이터가 반영된 최신 컨텍스트로 재빌드
       freshCtx = buildChessContext();
@@ -299,10 +311,13 @@ async function runPositionCommentary() {
       await runThreatAnalysis();
       const tStart2 = Date.now();
       while (threatLoading && Date.now() - tStart2 < 4000) {
-        await new Promise(r => setTimeout(r, 300));
+        await wait(300);
       }
       freshCtx = buildChessContext();
     }
+
+    // API 호출 간 간격 두기 (429 에러 방지)
+    await wait(1000);
 
     // ── 최선수 이유: DOM/bestExplainLoading 의존 없이 직접 API 호출 ──
     // pvData에서 현재 최신 라인을 직접 읽어 독립적으로 분석
@@ -337,6 +352,9 @@ async function runPositionCommentary() {
       }
     }
 
+    // API 호출 간 간격 두기 (429 에러 방지)
+    await wait(1200);
+
     responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> AI 해설 생성 중...`;
 
     freshCtx = buildChessContext();
@@ -358,6 +376,10 @@ async function runPositionCommentary() {
     responseDiv.style.display = 'block';
     responseDiv.innerHTML = `<span style="color:var(--accent-red)">⚠️ 오류: ${err.message}</span>`;
     console.error('[Coach] 해설 오류:', err);
+  } finally {
+    coachLoading = false;
+  }
+}
   } finally {
     coachLoading = false;
   }
