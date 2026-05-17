@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   try {
     console.log('[Proxy] Client request body:', req.body);
 
-    const response = await fetch('https://chess-education-api-v2.onrender.com/analyze', {
+    const response = await fetch('https://chess-backend-r3bc.onrender.com/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body)

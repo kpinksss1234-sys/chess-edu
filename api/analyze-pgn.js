@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
 
   try {
-    const response = await fetch('https://chess-education-api-v2.onrender.com/analyze-pgn', {
+    const response = await fetch('https://chess-backend-r3bc.onrender.com/analyze-pgn', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body)
