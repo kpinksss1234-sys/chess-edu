@@ -1203,12 +1203,21 @@ async function askCoach() {
 function buildCommentaryPrompt(ctx) {
   const lines = [];
 
-  // pvData에서 직접 최신 라인 읽기 (window.pvData 사용)
-  const livePv1 = window.pvData && window.pvData[1];
-  const livePv2 = window.pvData && window.pvData[2];
-  const livePv3 = window.pvData && window.pvData[3];
+  // pvData에서 직접 최신 라인 읽기 (ctx.pvData 우선, 없으면 window.pvData)
+  const pvDataToUse = ctx.pvData || window.pvData;
+  console.log('[Debug Prompt] Using pvData:', pvDataToUse);
+  
+  const livePv1 = pvDataToUse && pvDataToUse[1];
+  const livePv2 = pvDataToUse && pvDataToUse[2];
+  const livePv3 = pvDataToUse && pvDataToUse[3];
+
   const liveBestLine = livePv1 && livePv1.moves ? livePv1.moves.slice(0, 8).join(' ') : ctx.bestLine;
   console.log('[Debug Prompt] liveBestLine:', liveBestLine);
+  
+  if (!liveBestLine) {
+    console.warn('[Debug Prompt] WARNING: No engine lines found for prompt!');
+  }
+  
   const liveLine2    = livePv2 && livePv2.moves ? livePv2.moves.slice(0, 6).join(' ') : ctx.line2;
   const liveLine3    = livePv3 && livePv3.moves ? livePv3.moves.slice(0, 6).join(' ') : ctx.line3;
   const liveBestMove = livePv1 && livePv1.moves && livePv1.moves[0] ? livePv1.moves[0] : ctx.bestMove;
@@ -1654,7 +1663,9 @@ function toggleThreatPanel() {
 
 async function runThreatAnalysis() {
   if (!coachApiKey || threatLoading) return;
-  const ctx = buildChessContext();
+  
+  // API 호출 직전 최신 컨텍스트 빌드
+  const ctx = await buildChessContext();
   if (!ctx) return;
 
   const fenKey = ctx.fen;
@@ -1668,7 +1679,10 @@ async function runThreatAnalysis() {
   lastThreatFen   = fenKey;
 
   try {
-    // 체크메이트 즉시 감지 — API 호출 없이 클라이언트에서 바로 처리
+    // 최신 컨텍스트 주입 (window.pvData 업데이트 반영)
+    ctx.pvData = window.pvData;
+
+    // 체크메이트 즉시 감지
     const mover    = ctx.turn === 'w' ? '백' : '흑';
     const isMate   = ctx.bestMove && ctx.bestMove.includes('#');
 
@@ -1851,7 +1865,7 @@ async function runBestMoveExplain(focusIdx) {
   if (!coachApiKey || bestExplainLoading) return;
   const ctx = buildChessContext();
   if (!ctx) return;
-  const pv = pvData[1];
+  const pv = window.pvData[1];
   if (!pv || !pv.moves || pv.moves.length === 0) return;
 
   const fenKey = ctx.fen;
