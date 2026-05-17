@@ -89,10 +89,10 @@ async function buildChessContext() {
     console.warn('[Coach] 고급 컨텍스트 분석 실패:', e);
   }
 
-  // 엔진 라인 3개 (pvData에서)
-  const pv1 = pvData && pvData[1];
-  const pv2 = pvData && pvData[2];
-  const pv3 = pvData && pvData[3];
+  // 엔진 라인 3개 (window.pvData에서)
+  const pv1 = window.pvData && window.pvData[1];
+  const pv2 = window.pvData && window.pvData[2];
+  const pv3 = window.pvData && window.pvData[3];
 
   const bestMove  = pv1 && pv1.moves && pv1.moves[0] ? pv1.moves[0] : null;
   const bestLine  = pv1 && pv1.moves ? pv1.moves.slice(0, 8).join(' ') : null;
