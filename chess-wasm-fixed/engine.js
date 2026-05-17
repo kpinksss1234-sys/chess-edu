@@ -371,7 +371,8 @@ function flushCycleToDisplay() {
   if (!processed[1]) return;
 
   pvData = processed;
-  window.pvData = pvData; // Coach에서 접근 가능하도록 노출
+  window.pvData = pvData; 
+  console.log('[Debug Engine] window.pvData updated:', window.pvData);
   const best = processed[1];
 
   document.getElementById('depth-info').textContent =

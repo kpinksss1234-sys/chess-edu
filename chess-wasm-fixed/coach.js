@@ -90,9 +90,11 @@ async function buildChessContext() {
   }
 
   // 엔진 라인 3개 (window.pvData에서)
+  console.log('[Debug Coach] window.pvData access:', window.pvData);
   const pv1 = window.pvData && window.pvData[1];
   const pv2 = window.pvData && window.pvData[2];
   const pv3 = window.pvData && window.pvData[3];
+  console.log('[Debug Coach] pv1:', pv1);
 
   const bestMove  = pv1 && pv1.moves && pv1.moves[0] ? pv1.moves[0] : null;
   const bestLine  = pv1 && pv1.moves ? pv1.moves.slice(0, 8).join(' ') : null;
