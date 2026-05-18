@@ -5,19 +5,11 @@
     },
     "api/lichess-token.js": {
       "maxDuration": 10
-    },
-    "api/analyze-pgn.js": {
-      "maxDuration": 30
-    },
-    "api/analyze.js": {
-      "maxDuration": 30
     }
   },
   "rewrites": [
     { "source": "/api/lichess-proxy", "destination": "/api/lichess-proxy.js" },
     { "source": "/api/lichess-token", "destination": "/api/lichess-token.js" },
-    { "source": "/api/analyze-pgn", "destination": "/api/analyze-pgn.js" },
-    { "source": "/api/analyze", "destination": "/api/analyze.js" },
     { "source": "/favicon.ico", "destination": "/favicon.svg" },
     { "source": "/", "destination": "/chess-wasm-fixed.html" }
   ]

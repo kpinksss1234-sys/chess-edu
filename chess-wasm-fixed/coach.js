@@ -68,33 +68,17 @@ function updateCoachContext() {
   if (ctx) ctx.style.display = 'none';
 }
 
-// 체스 컨텍스트 데이터 빌드
-async function buildChessContext() {
+// 체스 컨텍스트 데이터 빌드 (position-brief.js + Stockfish만 사용)
+function buildChessContext() {
   if (!game) return null;
 
   const turn = game.turn;
   const fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
 
-  // 추가: API에서 고급 컨텍스트 데이터 가져오기
-  let advancedContext = { center_control: {}, king_safety: {} };
-  try {
-    const response = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fen: fen })
-    });
-    const data = await response.json();
-    advancedContext = data.facts;
-  } catch(e) {
-    console.warn('[Coach] 고급 컨텍스트 분석 실패:', e);
-  }
-
   // 엔진 라인 3개 (window.pvData에서)
-  console.log('[Debug Coach] window.pvData access:', window.pvData);
   const pv1 = window.pvData && window.pvData[1];
   const pv2 = window.pvData && window.pvData[2];
   const pv3 = window.pvData && window.pvData[3];
-  console.log('[Debug Coach] pv1:', pv1);
 
   const bestMove  = pv1 && pv1.moves && pv1.moves[0] ? pv1.moves[0] : null;
   const bestLine  = pv1 && pv1.moves ? pv1.moves.slice(0, 8).join(' ') : null;
@@ -219,6 +203,20 @@ async function buildChessContext() {
   // 포지션 구조 인사이트 추출 (FEN 기반 정제 분석)
   const positionInsights = extractPositionInsights(fen);
 
+  // 구조화 브리프: 위협/아이디어/엔진 수순 인과를 코드로 검증 후 AI에 전달
+  let positionBrief = null;
+  if (typeof buildPositionBrief === 'function') {
+    const pv1Uci = pv1 && pv1.moves ? pv1.moves : (pv1 && pv1.pv ? pv1.pv : []);
+    const pv2Uci = pv2 && pv2.moves ? pv2.moves : (pv2 && pv2.pv ? pv2.pv : []);
+    positionBrief = buildPositionBrief({
+      fen,
+      turn,
+      pv1Uci: Array.isArray(pv1Uci) ? pv1Uci : [],
+      pv2Uci: Array.isArray(pv2Uci) ? pv2Uci : [],
+      positionInsights,
+    });
+  }
+
   return {
     turn, fen, bestMove, bestLine, line2, line3, evaluation, depth, cpFromWhite,
     lastMove, lastMoveSan, lastMoveAnnotation,
@@ -231,8 +229,55 @@ async function buildChessContext() {
     candidateMoves,
     sequenceMoves,
     positionInsights,
-    advancedContext // 병합된 고급 컨텍스트 추가
+    positionBrief,
+    pvData: window.pvData,
   };
+}
+
+/** 브리프 JSON을 콘솔에 출력 (FEN 입력란 비우면 현재 국면) */
+function debugCoachBrief() {
+  const inputEl = document.getElementById('coach-debug-fen');
+  let fen = (inputEl && inputEl.value.trim()) || '';
+  if (!fen && game) {
+    fen = boardToFen(game.board, game.turn, game.castling, game.enPassant, game.halfMove, game.fullMove);
+  }
+  if (!fen) {
+    if (typeof showToast === 'function') showToast('FEN을 입력하거나 보드에 국면을 두세요');
+    return null;
+  }
+  if (typeof buildPositionBrief !== 'function') {
+    console.error('[Coach] position-brief.js가 로드되지 않았습니다.');
+    return null;
+  }
+
+  const turn = fen.split(' ')[1] || 'w';
+  const positionInsights = typeof extractPositionInsights === 'function'
+    ? extractPositionInsights(fen)
+    : [];
+  const pv1 = window.pvData && window.pvData[1];
+  const pv2 = window.pvData && window.pvData[2];
+  const pv1Uci = pv1 && (pv1.moves || pv1.pv) ? (pv1.moves || pv1.pv) : [];
+  const pv2Uci = pv2 && (pv2.moves || pv2.pv) ? (pv2.moves || pv2.pv) : [];
+
+  const brief = buildPositionBrief({
+    fen,
+    turn,
+    pv1Uci,
+    pv2Uci,
+    positionInsights,
+  });
+
+  console.group('[Coach Brief Debug]');
+  console.log('FEN:', fen);
+  console.log('brief:', brief);
+  console.log('JSON:\n', JSON.stringify(brief, null, 2));
+  if (typeof formatPositionBriefForPrompt === 'function') {
+    console.log('프롬프트 블록:\n', formatPositionBriefForPrompt(brief, { turn }));
+  }
+  console.groupEnd();
+
+  if (typeof showToast === 'function') showToast('브리프를 콘솔에 출력했습니다 (F12)');
+  return brief;
 }
 
 // ══════════════════════════════════════════════════════
@@ -1013,6 +1058,7 @@ async function waitForDeepLines(ctx, maxWaitMs = 5000) {
       ctx.bestLine = newCtx.bestLine;
       ctx.line2    = newCtx.line2;
       ctx.line3    = newCtx.line3;
+      ctx.positionBrief = newCtx.positionBrief;
     }
   }
   return false;
@@ -1075,15 +1121,13 @@ async function runPositionCommentary() {
       freshCtx = buildChessContext();
     }
 
-    // ── 최선수 이유: DOM/bestExplainLoading 의존 없이 직접 API 호출 ──
+    // ── (구) 최선수 이유 API — position-brief.js 엔진 라인 인과로 대체 ──
     // pvData에서 현재 최신 라인을 직접 읽어 독립적으로 분석
-    let directBestExplainData = null;
-    const livePv1ForExplain = pvData && pvData[1];
-    if (livePv1ForExplain && livePv1ForExplain.moves && livePv1ForExplain.moves.length > 0) {
+    if (false && pvData && pvData[1]) {
       responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> 최선수 이유 분석 중...`;
       try {
         freshCtx = buildChessContext();
-        const explainMoves = livePv1ForExplain.moves.slice(0, 6);
+        const explainMoves = pvData[1].moves.slice(0, 6);
         const rawExplain = await callBestExplainAPI(freshCtx, explainMoves, 0);
         const cleanedExplain = cleanKorean(rawExplain);
 
@@ -1111,10 +1155,6 @@ async function runPositionCommentary() {
     responseDiv.innerHTML = `<div class="coach-dots"><span></span><span></span><span></span></div> AI 해설 생성 중...`;
 
     freshCtx = buildChessContext();
-    // directBestExplainData를 freshCtx에 주입 (DOM 결과보다 우선)
-    if (directBestExplainData) {
-      freshCtx.bestExplainData = directBestExplainData;
-    }
 
     const answer = await callCommentaryAPI(freshCtx);
     const cleaned = sanitizeAnswer(answer);
@@ -1149,7 +1189,7 @@ async function askCoach() {
     return;
   }
 
-  const context = await buildChessContext();
+  const context = buildChessContext();
   if (!context) {
     showToast('게임 데이터를 불러올 수 없습니다');
     return;
@@ -1232,15 +1272,6 @@ function buildCommentaryPrompt(ctx) {
     lines.push(`방금 둔 수: ${ctx.lastMoveSan}${ann}`);
   }
 
-  // 고급 컨텍스트 추가
-  if (ctx.advancedContext) {
-    lines.push(``);
-    lines.push(`[고급 포지션 통계]`);
-    const { center_control, king_safety } = ctx.advancedContext;
-    lines.push(`중앙 통제: 백 ${center_control.white}점, 흑 ${center_control.black}점`);
-    lines.push(`킹 안전 위협: 백 ${king_safety.white_in_check ? '체크됨' : '안전'}, 흑 ${king_safety.black_in_check ? '체크됨' : '안전'}`);
-  }
-
   // 항상 최신 pvData 기반 라인 사용
   // 수순 해석 안내: 차례에 따라 홀/짝 번째 수 귀속을 명시
   const firstTurnLabel  = ctx.turn === 'w' ? '백' : '흑';
@@ -1257,12 +1288,14 @@ function buildCommentaryPrompt(ctx) {
     lines.push(`사용자 수순 (Alt+화살표): ${ctx.sequenceMoves.join(' → ')} — 장단점 간략히 언급해주세요.`);
   }
 
-  // 포지션 구조 인사이트 (코드로 계산한 확실한 사실)
-  if (ctx.positionInsights && ctx.positionInsights.length > 0) {
+  // 구조화 브리프 (위협/약점/엔진 인과 — 검증된 사실만)
+  if (ctx.positionBrief && typeof formatPositionBriefForPrompt === 'function') {
     lines.push(``);
-    lines.push(`[포지션 구조 분석 — 코드로 정밀 계산된 사실, 해설에 반드시 활용할 것]`);
-    ctx.positionInsights.forEach(ins => lines.push(`  • ${ins}`));
-    lines.push(`※ 위 항목 중 핵심적인 것을 "~고요", "~거든요" 등 체스인사이드 말투로 자연스럽게 녹여서 쓸 것. 목록을 그대로 나열하지 말 것.`);
+    lines.push(formatPositionBriefForPrompt(ctx.positionBrief, ctx));
+  } else if (ctx.positionInsights && ctx.positionInsights.length > 0) {
+    lines.push(``);
+    lines.push(`[포지션 구조 분석 — 코드 계산 사실]`);
+    ctx.positionInsights.slice(0, 12).forEach(ins => lines.push(`  • ${ins}`));
   }
 
   if (ctx.threatData) {
@@ -1273,15 +1306,6 @@ function buildCommentaryPrompt(ctx) {
     if (ctx.threatData.sol)  lines.push(`최선책: ${ctx.threatData.sol}`);
   }
 
-  if (ctx.bestExplainData) {
-    lines.push(``);
-    lines.push(`[최선수 이유 — 아래 이유들을 "A를 두면 B가 되기 때문에 C가 됩니다" 형태의 인과 문장으로 자연스럽게 서술할 것]`);
-    lines.push(`최선수: ${ctx.bestExplainData.move || liveBestMove}`);
-    if (ctx.bestExplainData.reasons && ctx.bestExplainData.reasons.length > 0) {
-      ctx.bestExplainData.reasons.forEach((r, i) => lines.push(`  ${i+1}. ${r}`));
-    }
-  }
-
   if (ctx.pgnMoves) lines.push(`전체 기보: ${ctx.pgnMoves}`);
   lines.push(`FEN: ${ctx.fen}`);
 
@@ -1289,8 +1313,10 @@ function buildCommentaryPrompt(ctx) {
   lines.push(`[작성 지침]`);
   lines.push(`- **포지션 상황** 으로 시작하고, **최선수 분석** 은 반드시 포함.`);
   lines.push(`- 나머지 섹션(**약점 분석**, **강점 분석**, **위협 & 아이디어**, **이후 수순**)은 포지션에 실제로 해당하는 것만 선택.`);
-  lines.push(`- **최선수 분석**: 엔진 1순위 수순의 수를 직접 써서 "X를 두면 → Y가 되고 → 결과적으로 Z" 형태로 인과관계를 설명할 것. 수를 나열만 하지 말 것.`);
-  lines.push(`- 섹션 헤더는 **헤더명** 형태로 단독 줄에 쓸 것. 본문 안에 다른 섹션 이름 쓰지 말 것.`);
+  lines.push(`- **최선수 분석**: [검증된 분석 브리프]의 "엔진 1순위 수순"만 사용. 각 수마다 브리프에 적힌 인과(포획·체크·포크·메이트)를 "~하기 때문에" 형태로 설명. 브리프에 없는 수·기물 추가 금지.`);
+  lines.push(`- **위협 & 아이디어**: 브리프의 "1~3수 메이트"·"전술적 위협"만 사용. 메이트는 브리프에 적힌 수순·패턴만 인용.`);
+  lines.push(`- **약점 분석**: 브리프의 "구조적 약점"(밝은/어두운 칸, 폰 구조)을 장기적 이유와 함께 설명.`);
+  lines.push(`- 섹션 헤더는 **헤더명** 형태로 단독 줄에 쓸 것.`);
   lines.push(`- 위 system prompt의 말투 예시를 그대로 따를 것.`);
 
   return lines.join('\n');
@@ -1326,10 +1352,13 @@ function buildCoachPrompt(ctx, question) {
     lines.push(`※ 이 수순이 올바른지 평가해 주세요.`);
   }
 
-  if (ctx.positionInsights && ctx.positionInsights.length > 0) {
+  if (ctx.positionBrief && typeof formatPositionBriefForPrompt === 'function') {
     lines.push(``);
-    lines.push(`[포지션 구조 분석 — 코드로 정밀 계산된 사실]`);
-    ctx.positionInsights.forEach(ins => lines.push(`  • ${ins}`));
+    lines.push(formatPositionBriefForPrompt(ctx.positionBrief, ctx));
+  } else if (ctx.positionInsights && ctx.positionInsights.length > 0) {
+    lines.push(``);
+    lines.push(`[포지션 구조 분석]`);
+    ctx.positionInsights.slice(0, 10).forEach(ins => lines.push(`  • ${ins}`));
   }
 
   if (ctx.threatData) {
@@ -1442,7 +1471,8 @@ async function callCommentaryAPI(ctx) {
 - 오프닝 초반: 상대 비숍이 Bg5, Bb5 등 핀을 거는 것을 방지하는 예방 목적.
 - 미들/엔드게임: 킹사이드(h3/h6) 또는 퀸사이드(a3/a4) 공간 확장 발판으로 측면 공격이나 영역 확장에 활용 가능.
 
-【절대 규칙】
+【절대 규칙 — 검증된 분석 브리프 우선】
+0. 사용자 메시지의 [검증된 분석 브리프]에 있는 사실·수순·위협만 사용할 것. 브리프에 없는 체크메이트·포크·기물을 지어내지 말 것.
 1. 위 예시의 말투를 그대로 따를 것: "~고요", "~거든요", "~라고 볼 수 있겠습니다", "~는 거죠", "~인 모습이었고요", "~겠어요", "~라고 볼 수 있겠네요"
 2. 섹션 헤더는 반드시 **포지션 상황**, **약점 분석**, **강점 분석**, **위협 & 아이디어**, **최선수 분석**, **이후 수순** 중에서만 쓸 것
 3. **포지션 상황** 과 **최선수 분석** 은 반드시 포함
@@ -1458,7 +1488,7 @@ async function callCommentaryAPI(ctx) {
 13. 【킹 위협 서술 규칙】 특정 수가 킹을 위협한다고 쓰려면, 구체적으로 어떤 칸으로 침투하는지 또는 어떤 체크/메이트 위협이 생기는지 반드시 함께 써야 한다. "킹을 노린다"는 단독 표현은 금지.`;
 
   const prompt = buildCommentaryPrompt(ctx);
-  return callGroqAPIWithSystemTemp(SYSTEM, prompt, 900, 0.45);
+  return callGroqAPIWithSystemTemp(SYSTEM, prompt, 1000, 0.28);
 }
 
 // 공통 Groq 호출 (system 없이 — 수동 질문용)
@@ -1665,7 +1695,7 @@ async function runThreatAnalysis() {
   if (!coachApiKey || threatLoading) return;
   
   // API 호출 직전 최신 컨텍스트 빌드
-  const ctx = await buildChessContext();
+  const ctx = buildChessContext();
   if (!ctx) return;
 
   const fenKey = ctx.fen;

@@ -2873,6 +2873,7 @@
   <script src="chess-wasm-fixed/parse-pgn-states.js"></script>
   <script src="chess-wasm-fixed/lichess-judgment.js"></script>
   <script src="chess-wasm-fixed/game.js"></script>
+  <script src="chess-wasm-fixed/position-brief.js"></script>
   <script src="chess-wasm-fixed/coach.js"></script>
   <script src="chess-wasm-fixed/ui.js"></script>
   <script src="chess-wasm-fixed/endgame-practice.js"></script>
@@ -3132,6 +3133,14 @@
         <input type="password" id="coach-api-input" placeholder="Groq API 키 (gsk_...)" />
         <button id="coach-save-key-btn" onclick="saveApiKey()">저장</button>
         <span id="coach-key-status" style="font-size:11px;color:var(--text-muted);white-space:nowrap;"></span>
+      </div>
+
+      <div id="coach-debug-row" style="display:flex;flex-direction:column;gap:4px;padding:0 12px 8px;border-bottom:1px solid var(--border-color);">
+        <span style="font-size:10px;color:var(--text-muted);font-weight:600;">브리프 디버그 (로컬 분석만)</span>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="text" id="coach-debug-fen" placeholder="FEN (비우면 현재 국면)" style="flex:1;font-size:11px;padding:6px 8px;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);" />
+          <button type="button" class="coach-preset-btn" onclick="debugCoachBrief()" title="F12 콘솔에 JSON 출력" style="white-space:nowrap;">🛠 콘솔</button>
+        </div>
       </div>
 
       <div id="coach-body">
