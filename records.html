@@ -1875,6 +1875,7 @@
   <script src="chess-wasm-fixed/engine.js"></script>
   <script src="chess-wasm-fixed/parse-pgn-states.js"></script>
   <script src="chess-wasm-fixed/lichess-judgment.js"></script>
+  <script src="chess-wasm-fixed/chess-tactics.js"></script>
   <script>
     // ════════════════════════════════════════
     // 핵심 설정 및 상수 (chess-analyzer.js 로직 이식)
@@ -1922,165 +1923,61 @@
       return 'w';
     }
 
-    // ── 전술 감지 (chess-tactics.js 로직 이식) ──────────────────────────────────
+    // 전술 감지: chess-wasm-fixed/chess-tactics.js (합법 수 기반)
 
-    function isSacrifice(h) {
-      const movingPiece = h.board[h.move.from[0]][h.move.from[1]];
-      if (!movingPiece) return false;
-      const myVal = PIECE_VALUE_ANALYSER[movingPiece[1]] || 0;
-      const capturedVal = PIECE_VALUE_ANALYSER[h.captured[1]] || 0;
-      return (myVal >= 450 && myVal > capturedVal + 150);
+    function recordTacticEvent(result, ev, missedPushCountRef) {
+      if (missedPushCountRef.count >= 16) return;
+      result.tacticEvents.push(ev);
+      missedPushCountRef.count++;
     }
 
-    function getAttackersR(board, r, c, attackerColor) {
-      const res = [];
-      for (let ar = 0; ar < 8; ar++) for (let ac = 0; ac < 8; ac++) {
-        const p = board[ar][ac];
-        if (p && p[0] === attackerColor) {
-          const ms = pseudoMoves(board, ar, ac, { wK: 0, wQ: 0, bK: 0, bQ: 0 }, null);
-          if (ms.some(m => m.to[0] === r && m.to[1] === c)) res.push({ r: ar, c: ac, piece: p });
-        }
+    function applyFoundTactics(result, t, isMe, piece, moveNum, san, plyIdx) {
+      const push = (type) => result.tacticEvents.push({
+        type, subtype: 'found', piece, moveNum, san, plyIdx: plyIdx, bestMove: null,
+      });
+      if (t.fork) {
+        if (isMe) { result.forkFound[piece] = (result.forkFound[piece] || 0) + 1; push('fork'); }
+        else { result.oppForkCreated[piece] = (result.oppForkCreated[piece] || 0) + 1; push('oppFork'); }
       }
-      return res;
-    }
-
-    function _getRealThreats(board, r, c, color) {
-      const p = board[r][c]; if (!p || p[0] !== color) return [];
-      const enemy = enemyColor(color), mVal = PIECE_VALUE_TACTICS[p[1]];
-      const ms = pseudoMoves(board, r, c, { wK: 0, wQ: 0, bK: 0, bQ: 0 }, null);
-      const res = [];
-      for (const m of ms) {
-        const t = board[m.to[0]][m.to[1]];
-        if (t && t[0] === enemy) {
-          const tVal = PIECE_VALUE_TACTICS[t[1]];
-          if (t[1] === 'K' || tVal >= mVal + 150) res.push({ r: m.to[0], c: m.to[1], piece: t });
-          else {
-            const defs = getAttackersR(board, m.to[0], m.to[1], enemy).filter(a => !(a.r === r && a.c === c));
-            if (defs.length === 0 && tVal >= mVal) res.push({ r: m.to[0], c: m.to[1], piece: t });
-          }
-        }
+      if (isMe) {
+        if (t.absPin) { result.absPinFound++; push('absPin'); }
+        if (t.relPin) { result.relPinFound++; push('relPin'); }
+        if (t.trap) { result.trapFound++; push('trap'); }
+        if (t.decoy) { result.decoyFound++; push('decoy'); }
+        if (!t.fork && t.skewer) { result.skewerFound++; push('skewer'); }
+        if (!t.fork && !t.skewer && t.discovered) { result.discoveredFound++; push('discovered'); }
       }
-      return res;
     }
 
-    function isValidForkR(board, color, toPos, prevBoard) {
-      const [tr, tc] = toPos; if (!board[tr][tc]) return false;
-      const threats = _getRealThreats(board, tr, tc, color);
-      if (threats.length < 2) return false;
-      const p = board[tr][tc], isCheckFork = threats.some(t => t.piece[1] === 'K');
-      if (isCheckFork && !threats.some(t => t.piece[1] !== 'K' && PIECE_VALUE_TACTICS[t.piece[1]] >= 320)) return false;
-      if (!isCheckFork) {
-        const enemy = enemyColor(color);
-        let attacked = false;
-        for (let ar = 0; ar < 8; ar++) for (let ac = 0; ac < 8; ac++) {
-          if (board[ar][ac] && board[ar][ac][0] === enemy) {
-            const ms = pseudoMoves(board, ar, ac, { wK: 0, wQ: 0, bK: 0, bQ: 0 }, null);
-            if (ms.some(m => m.to[0] === tr && m.to[1] === tc)) { attacked = true; break; }
-          }
-        }
-        if (attacked) return false;
+    function applyMissedTactics(result, t, piece, moveNum, san, plyIdx, bestUci, missedRef) {
+      if (t.fork) {
+        result.forkMissed[piece]++;
+        recordTacticEvent(result, { type: 'fork', subtype: 'missed', piece, moveNum, san, plyIdx, bestMove: bestUci }, missedRef);
       }
-      return true;
-    }
-
-    // 핀 감지
-    function isAbsolutePin(board, r, c, color) {
-        const p = board[r][c];
-        if(!p || p[0] !== color || !['B','R','Q'].includes(p[1])) return false;
-        const enemy = enemyColor(color);
-        let kr, kc;
-        for(let ri=0; ri<8; ri++) for(let ci=0; ci<8; ci++) if(board[ri][ci] === enemy+'K') {kr=ri; kc=ci;}
-        if(kr === undefined) return false;
-
-        const dirs = [['-1','-1'],['-1','1'],['1','-1'],['1','1'],['-1','0'],['1','0'],['0','-1'],['0','1']];
-        for(const [dr, dc] of dirs) {
-            let nr = r + parseInt(dr), nc = c + parseInt(dc);
-            let first = null;
-            while(isInBounds(nr, nc)) {
-                if(board[nr][nc]) {
-                    if(!first) first = {r:nr, c:nc, piece:board[nr][nc]};
-                    else {
-                        if(board[nr][nc] === enemy+'K' && first.piece[0] === enemy) {
-                            if(PIECE_VALUE_TACTICS[first.piece[1]] < 320) break;
-                            const test = board.map(row => [...row]); test[first.r][first.c] = null;
-                            if(isInCheck(test, enemy)) return true;
-                        }
-                        break;
-                    }
-                }
-                nr += parseInt(dr); nc += parseInt(dc);
-            }
-        }
-        return false;
-    }
-
-    function isRelativePin(board, r, c, color) {
-        const p = board[r][c];
-        if(!p || p[0] !== color || !['B','R','Q'].includes(p[1])) return false;
-        const enemy = enemyColor(color);
-        const dirs = [['-1','-1'],['-1','1'],['1','-1'],['1','1'],['-1','0'],['1','0'],['0','-1'],['0','1']];
-        for(const [dr, dc] of dirs) {
-            let nr = r + parseInt(dr), nc = c + parseInt(dc);
-            let first = null;
-            while(isInBounds(nr, nc)) {
-                if(board[nr][nc]) {
-                    if(!first) {
-                        if(board[nr][nc][0] !== enemy || PIECE_VALUE_TACTICS[board[nr][nc][1]] < 320) break;
-                        first = {r:nr, c:nc, piece:board[nr][nc]};
-                    } else {
-                        if(board[nr][nc][0] !== enemy || board[nr][nc][1] === 'K') break;
-                        if(PIECE_VALUE_TACTICS[board[nr][nc][1]] >= 330 && PIECE_VALUE_TACTICS[board[nr][nc][1]] >= PIECE_VALUE_TACTICS[first.piece[1]] && p[1] !== first.piece[1]) return true;
-                        break;
-                    }
-                }
-                nr += parseInt(dr); nc += parseInt(dc);
-            }
-        }
-        return false;
-    }
-
-    /** 직선 기물(B/R/Q)이 한 방향으로 앞쪽 약한 적 기물 뒤에 더 강한 적 기물을 동시에 겨냥하는 스큐어 (포크와 중복 시 포크만 사용) */
-    function isRaySkewerR(board, color, toPos) {
-      const [tr, tc] = toPos;
-      const p = board[tr][tc];
-      if (!p || p[0] !== color || !['B', 'R', 'Q'].includes(p[1])) return false;
-      const enemy = enemyColor(color);
-      const diag = [['-1', '-1'], ['-1', '1'], ['1', '-1'], ['1', '1']];
-      const orth = [['-1', '0'], ['1', '0'], ['0', '-1'], ['0', '1']];
-      const dirs = p[1] === 'B' ? diag : p[1] === 'R' ? orth : [...diag, ...orth];
-      for (const [dr, dc] of dirs) {
-        let nr = tr + parseInt(dr, 10), nc = tc + parseInt(dc, 10);
-        let first = null;
-        while (isInBounds(nr, nc)) {
-          const cell = board[nr][nc];
-          if (cell) {
-            if (!first) {
-              if (cell[0] !== enemy) break;
-              if (cell[1] === 'K') break;
-              first = { piece: cell, r: nr, c: nc };
-            } else {
-              if (cell[0] === enemy && cell[1] !== 'K') {
-                const v1 = PIECE_VALUE_TACTICS[first.piece[1]] || 0;
-                const v2 = PIECE_VALUE_TACTICS[cell[1]] || 0;
-                if (v2 > v1 && v1 >= 100) return true;
-              }
-              break;
-            }
-          }
-          nr += parseInt(dr, 10); nc += parseInt(dc, 10);
-        }
+      if (t.absPin) {
+        result.absPinMissed++;
+        recordTacticEvent(result, { type: 'absPin', subtype: 'missed', piece, moveNum, san, plyIdx, bestMove: bestUci }, missedRef);
       }
-      return false;
-    }
-
-    /** 이동 후 상대에게 체크인데, 도착 칸의 말을 제거해도 체크가 남으면 발견 체크(또는 이중 공격 성격) */
-    function isDiscoveredCheckR(board, mover, move) {
-      const opp = enemyColor(mover);
-      if (!isInCheck(board, opp)) return false;
-      const tr = move.to[0], tc = move.to[1];
-      const b2 = board.map(row => row.map(c => c));
-      b2[tr][tc] = null;
-      return isInCheck(b2, opp);
+      if (t.relPin) {
+        result.relPinMissed++;
+        recordTacticEvent(result, { type: 'relPin', subtype: 'missed', piece, moveNum, san, plyIdx, bestMove: bestUci }, missedRef);
+      }
+      if (t.trap) {
+        result.trapMissed++;
+        recordTacticEvent(result, { type: 'trap', subtype: 'missed', piece, moveNum, san, plyIdx, bestMove: bestUci }, missedRef);
+      }
+      if (t.decoy) {
+        result.decoyMissed++;
+        recordTacticEvent(result, { type: 'decoy', subtype: 'missed', piece, moveNum, san, plyIdx, bestMove: bestUci }, missedRef);
+      }
+      if (t.skewer) {
+        result.skewerMissed++;
+        recordTacticEvent(result, { type: 'skewer', subtype: 'missed', piece, moveNum, san, plyIdx, bestMove: bestUci }, missedRef);
+      }
+      if (t.discovered && !t.fork && !t.skewer) {
+        result.discoveredMissed++;
+        recordTacticEvent(result, { type: 'discovered', subtype: 'missed', piece, moveNum, san, plyIdx, bestMove: bestUci }, missedRef);
+      }
     }
 
     // 수 판정·정확도: chess-wasm-fixed/lichess-judgment.js
@@ -2309,6 +2206,7 @@
         forkFound: emptyFork(), forkMissed: emptyFork(), oppForkCreated: emptyFork(),
         absPinFound: 0, absPinMissed: 0, relPinFound: 0, relPinMissed: 0,
         skewerFound: 0, skewerMissed: 0, discoveredFound: 0, discoveredMissed: 0,
+        trapFound: 0, trapMissed: 0, decoyFound: 0, decoyMissed: 0,
         tacticEvents: [], moveJudgments: []
       };
 
@@ -2332,8 +2230,8 @@
       // ── 게임 정확도 계산 (조화평균)
       result.myAccuracy = gameAccuracyFromEvals(evalRows, myColor);
 
-      const MAX_MISSED_EVENTS = 16;
-      let missedPushCount = 0;
+      const missedRef = { count: 0 };
+      const CT = typeof ChessTactics !== 'undefined' ? ChessTactics : null;
 
       for (let i = 1; i < states.length; i++) {
         const mover = states[i - 1].turn;
@@ -2369,86 +2267,52 @@
           result.myMoveCount++;
         }
 
-        if (san.includes('#') && isMe) result.checkmates++;
-
-        const prevBoard = states[i - 1].board;
         const stBefore = states[i - 1];
+        const stAfter = states[i];
 
-        // ── 놓친 전술 감지 (내 수가 최선수와 다를 때)
-        if (isMe && move && prevBoard && stBefore && bestUci && playedUci && bestUci !== playedUci) {
-          const bestMv = uciToMoveFromState(bestUci, stBefore);
-          if (bestMv) {
-            const bBest = applyMoveToBoard(prevBoard.map(r => [...r]), bestMv, mover);
-            const forkPlayed = isValidForkR(states[i].board, mover, move.to, prevBoard);
-            const forkBest   = isValidForkR(bBest, mover, bestMv.to, prevBoard);
-            if (forkBest && !forkPlayed) {
-              const ptB = prevBoard[bestMv.from[0]][bestMv.from[1]][1];
-              result.forkMissed[ptB]++;
-              if (missedPushCount++ < MAX_MISSED_EVENTS)
-                result.tacticEvents.push({ type: 'fork', subtype: 'missed', piece: ptB, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
-            }
-            const absPlayed = isAbsolutePin(states[i].board, move.to[0], move.to[1], mover);
-            const absBest   = isAbsolutePin(bBest, bestMv.to[0], bestMv.to[1], mover);
-            if (absBest && !absPlayed) {
-              result.absPinMissed++;
-              if (missedPushCount++ < MAX_MISSED_EVENTS)
-                result.tacticEvents.push({ type: 'absPin', subtype: 'missed', piece: prevBoard[bestMv.from[0]][bestMv.from[1]][1], moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
-            }
-            const relPlayed = isRelativePin(states[i].board, move.to[0], move.to[1], mover);
-            const relBest   = isRelativePin(bBest, bestMv.to[0], bestMv.to[1], mover);
-            if (relBest && !relPlayed) {
-              result.relPinMissed++;
-              if (missedPushCount++ < MAX_MISSED_EVENTS)
-                result.tacticEvents.push({ type: 'relPin', subtype: 'missed', piece: prevBoard[bestMv.from[0]][bestMv.from[1]][1], moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
-            }
-            const skewPlayed = isRaySkewerR(states[i].board, mover, move.to) && !forkPlayed;
-            const skewBest   = isRaySkewerR(bBest, mover, bestMv.to) && !forkBest;
-            if (skewBest && !skewPlayed) {
-              result.skewerMissed++;
-              if (missedPushCount++ < MAX_MISSED_EVENTS)
-                result.tacticEvents.push({ type: 'skewer', subtype: 'missed', piece: prevBoard[bestMv.from[0]][bestMv.from[1]][1], moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
-            }
-            const discBest = isDiscoveredCheckR(bBest, mover, bestMv) && !forkBest;
-            if (discBest && !(skewBest && !skewPlayed)) {
-              result.discoveredMissed++;
-              if (missedPushCount++ < MAX_MISSED_EVENTS)
-                result.tacticEvents.push({ type: 'discovered', subtype: 'missed', piece: prevBoard[bestMv.from[0]][bestMv.from[1]][1], moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: bestUci });
-            }
-          }
-        }
+        if (CT && move && stBefore && stAfter) {
+          const prevSnap = CT.snapshotFromState(stBefore);
+          const afterSnap = CT.snapshotFromState(stAfter);
+          const pt = stBefore.board[move.from[0]][move.from[1]]?.[1] || 'P';
+          const moveNum = Math.ceil(i / 2);
+          const plyIdx = i - 1;
 
-        // ── 찾은 전술 감지
-        if (move && prevBoard) {
-          if (isValidForkR(states[i].board, mover, move.to, prevBoard)) {
-            const pt = prevBoard[move.from[0]][move.from[1]][1];
-            if (isMe) {
-              result.forkFound[pt]++;
-              result.tacticEvents.push({ type: 'fork', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
-            } else {
-              result.oppForkCreated[pt]++;
-              result.tacticEvents.push({ type: 'oppFork', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
-            }
-          }
+          const playedT = CT.detectAfterMove(prevSnap, afterSnap, move, mover);
+
           if (isMe) {
-            const pt = prevBoard[move.from[0]][move.from[1]][1];
-            if (isAbsolutePin(states[i].board, move.to[0], move.to[1], mover)) {
-              result.absPinFound++;
-              result.tacticEvents.push({ type: 'absPin', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
-            }
-            if (isRelativePin(states[i].board, move.to[0], move.to[1], mover)) {
-              result.relPinFound++;
-              result.tacticEvents.push({ type: 'relPin', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
-            }
-            const forkHere = isValidForkR(states[i].board, mover, move.to, prevBoard);
-            if (!forkHere && isRaySkewerR(states[i].board, mover, move.to)) {
-              result.skewerFound++;
-              result.tacticEvents.push({ type: 'skewer', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
-            }
-            if (!forkHere && !isRaySkewerR(states[i].board, mover, move.to) && isDiscoveredCheckR(states[i].board, mover, move)) {
-              result.discoveredFound++;
-              result.tacticEvents.push({ type: 'discovered', subtype: 'found', piece: pt, moveNum: Math.ceil(i / 2), san, plyIdx: i - 1, bestMove: null });
+            applyFoundTactics(result, playedT, true, pt, moveNum, san, plyIdx);
+          } else if (playedT.fork) {
+            applyFoundTactics(result, playedT, false, pt, moveNum, san, plyIdx);
+          }
+
+          if (playedT.checkmate && isMe) result.checkmates++;
+
+          if (isMe && bestUci && playedUci && bestUci !== playedUci) {
+            const bestMv = uciToMoveFromState(bestUci, stBefore);
+            if (bestMv) {
+              const bestAfterSnap = CT.applyMoveSnapshot(prevSnap, bestMv);
+              const bestT = CT.detectAfterMove(prevSnap, bestAfterSnap, bestMv, mover);
+              const miss = {
+                fork: bestT.fork && !playedT.fork,
+                absPin: bestT.absPin && !playedT.absPin,
+                relPin: bestT.relPin && !playedT.relPin,
+                trap: bestT.trap && !playedT.trap,
+                decoy: bestT.decoy && !playedT.decoy,
+                skewer: bestT.skewer && !playedT.skewer && !playedT.fork,
+                discovered: bestT.discovered && !playedT.discovered && !playedT.fork && !playedT.skewer,
+              };
+              const ptB = stBefore.board[bestMv.from[0]][bestMv.from[1]]?.[1] || pt;
+              if (miss.fork) applyMissedTactics(result, { fork: true }, ptB, moveNum, san, plyIdx, bestUci, missedRef);
+              if (miss.absPin) applyMissedTactics(result, { absPin: true }, ptB, moveNum, san, plyIdx, bestUci, missedRef);
+              if (miss.relPin) applyMissedTactics(result, { relPin: true }, ptB, moveNum, san, plyIdx, bestUci, missedRef);
+              if (miss.trap) applyMissedTactics(result, { trap: true }, ptB, moveNum, san, plyIdx, bestUci, missedRef);
+              if (miss.decoy) applyMissedTactics(result, { decoy: true }, ptB, moveNum, san, plyIdx, bestUci, missedRef);
+              if (miss.skewer) applyMissedTactics(result, { skewer: true }, ptB, moveNum, san, plyIdx, bestUci, missedRef);
+              if (miss.discovered) applyMissedTactics(result, { discovered: true }, ptB, moveNum, san, plyIdx, bestUci, missedRef);
             }
           }
+        } else if (san.includes('#') && isMe) {
+          result.checkmates++;
         }
       }
 
@@ -2841,6 +2705,7 @@
       let sumOppBlunders = 0, sumOppMistakes = 0, sumOppInaccuracies = 0, sumOppBF = 0, sumOppBM = 0;
       let sumCheckmates = 0, sumAbsPinFound = 0, sumAbsPinMissed = 0, sumRelPinFound = 0, sumRelPinMissed = 0;
       let sumSkewerFound = 0, sumSkewerMissed = 0, sumDiscoveredFound = 0, sumDiscoveredMissed = 0;
+      let sumTrapFound = 0, sumTrapMissed = 0, sumDecoyFound = 0, sumDecoyMissed = 0;
       let sumForkFound = { P: 0, N: 0, B: 0, R: 0, Q: 0, K: 0 }, sumForkMissed = { P: 0, N: 0, B: 0, R: 0, Q: 0, K: 0 }, sumOppForkCreated = { P: 0, N: 0, B: 0, R: 0, Q: 0, K: 0 };
       let sumCp = 0, sumMoves = 0;
       const total = docs.length;
@@ -2912,6 +2777,8 @@
           sumRelPinFound += (a.relPinFound || 0); sumRelPinMissed += (a.relPinMissed || 0);
           sumSkewerFound += (a.skewerFound || 0); sumSkewerMissed += (a.skewerMissed || 0);
           sumDiscoveredFound += (a.discoveredFound || 0); sumDiscoveredMissed += (a.discoveredMissed || 0);
+          sumTrapFound += (a.trapFound || 0); sumTrapMissed += (a.trapMissed || 0);
+          sumDecoyFound += (a.decoyFound || 0); sumDecoyMissed += (a.decoyMissed || 0);
           sumCp += a.myCpSum; sumMoves += a.myMoveCount; totalMovesSum += a.totalMoves;
           for (const k of ['P', 'N', 'B', 'R', 'Q', 'K']) {
             sumForkFound[k] += (a.forkFound[k] || 0);
@@ -2936,6 +2803,8 @@
               relPinFound: a.relPinFound || 0, relPinMissed: a.relPinMissed || 0,
               skewerFound: a.skewerFound || 0, skewerMissed: a.skewerMissed || 0,
               discoveredFound: a.discoveredFound || 0, discoveredMissed: a.discoveredMissed || 0,
+              trapFound: a.trapFound || 0, trapMissed: a.trapMissed || 0,
+              decoyFound: a.decoyFound || 0, decoyMissed: a.decoyMissed || 0,
               myCpSum: a.myCpSum, myMoveCount: a.myMoveCount, totalMoves: a.totalMoves,
               myAccuracy: a.myAccuracy || 0,
               forkFound: a.forkFound, forkMissed: a.forkMissed, oppForkCreated: a.oppForkCreated || {},
@@ -2947,7 +2816,7 @@
               moveJudgments: a.moveJudgments || [],
               analyzedAt: firebase.firestore.FieldValue.serverTimestamp(),
               sfDepth: __RC.SF_DEPTH,
-              analysisVersion: 4  // 리체스 wc + CpAdvice 클라이언트 (PGN %judgment 불사용)
+              analysisVersion: 5  // chess-tactics.js 합법 수 기반 전술 감지
             };
             await _fbDb.collection('game_records').doc(doc.id).update({ tacticAnalysis: savePayload });
           } catch (saveErr) { console.warn('[stats] 저장 실패:', saveErr); }
@@ -2972,6 +2841,8 @@
         relPinFound: sumRelPinFound, relPinMissed: sumRelPinMissed,
         skewerFound: sumSkewerFound, skewerMissed: sumSkewerMissed,
         discoveredFound: sumDiscoveredFound, discoveredMissed: sumDiscoveredMissed,
+        trapFound: sumTrapFound, trapMissed: sumTrapMissed,
+        decoyFound: sumDecoyFound, decoyMissed: sumDecoyMissed,
         pinFound: sumAbsPinFound + sumRelPinFound,
         pinMissed: sumAbsPinMissed + sumRelPinMissed,
         avgCpLoss: sumMoves > 0 ? Math.round(sumCp / sumMoves) : 0,
@@ -2991,7 +2862,7 @@
       const titleEl = document.getElementById('tmodal-title');
       const bodyEl = document.getElementById('tmodal-body');
 
-      const typeLabel = { fork: '포크', oppFork: '상대 포크', absPin: '절대 핀', relPin: '상대 핀', pin: '핀', oppBlunder: '상대 블런더 포착', skewer: '스큐어', discovered: '디스커버 체크' }[tacticType] || tacticType;
+      const typeLabel = { fork: '포크', oppFork: '상대 포크', absPin: '절대 핀', relPin: '상대 핀', pin: '핀', oppBlunder: '상대 블런더 포착', skewer: '스큐어', discovered: '디스커버 어택', trap: '기물 트랩', decoy: '유인' }[tacticType] || tacticType;
       const subtypeLabel = subtypeFilter === 'found' ? '찾음' : subtypeFilter === 'missed' ? '놓침' : '';
       titleEl.innerHTML = `<span>${icon}</span> ${name} — ${typeLabel}${subtypeLabel ? ' (' + subtypeLabel + ')' : ''} 게임 목록`;
 
@@ -3255,7 +3126,9 @@
       })();
       const skewDiscHtml = [
         fvmRow('↗', '스큐어 (직선)', '', s.skewerFound || 0, s.skewerMissed || 0, 'skewer', ''),
-        fvmRow('◎', '디스커버 체크', '', s.discoveredFound || 0, s.discoveredMissed || 0, 'discovered', '')
+        fvmRow('◎', '디스커버 어택', '', s.discoveredFound || 0, s.discoveredMissed || 0, 'discovered', ''),
+        fvmRow('🪤', '기물 트랩', '', s.trapFound || 0, s.trapMissed || 0, 'trap', ''),
+        fvmRow('🧲', '유인', '', s.decoyFound || 0, s.decoyMissed || 0, 'decoy', ''),
       ].join('');
       const obHtml = fvmRow('🎯', '상대 실수', '', s.oppBlunderFound, s.oppBlunderMissed, 'oppBlunder', '');
       const cpColor = s.avgCpLoss < 30 ? 'var(--accent-green-bright)' : s.avgCpLoss < 75 ? '#e0b040' : '#e07070';
@@ -3360,9 +3233,9 @@
     <div class="fvm-section">${pinHtml || '<div class="stats-note" style="padding:12px 0">핀 데이터 없음</div>'}</div>
     <div class="stats-note">※ 상대 기물이 움직이면 상대 킹 노출되는 절대 핀. Stockfish 베스트가 핀이었는데 안 뒀으면 "놓침". <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록을 확인할 수 있습니다</span></div>
 
-    <div class="stats-section-title">🔭 스큐어 · 디스커버 체크</div>
-    <div class="fvm-section">${skewDiscHtml || '<div class="stats-note" style="padding:12px 0">스큐어·디스커버 체크 데이터 없음</div>'}</div>
-    <div class="stats-note">※ 스큐어: 비숍·룩·퀸이 약한 적 기물 앞에 더 값비싼 적 기물이 있는 직선 패턴입니다. 디스커버 체크: 기물을 도착 칸에서 제거해도 상대에게 체크가 남는 경우입니다. 포크와 겹치면 포크만 집계합니다. <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록</span></div>
+    <div class="stats-section-title">🔭 스큐어 · 디스커버 · 트랩 · 유인</div>
+    <div class="fvm-section">${skewDiscHtml || '<div class="stats-note" style="padding:12px 0">전술 데이터 없음</div>'}</div>
+    <div class="stats-note">※ 합법 수 기반 판별. 트랩: 공격받은 기물이 빠져도 계속 잡히는 상황. 유인: 방어 기물을 끌어내 다른 위협을 여는 수. 포크와 겹치면 포크만 집계합니다. <span style="color:var(--accent-green-bright)">· 클릭하면 게임 목록</span></div>
 
     ${renderOpeningStats(s.openingStats || [])}
 
