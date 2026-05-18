@@ -2065,7 +2065,7 @@ function setupCoachKeyboard() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// 페이지 부트는 ui.js 의 bootstrapUi() 가 담당 (중복 init 호출 방지)
 
 function toggleMobilePanel(forceClose) {
   const panel     = document.getElementById('right-panel');

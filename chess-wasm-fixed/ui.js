@@ -5,9 +5,27 @@ function init() {
   game = new ChessGame();
   game.loadFromUrl();
   setupKeyboard();
-  initEngine();
+  if (typeof initEngine === 'function') {
+    initEngine().catch(function (e) {
+      console.error('[init] Stockfish 초기화 실패:', e);
+      if (typeof showToast === 'function') showToast('Stockfish 엔진 초기화에 실패했습니다.');
+    });
+  } else {
+    console.error('[init] engine.js가 로드되지 않았습니다 (initEngine 없음).');
+    if (typeof showToast === 'function') showToast('엔진 스크립트를 불러오지 못했습니다. 페이지를 새로고침해 주세요.');
+  }
   loadApiKey();
   setupCoachKeyboard();
+}
+
+function bootstrapUi() {
+  init();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrapUi);
+} else {
+  bootstrapUi();
 }
 
 function switchTab(tab) {

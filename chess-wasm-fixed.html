@@ -2867,6 +2867,15 @@
   <script src="auth-check.js"></script>
   <link rel="stylesheet" href="theme-ui.css">
   <script src="theme-global.js"></script>
+  <!-- 핵심 모듈: 인라인 스크립트(오프닝·오버레이)보다 먼저 로드 -->
+  <script src="chess-wasm-fixed/chess.js"></script>
+  <script src="chess-wasm-fixed/engine.js"></script>
+  <script src="chess-wasm-fixed/parse-pgn-states.js"></script>
+  <script src="chess-wasm-fixed/lichess-judgment.js"></script>
+  <script src="chess-wasm-fixed/game.js"></script>
+  <script src="chess-wasm-fixed/coach.js"></script>
+  <script src="chess-wasm-fixed/ui.js"></script>
+  <script src="chess-wasm-fixed/endgame-practice.js"></script>
 </head>
 
 <body>
@@ -4337,14 +4346,6 @@
     });
   </script>
 
-  <!-- ===== JS 모듈 분리 ===== -->
-  <script src="chess-wasm-fixed/chess.js"></script>
-  <script src="chess-wasm-fixed/engine.js"></script>
-  <script src="chess-wasm-fixed/game.js"></script>
-  <script src="chess-wasm-fixed/ui.js"></script>
-  <script src="chess-wasm-fixed/endgame-practice.js"></script>
-  <script src="chess-wasm-fixed/coach.js"></script>
-
   <script>
     // ── coach.js의 openCoach / closeCoach를 패치해 #main.coach-open도 같이 토글 ──
     (function patchCoach() {
@@ -4991,108 +4992,9 @@
       });
     })();
   </script>
-  <!-- ===== Stockfish 수 평가 (로컬 분석) ===== -->
+  <!-- ===== Stockfish 수 평가 (records.html 과 동일 파이프라인) ===== -->
   <script>
-    // ────────────────────────────────────────────────────────────────
-    // records.html 동일 방식: 리체스 scalachess / lila 공식 그대로 이식
-    // lichessWinningChancesWhitePov → lichessCpAdviceJudgment → annotation
-    // ────────────────────────────────────────────────────────────────
-
-    const SF_ANA_DEPTH = 18;
-
-    // ── 리체스 공식 상수 (records.html 과 동일) ──────────────────────
-    const _LICHESS_WC_MULT = -0.00368208;
-    const _LICHESS_CP_CEIL = 1000;
-
-    /** cp(백 기준) → ±1000 클램프 (메이트 ±9900 → ±1000) */
-    function _lichessCeiledWhiteCp(cp) {
-      let v = Number(cp) || 0;
-      if (Math.abs(v) >= 9000) v = Math.sign(v) * _LICHESS_CP_CEIL;
-      return Math.max(-_LICHESS_CP_CEIL, Math.min(_LICHESS_CP_CEIL, v));
-    }
-
-    /** cp(백 기준) → winning chances [-1, 1] */
-    function _lichessWinningChancesWhitePov(cpWhite) {
-      const x = _lichessCeiledWhiteCp(cpWhite);
-      const raw = 2 / (1 + Math.exp(_LICHESS_WC_MULT * x)) - 1;
-      return Math.max(-1, Math.min(1, raw));
-    }
-
-    /** cp(백 기준) → Win% [0, 100] */
-    function _lichessWinPercentFromWhitePov(cpWhite) {
-      return 50 + 50 * _lichessWinningChancesWhitePov(cpWhite);
-    }
-
-    /** 둔 쪽 관점 Win% */
-    function _lichessWinPercentForMover(cpWhite, mover) {
-      const w = _lichessWinPercentFromWhitePov(cpWhite);
-      return mover === 'w' ? w : (100 - w);
-    }
-
-    /**
-     * 리체스 lila.tree.CpAdvice 와 동일한 수 판정.
-     * 임계값: winningChances Δ 기준 0.1/0.2/0.3
-     * 반환: 'inaccuracy' | 'mistake' | 'blunder' | null
-     */
-    function _lichessCpAdviceJudgment(cpBeforeWhite, cpAfterWhite, mover) {
-      const wcPrev = _lichessWinningChancesWhitePov(cpBeforeWhite);
-      const wcCur  = _lichessWinningChancesWhitePov(cpAfterWhite);
-      const dRaw   = wcCur - wcPrev;
-      const delta  = mover === 'w' ? -dRaw : dRaw;
-      const tiers  = [[0.3, 'blunder'], [0.2, 'mistake'], [0.1, 'inaccuracy']];
-      for (let ti = 0; ti < tiers.length; ti++) {
-        if (tiers[ti][0] <= delta) return tiers[ti][1];
-      }
-      return null;
-    }
-
-    /**
-     * 한 수의 Accuracy% (리체스 AccuracyPercent.fromWinPercents, 둔 쪽 기준 Win%).
-     * records.html 의 lichessMoveAccuracyPercent 와 동일.
-     */
-    function _lichessMoveAccuracyPercent(wpBefore, wpAfter) {
-      if (wpAfter >= wpBefore) return 100;
-      const winDiff = wpBefore - wpAfter;
-      const raw = 103.1668100711649 * Math.exp(-0.04354415386753951 * winDiff) + -3.166924740191411;
-      return Math.max(0, Math.min(100, raw + 1));
-    }
-
-    /**
-     * 게임 정확도: 내 수만 조화평균.
-     * evalRows: [{cpw}, …] (fens[0] 포함, fens 배열과 같은 길이)
-     * movers: evalRows[i] 를 두기 전 차례 플레이어 배열 (game.history[i].turn 기반)
-     */
-    function _gameAccuracyFromEvals(evalRows, myColor, movers) {
-      let sumReciprocal = 0, count = 0;
-      for (let i = 0; i < (evalRows.length - 1); i++) {
-        const mover = movers ? movers[i] : (i % 2 === 0 ? 'w' : 'b');
-        const isMe = mover === myColor;
-        if (!isMe) continue;
-        const cpB = evalRows[i].cpw, cpA = evalRows[i + 1].cpw;
-        const wpB = _lichessWinPercentForMover(cpB, mover);
-        const wpA = _lichessWinPercentForMover(cpA, mover);
-        const acc = _lichessMoveAccuracyPercent(wpB, wpA);
-        if (acc > 0) { sumReciprocal += 1 / acc; count++; }
-      }
-      return count === 0 ? 0 : Math.round(count / sumReciprocal);
-    }
-
-    /**
-     * game.history 에서 FEN 배열 추출.
-     * fens[0] = 초기국면, fens[i+1] = i번째 수 이후 국면.
-     */
-    function getFenArrayFromHistory() {
-      if (!game || !game.history || !game.history.length) return [];
-      const fens = [];
-      const firstFen = game.history[0] && game.history[0].fenBefore
-        ? game.history[0].fenBefore
-        : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-      fens.push(firstFen);
-      for (const h of game.history) {
-        if (h.fenAfter) fens.push(h.fenAfter);
-      }
-      return fens;
-    }
+    const SF_ANA_DEPTH = typeof LICHESS_SF_DEPTH !== 'undefined' ? LICHESS_SF_DEPTH : 18;
 
     let _sfAnalysisBusy = false;
 
@@ -5102,8 +5004,8 @@
         if (typeof showToast === 'function') showToast('수가 너무 짧습니다 (최소 2수 이상).');
         return;
       }
-      if (typeof createStockfishWorker !== 'function' || typeof analyzeWithWorker !== 'function') {
-        if (typeof showToast === 'function') showToast('Stockfish 엔진을 사용할 수 없습니다.');
+      if (typeof stockfishEvalStates !== 'function' || typeof parsePgnToStates !== 'function') {
+        if (typeof showToast === 'function') showToast('분석 모듈을 불러올 수 없습니다.');
         return;
       }
 
@@ -5124,78 +5026,44 @@
       if (resultEl) resultEl.style.display = 'none';
       if (depthBadge) depthBadge.textContent = '';
 
-      const fens = getFenArrayFromHistory();
-      const total = fens.length;
+      const pgn = typeof game.generatePgn === 'function' ? game.generatePgn() : '';
+      const states = parsePgnToStates(pgn);
+      if (states.length < 2) {
+        setStatus('<span style="color:#e07070">❌ 기보를 해석할 수 없습니다.</span>');
+        _sfAnalysisBusy = false;
+        if (btn) btn.disabled = false;
+        return;
+      }
+      const total = states.length;
 
       setStatus(`<span style="color:var(--text-secondary)">⏳ Stockfish 분석 중… (0 / ${total})</span>`);
 
-      let workerRaw = null;
-      try {
-        workerRaw = await createStockfishWorker(1, 64);
-      } catch (e) {
-        setStatus(`<span style="color:#e07070">❌ Stockfish Worker 초기화 실패: ${e.message}</span>`);
+      const { evalRows, error } = await stockfishEvalStates(states, {
+        depth: SF_ANA_DEPTH,
+        onProgress: (cur, tot) => {
+          setStatus(
+            `<span style="color:var(--text-secondary)">⏳ 분석 중… (${cur} / ${tot})</span>` +
+            `<div style="margin-top:6px;height:4px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden;">` +
+            `<div style="height:100%;width:${Math.round((cur - 1) / tot * 100)}%;background:var(--accent-green-bright);border-radius:2px;transition:width .3s;"></div></div>`
+          );
+        },
+      });
+
+      if (error) {
+        setStatus(`<span style="color:#e07070">❌ Stockfish Worker 초기화 실패: ${error.message}</span>`);
         _sfAnalysisBusy = false;
         if (btn) btn.disabled = false;
         return;
       }
 
-      const workerObj = { worker: workerRaw, busy: false };
-      const evalRows = [];
+      const myAccuracy = gameAccuracyFromEvals(evalRows, myColor);
+      const j = summarizeMoveJudgments(evalRows, states, myColor);
+      const myBlunders = j.myBlunders, myMistakes = j.myMistakes, myInaccuracies = j.myInaccuracies;
+      const oppBlunders = j.oppBlunders, oppMistakes = j.oppMistakes, oppInaccuracies = j.oppInaccuracies;
 
-      try {
-        for (let si = 0; si < fens.length; si++) {
-          setStatus(
-            `<span style="color:var(--text-secondary)">⏳ 분석 중… (${si + 1} / ${total})</span>` +
-            `<div style="margin-top:6px;height:4px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden;">` +
-            `<div style="height:100%;width:${Math.round(si / total * 100)}%;background:var(--accent-green-bright);border-radius:2px;transition:width .3s;"></div></div>`
-          );
-          const fen = fens[si];
-          let cpw = 0;
-          if (fen) {
-            try {
-              const aw = await analyzeWithWorker(workerObj, fen, SF_ANA_DEPTH, 900, 1);
-              if (aw && aw.pvs && aw.pvs[1]) {
-                if (aw.pvs[1].cpFromWhite != null) cpw = aw.pvs[1].cpFromWhite;
-              }
-            } catch (e) { /* 개별 실패 무시 */ }
-          }
-          evalRows.push({ cpw });
-        }
-      } finally {
-        try { workerRaw.terminate(); } catch (e) { /* ignore */ }
-      }
-
-      // ── 게임 정확도 (records.html 의 gameAccuracyFromEvals 와 동일 방식) ──
-      // movers[i] = evalRows[i]→[i+1] 구간을 둔 플레이어 = game.history[i].turn
-      const movers = game.history.map(h => h.turn);
-      const myAccuracy = _gameAccuracyFromEvals(evalRows, myColor, movers);
-
-      // ── 수별 분류 및 annotation 적용 ──
-      let myBlunders = 0, myMistakes = 0, myInaccuracies = 0;
-      let oppBlunders = 0, oppMistakes = 0, oppInaccuracies = 0;
-
-      for (let i = 0; i < game.history.length; i++) {
-        if (i + 1 >= evalRows.length) break;
-        const mover = movers[i]; // game.history[i].turn — records.html 의 states[i-1].turn 과 동일
-        const isMe = mover === myColor;
-
-        const cpB = evalRows[i].cpw;
-        const cpA = evalRows[i + 1].cpw;
-
-        // records.html 의 lichessCpAdviceJudgment 와 동일
-        const cls = _lichessCpAdviceJudgment(cpB, cpA, mover);
-
-        // annotation 적용 (blunder/mistake/inaccuracy 만)
-        game.history[i].annotation = cls || null;
-
-        if (isMe) {
-          if (cls === 'blunder') myBlunders++;
-          else if (cls === 'mistake') myMistakes++;
-          else if (cls === 'inaccuracy') myInaccuracies++;
-        } else {
-          if (cls === 'blunder') oppBlunders++;
-          else if (cls === 'mistake') oppMistakes++;
-          else if (cls === 'inaccuracy') oppInaccuracies++;
+      for (const row of j.byPly) {
+        if (game.history[row.plyIndex]) {
+          game.history[row.plyIndex].annotation = row.cls || null;
         }
       }
 

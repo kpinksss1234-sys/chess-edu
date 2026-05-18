@@ -1873,11 +1873,13 @@
 
   <script src="chess-wasm-fixed/chess.js"></script>
   <script src="chess-wasm-fixed/engine.js"></script>
+  <script src="chess-wasm-fixed/parse-pgn-states.js"></script>
+  <script src="chess-wasm-fixed/lichess-judgment.js"></script>
   <script>
     // ════════════════════════════════════════
     // 핵심 설정 및 상수 (chess-analyzer.js 로직 이식)
     // ════════════════════════════════════════
-    const SF_DEPTH = 18;
+    const SF_DEPTH = typeof LICHESS_SF_DEPTH !== 'undefined' ? LICHESS_SF_DEPTH : 18;
     const SF_MULTIPV = 3;
 
     const FORK_CP_GAIN = 80;
@@ -1890,82 +1892,7 @@
     const PIN_MIN_PINNED_VALUE = 320;
     const RELATIVE_PIN_SHIELD_MIN = 330;
 
-    // ── 리체스와 동일한 수 판정 (클라이언트 전용, PGN %judgment·API 불필요) ──
-    // winningChances / WinPercent: scalachess core/src/main/scala/eval.scala
-    // CpAdvice 임계값: lila modules/tree/src/main/Advice.scala (0.1 / 0.2 / 0.3 on wc)
-    // 수별 Accuracy%: lila modules/analyse/src/main/AccuracyPercent.scala (raw + 1)
-
-    const LICHESS_WC_MULT = -0.00368208;
-    const LICHESS_CP_CEIL = 1000;
-
-    /** 엔진 cp(백 기준 white POV) → ±1000 클램프 (메이트 ±9900 → ±1000, scalachess ceiled와 동일 취지) */
-    function lichessCeiledWhiteCp(cp) {
-      let v = Number(cp) || 0;
-      if (Math.abs(v) >= 9000) v = Math.sign(v) * LICHESS_CP_CEIL;
-      return Math.max(-LICHESS_CP_CEIL, Math.min(LICHESS_CP_CEIL, v));
-    }
-
-    /** 엔진 cp(white POV) → winning chances [-1, 1] */
-    function lichessWinningChancesWhitePov(cpWhite) {
-      const x = lichessCeiledWhiteCp(cpWhite);
-      const raw = 2 / (1 + Math.exp(LICHESS_WC_MULT * x)) - 1;
-      return Math.max(-1, Math.min(1, raw));
-    }
-
-    /** 엔진 cp(white POV) → Win% [0, 100] (= 50 + 50 * wc) */
-    function lichessWinPercentFromWhitePov(cpWhite) {
-      return 50 + 50 * lichessWinningChancesWhitePov(cpWhite);
-    }
-
-    /** 말을 둔 쪽 관점 Win% (수 직전·직후 FEN의 cpFromWhite로 계산) */
-    function lichessWinPercentForMover(cpWhite, mover) {
-      const w = lichessWinPercentFromWhitePov(cpWhite);
-      return mover === 'w' ? w : (100 - w);
-    }
-
-    /**
-     * lila.tree.CpAdvice와 동일: cpBefore/cpAfter = 백 기준 센티폰, mover = 방금 둔 색.
-     * @returns {'inaccuracy'|'mistake'|'blunder'|null}
-     */
-    function lichessCpAdviceJudgment(cpBeforeWhite, cpAfterWhite, mover) {
-      const wcPrev = lichessWinningChancesWhitePov(cpBeforeWhite);
-      const wcCur = lichessWinningChancesWhitePov(cpAfterWhite);
-      const dRaw = wcCur - wcPrev;
-      const delta = mover === 'w' ? -dRaw : dRaw;
-      const tiers = [[0.3, 'blunder'], [0.2, 'mistake'], [0.1, 'inaccuracy']];
-      for (let ti = 0; ti < tiers.length; ti++) {
-        if (tiers[ti][0] <= delta) return tiers[ti][1];
-      }
-      return null;
-    }
-
-    /** 한 수의 Accuracy% (리체스 AccuracyPercent.fromWinPercents, Win%는 말을 둔 쪽 기준) */
-    function lichessMoveAccuracyPercent(wpBefore, wpAfter) {
-      if (wpAfter >= wpBefore) return 100;
-      const winDiff = wpBefore - wpAfter;
-      const raw = 103.1668100711649 * Math.exp(-0.04354415386753951 * winDiff) + -3.166924740191411;
-      return Math.max(0, Math.min(100, raw + 1));
-    }
-
-    /**
-     * 게임 정확도: 내 수만 조화평균 (리체스는 추가로 창·가중이 있으나, 수식은 동일 계열).
-     * evalRows: [{cpw}, …]
-     */
-    function gameAccuracyFromEvals(evalRows, myColor) {
-      let sumReciprocal = 0, count = 0;
-      for (let ply = 1; ply < evalRows.length; ply++) {
-        const isWhiteMove = ply % 2 === 1;
-        const mover = isWhiteMove ? 'w' : 'b';
-        const isMe = (isWhiteMove && myColor === 'w') || (!isWhiteMove && myColor === 'b');
-        if (!isMe) continue;
-        const cpB = evalRows[ply - 1].cpw, cpA = evalRows[ply].cpw;
-        const wpB = lichessWinPercentForMover(cpB, mover);
-        const wpA = lichessWinPercentForMover(cpA, mover);
-        const acc = lichessMoveAccuracyPercent(wpB, wpA);
-        if (acc > 0) { sumReciprocal += 1 / acc; count++; }
-      }
-      return count === 0 ? 0 : Math.round(count / sumReciprocal);
-    }
+    // 수 판정·정확도: chess-wasm-fixed/lichess-judgment.js (lichessCpAdviceJudgment 등)
 
     /**
      * 내 색 (w|b). Firestore myColor 우선, 없으면 PGN [White]/[Black]과 playerName·로그인 표시명 매칭.
@@ -2156,31 +2083,11 @@
       return isInCheck(b2, opp);
     }
 
-    // (수 판정: lichessCpAdviceJudgment / 게임 정확도: gameAccuracyFromEvals — 위에 정의됨)
+    // 수 판정·정확도: chess-wasm-fixed/lichess-judgment.js
 
         // ── 보드 및 PGN 유틸리티 (chess-engine.js 기능 이식 및 현대화) ──────────────
 
-    function parseFen(fen) {
-      const parts = fen.split(' '), rows = parts[0].split('/'), board = [];
-      const pm = { 'P': 'wP', 'N': 'wN', 'B': 'wB', 'R': 'wR', 'Q': 'wQ', 'K': 'wK', 'p': 'bP', 'n': 'bN', 'b': 'bB', 'r': 'bR', 'q': 'bQ', 'k': 'bK' };
-      for (const row of rows) {
-        const r = [];
-        for (const ch of row) {
-          if ('12345678'.includes(ch)) for (let i = 0; i < +ch; i++) r.push(null);
-          else r.push(pm[ch] || null);
-        }
-        board.push(r);
-      }
-      const turn = parts[1] || 'w', cast = parts[2] || '-';
-      const castling = { wK: cast.includes('K'), wQ: cast.includes('Q'), bK: cast.includes('k'), bQ: cast.includes('q') };
-      let ep = null;
-      if (parts[3] && parts[3] !== '-') {
-        const col = 'abcdefgh'.indexOf(parts[3][0]);
-        const row = 8 - parseInt(parts[3][1]);
-        if (col >= 0) ep = [row, col];
-      }
-      return { board, turn, castling, enPassant: ep };
-    }
+    // parseFen, parsePgnToStates → chess-wasm-fixed/parse-pgn-states.js
 
     function moveToUci(move) {
       if (!move) return null;
@@ -2216,48 +2123,6 @@
         m.from[0] === from[0] && m.from[1] === from[1] &&
         m.to[0] === to[0] && m.to[1] === to[1]
       ) || null;
-    }
-
-    function parsePgnToStates(pgn) {
-      const body = pgn.replace(/\[[^\]]*\]/g, '').trim();
-      const tokens = body.replace(/\d+\./g, '').replace(/1-0|0-1|1\/2-1\/2|\*/g, '').trim().split(/\s+/).filter(Boolean);
-      const INIT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-      let { board, turn, castling, enPassant } = parseFen(INIT_FEN);
-      let hm = 0, fm = 1;
-      const states = [{ board: board.map(r => [...r]), turn, castling: { ...castling }, enPassant, move: null, san: null, fen: INIT_FEN }];
-
-      for (const san of tokens) {
-        const allLegal = getAllLegalMoves(board, turn, castling, enPassant);
-        const move = sanToMove(san, board, turn, allLegal);
-        if (!move) { console.warn('수 파싱 실패:', san); break; }
-
-        const isCapture = !!(board[move.to[0]][move.to[1]] || move.enPassant);
-        const isPawn = board[move.from[0]][move.from[1]]?.[1] === 'P';
-
-        // 이동 적용 전 캡처 정보 저장 (for isSacrifice)
-        const captured = board[move.to[0]][move.to[1]] ? board[move.to[0]][move.to[1]] : (move.enPassant ? (turn === 'w' ? 'bP' : 'wP') : null);
-
-        board = applyMoveToBoard(board.map(r => [...r]), move, turn);
-
-        // 캐슬링 권리 업데이트
-        if (board[move.to[0]][move.to[1]] === turn + 'K') {
-          if (turn === 'w') { castling.wK = false; castling.wQ = false; }
-          else { castling.bK = false; castling.bQ = false; }
-        }
-        if (move.from[0] === 7 && move.from[1] === 7) castling.wK = false;
-        if (move.from[0] === 7 && move.from[1] === 0) castling.wQ = false;
-        if (move.from[0] === 0 && move.from[1] === 7) castling.bK = false;
-        if (move.from[0] === 0 && move.from[1] === 0) castling.bQ = false;
-
-        enPassant = move.doublePush ? [move.to[0] - (turn === 'w' ? -1 : 1), move.to[1]] : null;
-        hm = (isCapture || isPawn) ? 0 : hm + 1;
-        if (turn === 'b') fm++;
-        const nextTurn = turn === 'w' ? 'b' : 'w';
-        const fen = boardToFen(board, nextTurn, castling, enPassant, hm, fm);
-        states.push({ board: board.map(r => [...r]), turn: nextTurn, castling: { ...castling }, enPassant, move, san, fen, captured });
-        turn = nextTurn;
-      }
-      return states;
     }
 
     // ════════════════════════════════════════
@@ -2447,47 +2312,21 @@
         tacticEvents: [], moveJudgments: []
       };
 
-      if (typeof createStockfishWorker !== 'function' || typeof analyzeWithWorker !== 'function') {
-        console.warn('[analyzeGame] engine.js API 없음');
+      if (typeof stockfishEvalStates !== 'function') {
+        console.warn('[analyzeGame] lichess-judgment.js API 없음');
         return result;
       }
       if (states.length < 2) return result;
 
-      let workerRaw = null;
-      try {
-        workerRaw = await createStockfishWorker(1, 64);
-      } catch (e) {
-        console.warn('[analyzeGame] Stockfish Worker 실패:', e);
+      const { evalRows, error } = await stockfishEvalStates(states, {
+        depth: SF_DEPTH,
+        movetime: typeof LICHESS_SF_MOVETIME !== 'undefined' ? LICHESS_SF_MOVETIME : 900,
+        multipv: typeof LICHESS_SF_MULTIPV !== 'undefined' ? LICHESS_SF_MULTIPV : 1,
+        onProgress: (cur, tot) => report(cur, tot),
+      });
+      if (error) {
+        console.warn('[analyzeGame] Stockfish Worker 실패:', error);
         return result;
-      }
-
-      const workerObj = { worker: workerRaw, busy: false };
-      const movetime = 900;
-      const multipv = 1; // 수 분류는 루트 PV 평가만 사용 (CpAdvice와 동일 구조)
-      const evalRows = [];
-
-      try {
-        for (let si = 0; si < states.length; si++) {
-          const fen = states[si].fen;
-          let cpw = 0;
-          let bestUci = null;
-          if (fen) {
-            const aw = await analyzeWithWorker(workerObj, fen, SF_DEPTH, movetime, multipv);
-            if (aw && aw.pvs && aw.pvs[1]) {
-              if (aw.pvs[1].cpFromWhite != null) cpw = aw.pvs[1].cpFromWhite;
-              const pvArr = aw.pvs[1].pv;
-              if (pvArr && pvArr.length && typeof pvArr[0] === 'string') {
-                const head = pvArr[0].trim().split(/\s+/)[0];
-                const um = head.match(/^([a-h][1-8][a-h][1-8][qrbn]?)/i);
-                if (um) bestUci = um[1].toLowerCase();
-              }
-            }
-          }
-          evalRows.push({ cpw, bestUci });
-          report(si + 1, states.length);
-        }
-      } finally {
-        try { workerRaw.terminate(); } catch (e) { /* ignore */ }
       }
 
       // ── 게임 정확도 계산 (조화평균)
